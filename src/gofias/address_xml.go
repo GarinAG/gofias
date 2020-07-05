@@ -1,4 +1,4 @@
-package gofias
+package main
 
 import (
 	"context"
@@ -15,61 +15,61 @@ import (
 )
 
 type AddressItem struct {
-    AoId  string   `xml:"AOID,attr"`
-    AoGuid  string   `xml:"AOGUID,attr"`
-    ParentGuid  string   `xml:"PARENTGUID,attr"`
-    FormalName  string   `xml:"FORMALNAME,attr"`
-    OffName  string   `xml:"OFFNAME,attr"`
-    ShortName  string   `xml:"SHORTNAME,attr"`
-    AoLevel  string   `xml:"AOLEVEL,attr"`
-    AreaCode  string   `xml:"AREACODE,attr"`
-    CityCode  string   `xml:"CITYCODE,attr"`
-    PlaceCode  string   `xml:"PLACECODE,attr"`
-    AutoCode  string   `xml:"AUTOCODE,attr"`
-    PlanCode  string   `xml:"PLANCODE,attr"`
-    StreetCode  string   `xml:"STREETCODE,attr"`
-    CTarCode  string   `xml:"CTARCODE,attr"`
-    ExtrCode  string   `xml:"EXTRCODE,attr"`
-    SextCode  string   `xml:"SEXTCODE,attr"`
-    Code  string   `xml:"CODE,attr"`
-    RegionCode  string   `xml:"REGIONCODE,attr"`
-    PlainCode  string   `xml:"PLAINCODE,attr"`
-    PostalCode  string   `xml:"POSTALCODE,attr"`
-    Okato  string   `xml:"OKATO,attr"`
-    Oktmo  string   `xml:"OKTMO,attr"`
-    IfNsFl  string   `xml:"IFNSFL,attr"`
-    IfNsUl  string   `xml:"IFNSUL,attr"`
-    TerrIfNsFl  string   `xml:"TERRIFNSFL,attr"`
-    TerrIfNsUl  string   `xml:"TERRIFNSUL,attr"`
-    NormDoc  string   `xml:"NORMDOC,attr"`
-    ActStatus  string   `xml:"ACTSTATUS,attr"`
-    LiveStatus  string   `xml:"LIVESTATUS,attr"`
-    CurrStatus  string   `xml:"CURRSTATUS,attr"`
-    OperStatus  string   `xml:"OPERSTATUS,attr"`
-    StartDate  string   `xml:"STARTDATE,attr"`
-    EndDate  string   `xml:"ENDDATE,attr"`
-    UpdateDate  string   `xml:"UPDATEDATE,attr"`
+	AoId       string `xml:"AOID,attr"`
+	AoGuid     string `xml:"AOGUID,attr"`
+	ParentGuid string `xml:"PARENTGUID,attr"`
+	FormalName string `xml:"FORMALNAME,attr"`
+	OffName    string `xml:"OFFNAME,attr"`
+	ShortName  string `xml:"SHORTNAME,attr"`
+	AoLevel    string `xml:"AOLEVEL,attr"`
+	AreaCode   string `xml:"AREACODE,attr"`
+	CityCode   string `xml:"CITYCODE,attr"`
+	PlaceCode  string `xml:"PLACECODE,attr"`
+	AutoCode   string `xml:"AUTOCODE,attr"`
+	PlanCode   string `xml:"PLANCODE,attr"`
+	StreetCode string `xml:"STREETCODE,attr"`
+	CTarCode   string `xml:"CTARCODE,attr"`
+	ExtrCode   string `xml:"EXTRCODE,attr"`
+	SextCode   string `xml:"SEXTCODE,attr"`
+	Code       string `xml:"CODE,attr"`
+	RegionCode string `xml:"REGIONCODE,attr"`
+	PlainCode  string `xml:"PLAINCODE,attr"`
+	PostalCode string `xml:"POSTALCODE,attr"`
+	Okato      string `xml:"OKATO,attr"`
+	Oktmo      string `xml:"OKTMO,attr"`
+	IfNsFl     string `xml:"IFNSFL,attr"`
+	IfNsUl     string `xml:"IFNSUL,attr"`
+	TerrIfNsFl string `xml:"TERRIFNSFL,attr"`
+	TerrIfNsUl string `xml:"TERRIFNSUL,attr"`
+	NormDoc    string `xml:"NORMDOC,attr"`
+	ActStatus  string `xml:"ACTSTATUS,attr"`
+	LiveStatus string `xml:"LIVESTATUS,attr"`
+	CurrStatus string `xml:"CURRSTATUS,attr"`
+	OperStatus string `xml:"OPERSTATUS,attr"`
+	StartDate  string `xml:"STARTDATE,attr"`
+	EndDate    string `xml:"ENDDATE,attr"`
+	UpdateDate string `xml:"UPDATEDATE,attr"`
 }
 
 func importAddress(filePath string) uint64 {
 	log.Printf("Start import file: %s", filePath)
-    xmlStream, err := os.Open(filePath)
-    if err != nil {
-        log.Printf("Failed to open XML file: %s", filePath)
+	xmlStream, err := os.Open(filePath)
+	if err != nil {
+		log.Printf("Failed to open XML file: %s", filePath)
 		return 0
-    }
-    defer xmlStream.Close()
+	}
+	defer xmlStream.Close()
 
-    // Setup a group of goroutines from the excellent errgroup package
-    g, ctx := errgroup.WithContext(context.TODO())
-    docsc := make(chan AddressItemElastic)
-    begin := time.Now()
-    decoder := xml.NewDecoder(xmlStream)
+	// Setup a group of goroutines from the excellent errgroup package
+	g, ctx := errgroup.WithContext(context.TODO())
+	docsc := make(chan AddressItemElastic)
+	begin := time.Now()
+	decoder := xml.NewDecoder(xmlStream)
 	var elasticItem AddressItemElastic
 
-    // Goroutine to create documents
-    g.Go(func() error {
-        defer close(docsc)
+	// Goroutine to create documents
+	g.Go(func() error {
+		defer close(docsc)
 		for {
 			// Read tokens from the XML document in a stream.
 			t, err := decoder.Token()
@@ -111,8 +111,8 @@ func importAddress(filePath string) uint64 {
 			}
 		}
 
-        return nil
-    })
+		return nil
+	})
 
 	var total uint64
 	g.Go(func() error {

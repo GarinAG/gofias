@@ -1,4 +1,4 @@
-package gofias
+package main
 
 import (
 	"time"
@@ -282,52 +282,52 @@ const (
 )
 
 type AddressItemElastic struct {
-	ID string `json:"_id"`
-	AoGuid string `json:"ao_guid"`
-	ParentGuid string `json:"parent_guid"`
-	FormalName string `json:"formal_name"`
-	OffName string `json:"off_name"`
-	ShortName string `json:"short_name"`
-	AoLevel string `json:"ao_level"`
-	AreaCode string `json:"area_code"`
-	CityCode string `json:"city_code"`
-	PlaceCode string `json:"place_code"`
-	AutoCode string `json:"auto_code"`
-	PlanCode string `json:"plan_code"`
-	StreetCode string `json:"street_code"`
-	CTarCode string `json:"city_ar_code"`
-	ExtrCode string `json:"extr_code"`
-	SextCode string `json:"sub_ext_code"`
-	Code string `json:"code"`
-	RegionCode string `json:"region_code"`
-	PlainCode string `json:"plain_code"`
-	PostalCode string `json:"postal_code"`
-	Okato string `json:"okato"`
-	Oktmo string `json:"oktmo"`
-	IfNsFl string `json:"ifns_fl"`
-	IfNsUl string `json:"ifns_ul"`
-	TerrIfNsFl string `json:"terr_ifns_fl"`
-	TerrIfNsUl string `json:"terr_ifns_ul"`
-	NormDoc string `json:"norm_doc"`
-	ActStatus string `json:"act_status"`
-	LiveStatus string `json:"live_status"`
-	CurrStatus string `json:"curr_status"`
-	OperStatus string `json:"oper_status"`
-	StartDate string `json:"start_date"`
-	EndDate string `json:"end_date"`
-	UpdateDate string `json:"update_date"`
-	StreetType string `json:"street_type"`
-	Street string `json:"street"`
-	Settlement string `json:"settlement"`
-	SettlementType string `json:"settlement_type"`
-	District string `json:"district"`
-	DistrictType string `json:"district_type"`
-	StreetAddressSuggest string `json:"street_address_suggest"`
-	FullAddress string `json:"full_address"`
-	Houses []HouseItemElastic `json:"houses"`
-	BazisCreateDate string `json:"bazis_create_date"`
-	BazisUpdateDate string `json:"bazis_update_date"`
-	BazisFinishDate string `json:"bazis_finish_date"`
+	ID                   string             `json:"_id"`
+	AoGuid               string             `json:"ao_guid"`
+	ParentGuid           string             `json:"parent_guid"`
+	FormalName           string             `json:"formal_name"`
+	OffName              string             `json:"off_name"`
+	ShortName            string             `json:"short_name"`
+	AoLevel              string             `json:"ao_level"`
+	AreaCode             string             `json:"area_code"`
+	CityCode             string             `json:"city_code"`
+	PlaceCode            string             `json:"place_code"`
+	AutoCode             string             `json:"auto_code"`
+	PlanCode             string             `json:"plan_code"`
+	StreetCode           string             `json:"street_code"`
+	CTarCode             string             `json:"city_ar_code"`
+	ExtrCode             string             `json:"extr_code"`
+	SextCode             string             `json:"sub_ext_code"`
+	Code                 string             `json:"code"`
+	RegionCode           string             `json:"region_code"`
+	PlainCode            string             `json:"plain_code"`
+	PostalCode           string             `json:"postal_code"`
+	Okato                string             `json:"okato"`
+	Oktmo                string             `json:"oktmo"`
+	IfNsFl               string             `json:"ifns_fl"`
+	IfNsUl               string             `json:"ifns_ul"`
+	TerrIfNsFl           string             `json:"terr_ifns_fl"`
+	TerrIfNsUl           string             `json:"terr_ifns_ul"`
+	NormDoc              string             `json:"norm_doc"`
+	ActStatus            string             `json:"act_status"`
+	LiveStatus           string             `json:"live_status"`
+	CurrStatus           string             `json:"curr_status"`
+	OperStatus           string             `json:"oper_status"`
+	StartDate            string             `json:"start_date"`
+	EndDate              string             `json:"end_date"`
+	UpdateDate           string             `json:"update_date"`
+	StreetType           string             `json:"street_type"`
+	Street               string             `json:"street"`
+	Settlement           string             `json:"settlement"`
+	SettlementType       string             `json:"settlement_type"`
+	District             string             `json:"district"`
+	DistrictType         string             `json:"district_type"`
+	StreetAddressSuggest string             `json:"street_address_suggest"`
+	FullAddress          string             `json:"full_address"`
+	Houses               []HouseItemElastic `json:"houses"`
+	BazisCreateDate      string             `json:"bazis_create_date"`
+	BazisUpdateDate      string             `json:"bazis_update_date"`
+	BazisFinishDate      string             `json:"bazis_finish_date"`
 }
 
 func getAddressElasticStructFromXml(item AddressItem) AddressItemElastic {
@@ -338,39 +338,39 @@ func getAddressElasticStructFromXml(item AddressItem) AddressItemElastic {
 	}
 
 	return AddressItemElastic{
-		ID: item.AoId,
-		AoGuid: item.AoGuid,
-		ParentGuid: item.ParentGuid,
-		FormalName: item.FormalName,
-		OffName: item.OffName,
-		ShortName: item.ShortName,
-		AoLevel: item.AoLevel,
-		AreaCode: item.AreaCode,
-		CityCode: item.CityCode,
-		PlaceCode: item.PlaceCode,
-		AutoCode: item.AutoCode,
-		PlanCode: item.PlanCode,
-		StreetCode: item.StreetCode,
-		ExtrCode: item.ExtrCode,
-		SextCode: item.SextCode,
-		Code: item.Code,
-		RegionCode: item.RegionCode,
-		PlainCode: item.PlainCode,
-		PostalCode: item.PostalCode,
-		Okato: item.Okato,
-		Oktmo: item.Oktmo,
-		IfNsFl: item.IfNsFl,
-		IfNsUl: item.IfNsUl,
-		TerrIfNsFl: item.TerrIfNsFl,
-		TerrIfNsUl: item.TerrIfNsUl,
-		NormDoc: item.NormDoc,
-		ActStatus: item.ActStatus,
-		LiveStatus: item.LiveStatus,
-		CurrStatus: item.CurrStatus,
-		OperStatus: item.OperStatus,
-		StartDate: item.StartDate,
-		EndDate: item.EndDate,
-		UpdateDate: item.UpdateDate,
+		ID:              item.AoId,
+		AoGuid:          item.AoGuid,
+		ParentGuid:      item.ParentGuid,
+		FormalName:      item.FormalName,
+		OffName:         item.OffName,
+		ShortName:       item.ShortName,
+		AoLevel:         item.AoLevel,
+		AreaCode:        item.AreaCode,
+		CityCode:        item.CityCode,
+		PlaceCode:       item.PlaceCode,
+		AutoCode:        item.AutoCode,
+		PlanCode:        item.PlanCode,
+		StreetCode:      item.StreetCode,
+		ExtrCode:        item.ExtrCode,
+		SextCode:        item.SextCode,
+		Code:            item.Code,
+		RegionCode:      item.RegionCode,
+		PlainCode:       item.PlainCode,
+		PostalCode:      item.PostalCode,
+		Okato:           item.Okato,
+		Oktmo:           item.Oktmo,
+		IfNsFl:          item.IfNsFl,
+		IfNsUl:          item.IfNsUl,
+		TerrIfNsFl:      item.TerrIfNsFl,
+		TerrIfNsUl:      item.TerrIfNsUl,
+		NormDoc:         item.NormDoc,
+		ActStatus:       item.ActStatus,
+		LiveStatus:      item.LiveStatus,
+		CurrStatus:      item.CurrStatus,
+		OperStatus:      item.OperStatus,
+		StartDate:       item.StartDate,
+		EndDate:         item.EndDate,
+		UpdateDate:      item.UpdateDate,
 		BazisCreateDate: currentTime,
 		BazisUpdateDate: saveTime,
 		BazisFinishDate: item.EndDate,

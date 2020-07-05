@@ -1,4 +1,4 @@
-package gofias
+package main
 
 import (
 	"context"
@@ -17,7 +17,7 @@ func doESConnection() {
 
 	for {
 		elasticClient, err = elastic.NewClient(
-			elastic.SetURL("http://" + *host),
+			elastic.SetURL("http://"+*host),
 			elastic.SetSniff(false),
 		)
 		if err != nil {
@@ -29,7 +29,7 @@ func doESConnection() {
 	}
 }
 
-func getPrefixIndexName(name string) string  {
+func getPrefixIndexName(name string) string {
 	return *prefix + name
 }
 
@@ -43,7 +43,7 @@ func indexExists(name string) bool {
 	return exists
 }
 
-func dropIndex(name string)  {
+func dropIndex(name string) {
 	ctx := context.Background()
 	if indexExists(name) {
 		indexName := getPrefixIndexName(name)
@@ -55,7 +55,7 @@ func dropIndex(name string)  {
 	}
 }
 
-func createIndex(name, body string)  {
+func createIndex(name, body string) {
 	ctx := context.Background()
 	if !indexExists(name) {
 		indexName := getPrefixIndexName(name)
@@ -67,7 +67,7 @@ func createIndex(name, body string)  {
 	}
 }
 
-func createPreprocessor(pipelineId, pipeline string)  {
+func createPreprocessor(pipelineId, pipeline string) {
 	log.Printf("Create new preprocessor: %s", pipelineId)
 	ctx := context.Background()
 	_, err := elasticClient.IngestPutPipeline(pipelineId).BodyString(pipeline).Do(ctx)
@@ -76,7 +76,7 @@ func createPreprocessor(pipelineId, pipeline string)  {
 	}
 }
 
-func refreshIndexes()  {
+func refreshIndexes() {
 	elasticClient.Refresh()
 	elasticClient.Flush()
 	elasticClient.Forcemerge()
@@ -100,10 +100,10 @@ func scrollData(scrollService *elastic.ScrollService) []elastic.SearchHit {
 		if err != nil {
 			log.Fatal(err)
 		}
-		if res == nil || len(res.Hits.Hits) == 0{
+		if res == nil || len(res.Hits.Hits) == 0 {
 			break
 		}
-		for _, hit := range res.Hits.Hits{
+		for _, hit := range res.Hits.Hits {
 			totals = append(totals, *hit)
 		}
 		maxCount++

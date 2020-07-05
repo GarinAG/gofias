@@ -1,4 +1,4 @@
-package gofias
+package main
 
 import (
 	"log"
@@ -10,10 +10,10 @@ var (
 	tmpDirPath string
 )
 
-func createTmpDir()  {
+func createTmpDir() {
 	usr, err := user.Current()
 	if err != nil {
-		log.Fatal( err )
+		log.Fatal(err)
 	}
 	dir := usr.HomeDir + *tmp
 
@@ -30,10 +30,10 @@ func createTmpDir()  {
 	tmpDirPath = dir
 }
 
-func clearTmpDir(){
+func clearTmpDir() {
 	usr, err := user.Current()
 	if err != nil {
-		log.Fatal( err )
+		log.Fatal(err)
 	}
 	dir := usr.HomeDir + *tmp
 	if _, err := os.Stat(dir); err == nil {
@@ -45,12 +45,12 @@ func clearTmpDir(){
 	}
 }
 
-func getVersionInfo()  {
+func getVersionInfo() {
 	getLastVersion()
 	getLastDownloadVersion()
 }
 
-func downloadFull()  {
+func downloadFull() {
 	fileName := tmpDirPath + fiasXml
 	if _, err := os.Stat(fileName); err != nil {
 		err := DownloadFile(fileName, urlFullPath)
@@ -60,7 +60,7 @@ func downloadFull()  {
 	}
 }
 
-func downloadUpdate(fileUrl string)  {
+func downloadUpdate(fileUrl string) {
 	fileName := tmpDirPath + fiasDeltaXml
 	if _, err := os.Stat(fileName); err != nil {
 		err := DownloadFile(fileName, fileUrl)

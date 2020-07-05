@@ -1,11 +1,11 @@
-package gofias
+package main
 
 import (
 	"log"
 	"path/filepath"
 )
 
-func addressesFullImport()  {
+func addressesFullImport() {
 	unzipAddresses()
 	dropIndex(addressIndexName)
 	createIndex(addressIndexName, addrIndexSettings)
@@ -15,7 +15,7 @@ func addressesFullImport()  {
 	refreshIndexes()
 }
 
-func addressesDeltaImport()  {
+func addressesDeltaImport() {
 	unzipAddressesDelta()
 	createPreprocessor(addrPipeline, addrDropPipeline)
 	searchAndImportAddresses()
@@ -23,21 +23,21 @@ func addressesDeltaImport()  {
 	refreshIndexes()
 }
 
-func unzipAddresses()  {
-	err := Unzip(tmpDirPath + fiasXml, tmpDirPath, addrFilePart)
+func unzipAddresses() {
+	err := Unzip(tmpDirPath+fiasXml, tmpDirPath, addrFilePart)
 	if err != nil {
 		panic(err)
 	}
 }
 
-func unzipAddressesDelta()  {
-	err := Unzip(tmpDirPath + fiasDeltaXml, tmpDirPath, addrFilePart)
+func unzipAddressesDelta() {
+	err := Unzip(tmpDirPath+fiasDeltaXml, tmpDirPath, addrFilePart)
 	if err != nil {
 		panic(err)
 	}
 }
 
-func searchAndImportAddresses()  {
+func searchAndImportAddresses() {
 	matches, err := filepath.Glob(tmpDirPath + addrFilePart)
 	if err != nil {
 		log.Println(err)

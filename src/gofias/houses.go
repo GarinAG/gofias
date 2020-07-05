@@ -1,11 +1,11 @@
-package gofias
+package main
 
 import (
 	"log"
 	"path/filepath"
 )
 
-func housesFullImport()  {
+func housesFullImport() {
 	unzipHouses()
 	dropIndex(houseIndexName)
 	createIndex(houseIndexName, houseIndexSettings)
@@ -14,27 +14,27 @@ func housesFullImport()  {
 	refreshIndexes()
 }
 
-func housesDeltaImport()  {
+func housesDeltaImport() {
 	unzipHousesDelta()
 	searchAndImportHouses()
 	refreshIndexes()
 }
 
-func unzipHouses()  {
-	err := Unzip(tmpDirPath + fiasXml, tmpDirPath, housesFilePart)
+func unzipHouses() {
+	err := Unzip(tmpDirPath+fiasXml, tmpDirPath, housesFilePart)
 	if err != nil {
 		panic(err)
 	}
 }
 
-func unzipHousesDelta()  {
-	err := Unzip(tmpDirPath + fiasDeltaXml, tmpDirPath, housesFilePart)
+func unzipHousesDelta() {
+	err := Unzip(tmpDirPath+fiasDeltaXml, tmpDirPath, housesFilePart)
 	if err != nil {
 		panic(err)
 	}
 }
 
-func searchAndImportHouses()  {
+func searchAndImportHouses() {
 	matches, err := filepath.Glob(tmpDirPath + housesFilePart)
 	if err != nil {
 		log.Println(err)

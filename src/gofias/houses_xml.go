@@ -1,4 +1,4 @@
-package gofias
+package main
 
 import (
 	"context"
@@ -15,47 +15,47 @@ import (
 )
 
 type HouseItem struct {
-    HouseId  string   `xml:"HOUSEID,attr"`
-    AoGuid  string   `xml:"AOGUID,attr"`
-    RegionCode  string   `xml:"REGIONCODE,attr"`
-    PostalCode  string   `xml:"POSTALCODE,attr"`
-    Okato  string   `xml:"OKATO,attr"`
-    Oktmo  string   `xml:"OKTMO,attr"`
-    IfNsFl  string   `xml:"IFNSFL,attr"`
-    IfNsUl  string   `xml:"IFNSUL,attr"`
-    TerrIfNsFl  string   `xml:"TERRIFNSFL,attr"`
-    TerrIfNsUl  string   `xml:"TERRIFNSUL,attr"`
-    NormDoc  string   `xml:"NORMDOC,attr"`
-    StartDate  string   `xml:"STARTDATE,attr"`
-    EndDate  string   `xml:"ENDDATE,attr"`
-    UpdateDate  string   `xml:"UPDATEDATE,attr"`
-    DivType  string   `xml:"DIVTYPE,attr"`
-    HouseNum  string   `xml:"HOUSENUM,attr"`
-    BuildNum  string   `xml:"BUILDNUM,attr"`
-    StructNum  string   `xml:"STRUCNUM,attr"`
-    Counter  string   `xml:"COUNTER,attr"`
-    CadNum  string   `xml:"CADNUM,attr"`
+	HouseId    string `xml:"HOUSEID,attr"`
+	AoGuid     string `xml:"AOGUID,attr"`
+	RegionCode string `xml:"REGIONCODE,attr"`
+	PostalCode string `xml:"POSTALCODE,attr"`
+	Okato      string `xml:"OKATO,attr"`
+	Oktmo      string `xml:"OKTMO,attr"`
+	IfNsFl     string `xml:"IFNSFL,attr"`
+	IfNsUl     string `xml:"IFNSUL,attr"`
+	TerrIfNsFl string `xml:"TERRIFNSFL,attr"`
+	TerrIfNsUl string `xml:"TERRIFNSUL,attr"`
+	NormDoc    string `xml:"NORMDOC,attr"`
+	StartDate  string `xml:"STARTDATE,attr"`
+	EndDate    string `xml:"ENDDATE,attr"`
+	UpdateDate string `xml:"UPDATEDATE,attr"`
+	DivType    string `xml:"DIVTYPE,attr"`
+	HouseNum   string `xml:"HOUSENUM,attr"`
+	BuildNum   string `xml:"BUILDNUM,attr"`
+	StructNum  string `xml:"STRUCNUM,attr"`
+	Counter    string `xml:"COUNTER,attr"`
+	CadNum     string `xml:"CADNUM,attr"`
 }
 
 func importHouse(filePath string) uint64 {
 	log.Printf("Start import file: %s", filePath)
-    xmlStream, err := os.Open(filePath)
-    if err != nil {
-        log.Printf("Failed to open XML file: %s", filePath)
+	xmlStream, err := os.Open(filePath)
+	if err != nil {
+		log.Printf("Failed to open XML file: %s", filePath)
 		return 0
-    }
-    defer xmlStream.Close()
+	}
+	defer xmlStream.Close()
 
-    // Setup a group of goroutines from the excellent errgroup package
-    g, ctx := errgroup.WithContext(context.TODO())
-    docsc := make(chan HouseItemElastic)
-    begin := time.Now()
-    decoder := xml.NewDecoder(xmlStream)
+	// Setup a group of goroutines from the excellent errgroup package
+	g, ctx := errgroup.WithContext(context.TODO())
+	docsc := make(chan HouseItemElastic)
+	begin := time.Now()
+	decoder := xml.NewDecoder(xmlStream)
 	var elasticItem HouseItemElastic
 
-    // Goroutine to create documents
-    g.Go(func() error {
-        defer close(docsc)
+	// Goroutine to create documents
+	g.Go(func() error {
+		defer close(docsc)
 		for {
 			// Read tokens from the XML document in a stream.
 			t, err := decoder.Token()
@@ -97,8 +97,8 @@ func importHouse(filePath string) uint64 {
 			}
 		}
 
-        return nil
-    })
+		return nil
+	})
 
 	var total uint64
 	g.Go(func() error {
