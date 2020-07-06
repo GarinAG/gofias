@@ -8,11 +8,15 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"strings"
+	"strconv"
+	"sync/atomic"
+	"time"
 )
 
 type WriteCounter struct {
 	Total uint64
+	Size  uint64
+	Begin time.Time
 }
 
 func (wc *WriteCounter) Write(p []byte) (int, error) {
@@ -23,15 +27,19 @@ func (wc *WriteCounter) Write(p []byte) (int, error) {
 }
 
 func (wc WriteCounter) PrintProgress() {
-	if *status {
-		// Clear the line by using a character return to go back to the start and remove
-		// the remaining characters by filling it with spaces
-		fmtPrintf("\r%s", strings.Repeat(" ", 35))
+	PrintProcess(wc.Begin, wc.Total, wc.Size, "bytes")
+}
 
-		// Return again and print current status of download
-		// We use the humanize package to print the bytes in a meaningful way (e.g. 10 MB)
-		fmtPrintf("\rDownloading... %s complete", humanize.Bytes(wc.Total))
+func GetDownloadSize(url string) uint64 {
+	resp, err := http.Head(url)
+	if err != nil {
+		logFatalln(err)
 	}
+	if resp.StatusCode != http.StatusOK {
+		logFatalf("Wrong http status code of file: %d", resp.StatusCode)
+	}
+	size, _ := strconv.Atoi(resp.Header.Get("Content-Length"))
+	return uint64(size)
 }
 
 // DownloadFile will download a url to a local file. It's efficient because it will
@@ -48,6 +56,12 @@ func DownloadFile(filepath string, url string) error {
 	}
 	defer out.Close()
 
+	// Create our progress reporter and pass it to be used alongside our writer
+	counter := &WriteCounter{
+		Size:  GetDownloadSize(url),
+		Begin: time.Now(),
+	}
+
 	// Get the data
 	resp, err := http.Get(url)
 	if err != nil {
@@ -55,8 +69,6 @@ func DownloadFile(filepath string, url string) error {
 	}
 	defer resp.Body.Close()
 
-	// Create our progress reporter and pass it to be used alongside our writer
-	counter := &WriteCounter{}
 	if _, err = io.Copy(out, io.TeeReader(resp.Body, counter)); err != nil {
 		return err
 	}
@@ -150,4 +162,33 @@ func Unzip(src, dest, part string) error {
 	}
 
 	return nil
+}
+
+func PrintProcess(begin time.Time, total uint64, size uint64, unit string) {
+	if *status {
+		// Simple progress
+		current := atomic.AddUint64(&total, 1)
+		dur := time.Since(begin).Seconds()
+		sec := int(dur)
+		pps := int64(float64(current) / dur)
+
+		currentPrint := strconv.FormatUint(current, 10)
+		sizePrint := strconv.FormatUint(size, 10)
+		PpsPrint := strconv.FormatInt(pps, 10)
+
+		if unit == "bytes" {
+			currentPrint = humanize.Bytes(current)
+			sizePrint = humanize.Bytes(size)
+			PpsPrint = humanize.Bytes((uint64)(pps))
+			unit = ""
+		} else {
+			unit = " " + unit
+		}
+
+		if size > 0 {
+			fmtPrintf("%s/%s | %s%s/s | %02d:%02d     \r", currentPrint, sizePrint, PpsPrint, unit, sec/60, sec%60)
+		} else {
+			fmtPrintf("%s | %s%s/s | %02d:%02d     \r", currentPrint, PpsPrint, unit, sec/60, sec%60)
+		}
+	}
 }

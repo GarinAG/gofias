@@ -8,7 +8,6 @@ import (
 	"golang.org/x/sync/errgroup"
 	"io"
 	"os"
-	"sync/atomic"
 	"time"
 )
 
@@ -414,15 +413,8 @@ func importAddress(filePath string) uint64 {
 	g.Go(func() error {
 		bulk := elasticClient.Bulk().Index(GetPrefixIndexName(addressIndexName)).Pipeline(addrPipeline)
 		for d := range docsc {
-			if *status {
-				// Simple progress
-				current := atomic.AddUint64(&total, 1)
-				dur := time.Since(begin).Seconds()
-				sec := int(dur)
-				pps := int64(float64(current) / dur)
-				fmtPrintf("%10d | %6d req/s | %02d:%02d\r", current, pps, sec/60, sec%60)
-			}
-
+			total++
+			PrintProcess(begin, total, 0, "item")
 			// Enqueue the document
 			bulk.Add(elastic.NewBulkIndexRequest().Id(d.ID).Doc(d))
 			if bulk.NumberOfActions() >= *bulkSize {
@@ -449,14 +441,7 @@ func importAddress(filePath string) uint64 {
 			if err != nil {
 				return err
 			}
-
-			if *status {
-				// Final results
-				dur := time.Since(begin).Seconds()
-				sec := int(dur)
-				pps := int64(float64(total) / dur)
-				fmtPrintf("%10d | %6d req/s | %02d:%02d\n", total, pps, sec/60, sec%60)
-			}
+			PrintProcess(begin, total, 0, "item")
 		}
 		return nil
 	})
