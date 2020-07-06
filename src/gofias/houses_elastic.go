@@ -1,6 +1,16 @@
 package main
 
-import "time"
+import (
+	"context"
+	"encoding/xml"
+	"errors"
+	"github.com/olivere/elastic/v7"
+	"golang.org/x/sync/errgroup"
+	"io"
+	"os"
+	"sync/atomic"
+	"time"
+)
 
 const (
 	houseIndexSettings = `
@@ -102,61 +112,160 @@ const (
 )
 
 type HouseItemElastic struct {
-	ID              string `json:"_id"`
-	AoGuid          string `json:"ao_guid"`
-	RegionCode      string `json:"region_code"`
-	PostalCode      string `json:"postal_code"`
-	Okato           string `json:"okato"`
-	Oktmo           string `json:"oktmo"`
-	IfNsFl          string `json:"ifns_fl"`
-	IfNsUl          string `json:"ifns_ul"`
-	TerrIfNsFl      string `json:"terr_ifns_fl"`
-	TerrIfNsUl      string `json:"terr_ifns_ul"`
-	NormDoc         string `json:"norm_doc"`
-	StartDate       string `json:"start_date"`
-	EndDate         string `json:"end_date"`
-	UpdateDate      string `json:"update_date"`
-	DivType         string `json:"div_type"`
-	HouseNum        string `json:"house_num"`
-	BuildNum        string `json:"build_num"`
-	StructNum       string `json:"str_num"`
-	Counter         string `json:"counter"`
-	CadNum          string `json:"cad_num"`
+	ID              string `json:"_id" xml:"HOUSEID,attr"`
+	AoGuid          string `json:"ao_guid" xml:"AOGUID,attr"`
+	RegionCode      string `json:"region_code" xml:"REGIONCODE,attr"`
+	PostalCode      string `json:"postal_code" xml:"POSTALCODE,attr"`
+	Okato           string `json:"okato" xml:"OKATO,attr"`
+	Oktmo           string `json:"oktmo" xml:"OKTMO,attr"`
+	IfNsFl          string `json:"ifns_fl" xml:"IFNSFL,attr"`
+	IfNsUl          string `json:"ifns_ul" xml:"IFNSUL,attr"`
+	TerrIfNsFl      string `json:"terr_ifns_fl" xml:"TERRIFNSFL,attr"`
+	TerrIfNsUl      string `json:"terr_ifns_ul" xml:"TERRIFNSUL,attr"`
+	NormDoc         string `json:"norm_doc" xml:"NORMDOC,attr"`
+	StartDate       string `json:"start_date" xml:"STARTDATE,attr"`
+	EndDate         string `json:"end_date" xml:"ENDDATE,attr"`
+	UpdateDate      string `json:"update_date" xml:"UPDATEDATE,attr"`
+	DivType         string `json:"div_type" xml:"DIVTYPE,attr"`
+	HouseNum        string `json:"house_num" xml:"HOUSENUM,attr"`
+	BuildNum        string `json:"build_num" xml:"BUILDNUM,attr"`
+	StructNum       string `json:"str_num" xml:"STRUCNUM,attr"`
+	Counter         string `json:"counter" xml:"COUNTER,attr"`
+	CadNum          string `json:"cad_num" xml:"CADNUM,attr"`
 	BazisCreateDate string `json:"bazis_create_date"`
 	BazisUpdateDate string `json:"bazis_update_date"`
 	BazisFinishDate string `json:"bazis_finish_date"`
 }
 
-func getHouseElasticStructFromXml(item HouseItem) HouseItemElastic {
+func (item *HouseItemElastic) SetBazisProps() {
 	currentTime := time.Now().Format("2006-01-02") + dateTimeZone
 	saveTime := currentTime
 	if isUpdate {
 		saveTime = versionDate
 	}
 
-	return HouseItemElastic{
-		ID:              item.HouseId,
-		AoGuid:          item.AoGuid,
-		RegionCode:      item.RegionCode,
-		PostalCode:      item.PostalCode,
-		Okato:           item.Okato,
-		Oktmo:           item.Oktmo,
-		IfNsFl:          item.IfNsFl,
-		IfNsUl:          item.IfNsUl,
-		TerrIfNsFl:      item.TerrIfNsFl,
-		TerrIfNsUl:      item.TerrIfNsUl,
-		NormDoc:         item.NormDoc,
-		StartDate:       item.StartDate,
-		EndDate:         item.EndDate,
-		UpdateDate:      item.UpdateDate,
-		DivType:         item.DivType,
-		HouseNum:        item.HouseNum,
-		BuildNum:        item.BuildNum,
-		StructNum:       item.StructNum,
-		Counter:         item.Counter,
-		CadNum:          item.CadNum,
-		BazisCreateDate: currentTime,
-		BazisUpdateDate: saveTime,
-		BazisFinishDate: item.EndDate,
+	item.BazisCreateDate = currentTime
+	item.BazisUpdateDate = saveTime
+	item.BazisFinishDate = item.EndDate
+}
+
+func importHouse(filePath string) uint64 {
+	logPrintf("Start import file: %s", filePath)
+	xmlStream, err := os.Open(filePath)
+	if err != nil {
+		logPrintf("Failed to open XML file: %s", filePath)
+		return 0
 	}
+	defer xmlStream.Close()
+
+	// Setup a group of goroutines from the excellent errgroup package
+	g, ctx := errgroup.WithContext(context.TODO())
+	docsc := make(chan HouseItemElastic)
+	begin := time.Now()
+	decoder := xml.NewDecoder(xmlStream)
+
+	// Goroutine to create documents
+	g.Go(func() error {
+		defer close(docsc)
+		for {
+			// Read tokens from the XML document in a stream.
+			t, err := decoder.Token()
+
+			// If we are at the end of the file, we are done
+			if err == io.EOF {
+				logPrintln("")
+				break
+			} else if err != nil {
+				logFatalf("Error decoding token: %s", err)
+			} else if t == nil {
+				break
+			}
+
+			// Here, we inspect the token
+			switch se := t.(type) {
+			// We have the start of an element.
+			// However, we have the complete token in t
+			case xml.StartElement:
+				switch se.Name.Local {
+				// Found an item, so we process it
+				case housesTag:
+					var item HouseItemElastic
+
+					// We decode the element into our data model...
+					if err = decoder.DecodeElement(&item, &se); err != nil {
+						logFatalf("Error decoding item: %s", err)
+					}
+					item.SetBazisProps()
+
+					select {
+					case docsc <- item:
+					case <-ctx.Done():
+						return ctx.Err()
+					}
+				}
+			}
+		}
+
+		return nil
+	})
+
+	var total uint64
+	g.Go(func() error {
+		bulk := elasticClient.Bulk().Index(GetPrefixIndexName(houseIndexName)).Pipeline(housesPipeline)
+		for d := range docsc {
+			if *status {
+				// Simple progress
+				current := atomic.AddUint64(&total, 1)
+				dur := time.Since(begin).Seconds()
+				sec := int(dur)
+				pps := int64(float64(current) / dur)
+				fmtPrintf("%10d | %6d req/s | %02d:%02d\r", current, pps, sec/60, sec%60)
+			}
+
+			// Enqueue the document
+			bulk.Add(elastic.NewBulkIndexRequest().Id(d.ID).Doc(d))
+			if bulk.NumberOfActions() >= *bulkSize {
+				// Commit
+				res, err := bulk.Do(ctx)
+				if err != nil {
+					return err
+				}
+				if res.Errors {
+					return errors.New("Bulk commit failed\n")
+				}
+			}
+
+			select {
+			default:
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
+
+		// Commit the final batch before exiting
+		if bulk.NumberOfActions() > 0 {
+			_, err = bulk.Do(ctx)
+			if err != nil {
+				return err
+			}
+
+			if *status {
+				// Final results
+				dur := time.Since(begin).Seconds()
+				sec := int(dur)
+				pps := int64(float64(total) / dur)
+				fmtPrintf("%10d | %6d req/s | %02d:%02d\n", total, pps, sec/60, sec%60)
+			}
+		}
+		return nil
+	})
+
+	// Wait until all goroutines are finished
+	if err := g.Wait(); err != nil {
+		logFatal(err)
+	}
+
+	logPrintln("Import Finished")
+
+	return total
 }

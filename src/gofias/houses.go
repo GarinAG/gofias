@@ -1,23 +1,22 @@
 package main
 
 import (
-	"log"
 	"path/filepath"
 )
 
 func housesFullImport() {
 	unzipHouses()
-	dropIndex(houseIndexName)
-	createIndex(houseIndexName, houseIndexSettings)
-	createPreprocessor(housesPipeline, houseDropPipeline)
+	DropIndex(houseIndexName)
+	CreateIndex(houseIndexName, houseIndexSettings)
+	CreatePreprocessor(housesPipeline, houseDropPipeline)
 	searchAndImportHouses()
-	refreshIndexes()
+	RefreshIndexes()
 }
 
 func housesDeltaImport() {
 	unzipHousesDelta()
 	searchAndImportHouses()
-	refreshIndexes()
+	RefreshIndexes()
 }
 
 func unzipHouses() {
@@ -37,7 +36,7 @@ func unzipHousesDelta() {
 func searchAndImportHouses() {
 	matches, err := filepath.Glob(tmpDirPath + housesFilePart)
 	if err != nil {
-		log.Println(err)
+		logPrintln(err)
 	}
 	var total uint64 = 0
 	if len(matches) != 0 {

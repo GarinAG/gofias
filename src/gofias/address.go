@@ -1,26 +1,25 @@
 package main
 
 import (
-	"log"
 	"path/filepath"
 )
 
 func addressesFullImport() {
 	unzipAddresses()
-	dropIndex(addressIndexName)
-	createIndex(addressIndexName, addrIndexSettings)
-	createPreprocessor(addrPipeline, addrDropPipeline)
+	DropIndex(addressIndexName)
+	CreateIndex(addressIndexName, addrIndexSettings)
+	CreatePreprocessor(addrPipeline, addrDropPipeline)
 	searchAndImportAddresses()
-	createAddressIndex()
-	refreshIndexes()
+	CreateAddressIndex()
+	RefreshIndexes()
 }
 
 func addressesDeltaImport() {
 	unzipAddressesDelta()
-	createPreprocessor(addrPipeline, addrDropPipeline)
+	CreatePreprocessor(addrPipeline, addrDropPipeline)
 	searchAndImportAddresses()
-	createAddressIndex()
-	refreshIndexes()
+	CreateAddressIndex()
+	RefreshIndexes()
 }
 
 func unzipAddresses() {
@@ -40,7 +39,7 @@ func unzipAddressesDelta() {
 func searchAndImportAddresses() {
 	matches, err := filepath.Glob(tmpDirPath + addrFilePart)
 	if err != nil {
-		log.Println(err)
+		logPrintln(err)
 	}
 	var total uint64 = 0
 	if len(matches) != 0 {

@@ -2,9 +2,8 @@ package main
 
 import (
 	"context"
-	elastic "github.com/olivere/elastic/v7"
+	"github.com/olivere/elastic/v7"
 	"io"
-	"log"
 	"time"
 )
 
@@ -12,7 +11,7 @@ var (
 	elasticClient *elastic.Client
 )
 
-func doESConnection() {
+func DoESConnection() {
 	var err error
 
 	for {
@@ -21,7 +20,7 @@ func doESConnection() {
 			elastic.SetSniff(false),
 		)
 		if err != nil {
-			log.Println(err)
+			logPrintln(err)
 			time.Sleep(3 * time.Second)
 		} else {
 			break
@@ -29,60 +28,62 @@ func doESConnection() {
 	}
 }
 
-func getPrefixIndexName(name string) string {
+func GetPrefixIndexName(name string) string {
 	return *prefix + name
 }
 
-func indexExists(name string) bool {
+func IndexExists(name string) bool {
 	ctx := context.Background()
-	exists, err := elasticClient.IndexExists(getPrefixIndexName(name)).Do(ctx)
+	exists, err := elasticClient.IndexExists(GetPrefixIndexName(name)).Do(ctx)
 	if err != nil {
-		log.Fatal(err)
+		logFatal(err)
 	}
 
 	return exists
 }
 
-func dropIndex(name string) {
+func DropIndex(name string) {
 	ctx := context.Background()
-	if indexExists(name) {
-		indexName := getPrefixIndexName(name)
-		log.Printf("Drop index: %s", indexName)
+	if IndexExists(name) {
+		indexName := GetPrefixIndexName(name)
+		logPrintf("Drop index: %s", indexName)
 		_, err := elasticClient.DeleteIndex(indexName).Do(ctx)
 		if err != nil {
-			log.Fatal(err)
+			logFatal(err)
 		}
 	}
 }
 
-func createIndex(name, body string) {
+func CreateIndex(name, body string) {
 	ctx := context.Background()
-	if !indexExists(name) {
-		indexName := getPrefixIndexName(name)
-		log.Printf("Create new index: %s", indexName)
+	if !IndexExists(name) {
+		indexName := GetPrefixIndexName(name)
+		logPrintf("Create new index: %s", indexName)
 		_, err := elasticClient.CreateIndex(indexName).Body(body).Do(ctx)
 		if err != nil {
-			log.Fatal(err)
+			logFatal(err)
 		}
 	}
 }
 
-func createPreprocessor(pipelineId, pipeline string) {
-	log.Printf("Create new preprocessor: %s", pipelineId)
+func CreatePreprocessor(pipelineId, pipeline string) {
+	logPrintf("Create new preprocessor: %s", pipelineId)
 	ctx := context.Background()
 	_, err := elasticClient.IngestPutPipeline(pipelineId).BodyString(pipeline).Do(ctx)
 	if err != nil {
-		log.Fatal(err)
+		logFatal(err)
 	}
 }
 
-func refreshIndexes() {
-	elasticClient.Refresh()
-	elasticClient.Flush()
-	elasticClient.Forcemerge()
+func RefreshIndexes() {
+	indexes := []string{GetPrefixIndexName(addressIndexName), GetPrefixIndexName(houseIndexName), GetPrefixIndexName(infoIndexName)}
+	elasticClient.Refresh(indexes...)
+	elasticClient.Flush(indexes...)
+	elasticClient.Forcemerge(indexes...)
+	elasticClient.ClearCache(indexes...)
 }
 
-func scrollData(scrollService *elastic.ScrollService) []elastic.SearchHit {
+func ScrollData(scrollService *elastic.ScrollService) []elastic.SearchHit {
 	// Setup a group of goroutines from the excellent errgroup package
 	ctx := context.Background()
 	scrollService.Scroll("1h")
@@ -98,7 +99,7 @@ func scrollData(scrollService *elastic.ScrollService) []elastic.SearchHit {
 			break
 		}
 		if err != nil {
-			log.Fatal(err)
+			logFatal(err)
 		}
 		if res == nil || len(res.Hits.Hits) == 0 {
 			break
@@ -114,9 +115,9 @@ func scrollData(scrollService *elastic.ScrollService) []elastic.SearchHit {
 }
 
 func countAllData(index string) int64 {
-	res, err := elasticClient.Count(getPrefixIndexName(index)).Do(context.Background())
+	res, err := elasticClient.Count(GetPrefixIndexName(index)).Do(context.Background())
 	if err != nil {
-		log.Fatal(err)
+		logFatal(err)
 	}
 
 	return res

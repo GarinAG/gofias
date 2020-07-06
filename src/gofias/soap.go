@@ -2,7 +2,6 @@ package main
 
 import (
 	"github.com/tiaguinho/gosoap"
-	"log"
 	"net/http"
 	"time"
 )
@@ -29,12 +28,12 @@ func executeSoap(soapAction string, params gosoap.Params) *gosoap.Response {
 	}
 	soap, err := gosoap.SoapClient(fiasServiceUrl, httpClient)
 	if err != nil {
-		log.Fatalf("SoapClient error: %s", err)
+		logFatalf("SoapClient error: %s", err)
 	}
 
 	res, err := soap.Call(soapAction, params)
 	if err != nil {
-		log.Fatalf("Call error: %s\n%s", err, res)
+		logFatalf("Call error: %s\n%s", err, res)
 	}
 
 	return res

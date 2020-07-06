@@ -3,9 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"github.com/olivere/elastic/v7"
-	"log"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -21,7 +19,7 @@ func getAddressStructFromSearchHits(scanRes []elastic.SearchHit) []AddressItemEl
 
 	for _, res := range scanRes {
 		if err := json.Unmarshal(res.Source, &item); err != nil {
-			log.Fatal(err)
+			logFatal(err)
 		}
 		result = append(result, item)
 	}
@@ -29,25 +27,26 @@ func getAddressStructFromSearchHits(scanRes []elastic.SearchHit) []AddressItemEl
 	return result
 }
 
-func createAddressIndex() {
-	elasticClient.CloseIndex(getPrefixIndexName(addressIndexName))
-	elasticClient.OpenIndex(getPrefixIndexName(addressIndexName))
+func CreateAddressIndex() {
+	RefreshIndexes()
+	elasticClient.CloseIndex(GetPrefixIndexName(addressIndexName))
+	elasticClient.OpenIndex(GetPrefixIndexName(addressIndexName))
 
 	query := elastic.NewBoolQuery().Filter(elastic.NewTermQuery("ao_level", "7"))
 	if isUpdate {
-		log.Println("Indexing...")
+		logPrintln("Indexing...")
 		query.Must(elastic.NewTermQuery("bazis_update_date", versionDate))
 	} else {
-		log.Println("Full indexing...")
+		logPrintln("Full indexing...")
 	}
 
-	scrollService := elasticClient.Scroll(getPrefixIndexName(addressIndexName)).Query(query)
-	scanRes := scrollData(scrollService)
+	scrollService := elasticClient.Scroll(GetPrefixIndexName(addressIndexName)).Query(query)
+	scanRes := ScrollData(scrollService)
 	addrUpdateCount := len(scanRes)
 
-	log.Printf("Address update count: %d", addrUpdateCount)
-	log.Printf("Total address count: %d", countAllData(addressIndexName))
-	log.Printf("Total houses count: %d", countAllData(houseIndexName))
+	logPrintf("Address update count: %d", addrUpdateCount)
+	logPrintf("Total address count: %d", countAllData(addressIndexName))
+	logPrintf("Total houses count: %d", countAllData(houseIndexName))
 
 	if addrUpdateCount > 0 {
 		go allocate(scanRes)
@@ -58,6 +57,7 @@ func createAddressIndex() {
 		createWorkerPool(noOfWorkers)
 		<-done
 	}
+	logPrintln("Index Finished")
 }
 
 func createWorkerPool(noOfWorkers int) {
@@ -74,7 +74,7 @@ func allocate(scanRes []elastic.SearchHit) {
 	for _, addressItem := range scanRes {
 		var item AddressItemElastic
 		if err := json.Unmarshal(addressItem.Source, &item); err != nil {
-			log.Fatal(err)
+			logFatal(err)
 		}
 		jobs <- item
 	}
@@ -82,7 +82,7 @@ func allocate(scanRes []elastic.SearchHit) {
 }
 
 func result(done chan bool, begin time.Time, total uint64) {
-	bulk := elasticClient.Bulk().Index(getPrefixIndexName(addressIndexName)).Pipeline(addrPipeline)
+	bulk := elasticClient.Bulk().Index(GetPrefixIndexName(addressIndexName)).Pipeline(addrPipeline)
 	ctx := context.Background()
 
 	for d := range results {
@@ -92,7 +92,7 @@ func result(done chan bool, begin time.Time, total uint64) {
 			dur := time.Since(begin).Seconds()
 			sec := int(dur)
 			pps := int64(float64(current) / dur)
-			fmt.Printf("%10d | %6d req/s | %02d:%02d\r", current, pps, sec/60, sec%60)
+			fmtPrintf("%10d | %6d req/s | %02d:%02d\r", current, pps, sec/60, sec%60)
 		}
 
 		// Enqueue the document
@@ -101,10 +101,10 @@ func result(done chan bool, begin time.Time, total uint64) {
 			// Commit
 			res, err := bulk.Do(ctx)
 			if err != nil {
-				log.Fatal(err)
+				logFatal(err)
 			}
 			if res.Errors {
-				log.Fatal("bulk commit failed")
+				logFatal("Bulk commit failed")
 			}
 		}
 	}
@@ -113,7 +113,7 @@ func result(done chan bool, begin time.Time, total uint64) {
 	if bulk.NumberOfActions() > 0 {
 		_, err := bulk.Do(ctx)
 		if err != nil {
-			log.Fatal(err)
+			logFatal(err)
 		}
 	}
 
@@ -123,11 +123,11 @@ func result(done chan bool, begin time.Time, total uint64) {
 func searchAddressWorker(wg *sync.WaitGroup) {
 	for address := range jobs {
 		searchCity, err := elasticClient.
-			Search(getPrefixIndexName(addressIndexName)).
+			Search(GetPrefixIndexName(addressIndexName)).
 			Query(elastic.NewMatchQuery("ao_guid", address.ParentGuid)).
 			Do(context.Background())
 		if err != nil {
-			log.Fatal(err)
+			logFatal(err)
 		}
 
 		if len(searchCity.Hits.Hits) == 0 {
@@ -140,17 +140,17 @@ func searchAddressWorker(wg *sync.WaitGroup) {
 		var houseList []HouseItemElastic
 
 		if err := json.Unmarshal(searchCity.Hits.Hits[0].Source, &city); err != nil {
-			log.Fatal(err)
+			logFatal(err)
 		}
 		if city.ParentGuid == "" {
 			district = city
 		} else {
 			searchDistrict, err := elasticClient.
-				Search(getPrefixIndexName(addressIndexName)).
+				Search(GetPrefixIndexName(addressIndexName)).
 				Query(elastic.NewMatchQuery("ao_guid", city.ParentGuid)).
 				Do(context.Background())
 			if err != nil {
-				log.Fatal(err)
+				logFatal(err)
 			}
 
 			if len(searchDistrict.Hits.Hits) == 0 {
@@ -158,22 +158,22 @@ func searchAddressWorker(wg *sync.WaitGroup) {
 			}
 
 			if err := json.Unmarshal(searchDistrict.Hits.Hits[0].Source, &district); err != nil {
-				log.Fatal(err)
+				logFatal(err)
 			}
 		}
 
-		if indexExists(houseIndexName) {
+		if IndexExists(houseIndexName) {
 			searchHouses, err := elasticClient.
-				Search(getPrefixIndexName(houseIndexName)).
+				Search(GetPrefixIndexName(houseIndexName)).
 				Query(elastic.NewMatchQuery("ao_guid", address.AoGuid)).
 				Do(context.Background())
 			if err != nil {
-				log.Fatal(err)
+				logFatal(err)
 			}
 
 			for _, houseData := range searchHouses.Hits.Hits {
 				if err := json.Unmarshal(houseData.Source, &house); err != nil {
-					log.Fatal(err)
+					logFatal(err)
 				}
 				houseList = append(houseList, house)
 			}

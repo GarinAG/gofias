@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"log"
 	"os"
 	"runtime"
 	"time"
@@ -10,47 +9,63 @@ import (
 
 func main() {
 	flag.Parse()
-	numcpu := runtime.NumCPU()
-	runtime.GOMAXPROCS(numcpu)
-	log.SetFlags(0)
-	log.Printf("Snapshot storage place in: %s", *storage)
-	log.Printf("Elasticsearch on %s", *host)
-	log.Printf("Num CPU count: %d", numcpu)
+	setNumCpu()
+	setLogPath()
+	logPrintf("Snapshot storage place in: %s", *storage)
+	logPrintf("Elasticsearch on %s", *host)
+	logPrintf("Num CPU count: %d", *numCpu)
 	updateFias()
-	log.Println("Fias import finished")
+	logPrintln("Fias import finished")
 }
 
-func updateFias(){
-	doESConnection()
+func setNumCpu() {
+	if *numCpu == 0 {
+		*numCpu = runtime.NumCPU()
+	}
+	runtime.GOMAXPROCS(*numCpu)
+}
+
+func updateFias() {
+	DoESConnection()
 	getVersionInfo()
-	if currentVersion.ID == lastDownloadVersion.VersionId && !*force {
-		log.Println("Last version is uploaded")
+	if *forceIndex {
+		if IndexExists(addressIndexName) {
+			CreateAddressIndex()
+		} else {
+			logPrintln("Address index bot found")
+		}
 		os.Exit(0)
 	}
-	if *force || !indexExists(addressIndexName) || currentVersion.ID == "" {
+	if currentVersion.ID == lastDownloadVersion.VersionId && !*force {
+		logPrintln("Last version is uploaded")
+		os.Exit(0)
+	}
+	if *force || !IndexExists(addressIndexName) || currentVersion.ID == "" {
 		startFullImport()
 	} else {
 		startDeltaImport()
 	}
-	createFullSnapshot()
+	if !*skipSnapshot {
+		createFullSnapshot()
+	}
 	clearTmpDir()
+	logPrintln("Import Finished")
 }
 
-func startFullImport()  {
-	log.Println("")
-	log.Printf("Start import full version: %s %s", lastDownloadVersion.VersionId, lastDownloadVersion.TextVersion)
+func startFullImport() {
+	logPrintf("Start import full version: %s %s", lastDownloadVersion.VersionId, lastDownloadVersion.TextVersion)
 	createTmpDir()
 	importFull()
 	updateInfo(lastDownloadVersion)
 }
 
-func startDeltaImport()  {
+func startDeltaImport() {
 	getDownloadVersionList()
 	if len(downloadVersionList) == 0 {
-		log.Fatal("Versions not found in service")
+		logFatal("Versions not found in service")
 	}
 	var needVersionList []DownloadFileInfo
-	for _, version := range downloadVersionList{
+	for _, version := range downloadVersionList {
 		if version.VersionId == currentVersion.ID {
 			break
 		}
@@ -62,19 +77,19 @@ func startDeltaImport()  {
 	}
 }
 
-func updateDelta(version DownloadFileInfo)  {
-	versionDateSlice := version.TextVersion[len(version.TextVersion) - 10: len(version.TextVersion)]
+func updateDelta(version DownloadFileInfo) {
+	versionDateSlice := version.TextVersion[len(version.TextVersion)-10 : len(version.TextVersion)]
 	versionTime, _ := time.Parse("02.01.2006", versionDateSlice)
 	versionDate = versionTime.Format("2006-01-02") + dateTimeZone
 
-	log.Println("")
-	log.Printf("Start update index to version: %s %s", version.VersionId, version.TextVersion)
+	logPrintf("Start update index to version: %s %s", version.VersionId, version.TextVersion)
 	createTmpDir()
 	update(version.FiasDeltaXmlUrl)
 	updateInfo(version)
+	*skipClear = false
 }
 
-func importFull()  {
+func importFull() {
 	downloadFull()
 	if !*skipHouses {
 		housesFullImport()
@@ -82,7 +97,7 @@ func importFull()  {
 	addressesFullImport()
 }
 
-func update(fileUrl string)  {
+func update(fileUrl string) {
 	isUpdate = true
 	downloadUpdate(fileUrl)
 	if !*skipHouses {

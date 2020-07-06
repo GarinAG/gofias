@@ -6,7 +6,6 @@ import (
 	"encoding/xml"
 	"github.com/olivere/elastic/v7"
 	"github.com/tiaguinho/gosoap"
-	"log"
 	"strconv"
 	"time"
 )
@@ -93,18 +92,20 @@ var (
 )
 
 func getLastVersion() {
-	indexName := getPrefixIndexName(infoIndexName)
-	createIndex(infoIndexName, infoIndexSettings)
+	RefreshIndexes()
+	indexName := GetPrefixIndexName(infoIndexName)
+	CreateIndex(infoIndexName, infoIndexSettings)
 
 	versionSearchResult, _ := elasticClient.Search(indexName).
 		Sort("version_id", false).
 		Size(1).
+		RequestCache(false).
 		Do(context.Background())
 
 	var item VersionItemElastic
 	if versionSearchResult != nil && len(versionSearchResult.Hits.Hits) > 0 {
 		if err := json.Unmarshal(versionSearchResult.Hits.Hits[0].Source, &item); err != nil {
-			log.Fatal(err)
+			logFatal(err)
 		}
 	} else {
 		item = VersionItemElastic{}
@@ -121,26 +122,26 @@ func updateInfo(version DownloadFileInfo) {
 		RecUpdateHouses:  strconv.FormatUint(recUpdateHouses, 10),
 		UpdateDate:       time.Now().Format("2006-01-02T00:00:00"),
 	}
-	log.Printf("Save version info: %s %s", version.VersionId, version.TextVersion)
+	logPrintf("Save version info: %s %s", version.VersionId, version.TextVersion)
 
 	res, err := elasticClient.Bulk().
-		Index(getPrefixIndexName(infoIndexName)).
+		Index(GetPrefixIndexName(infoIndexName)).
 		Refresh("true").
 		Add(elastic.NewBulkIndexRequest().Doc(currentVersion)).
 		Do(context.Background())
 
 	if err != nil {
-		log.Fatal(err)
+		logFatal(err)
 	}
 	if res.Errors {
-		log.Fatal("Bulk commit failed")
+		logFatal("Bulk commit failed")
 	}
 }
 
 func getLastDownloadVersion() {
 	res := executeSoap("GetLastDownloadFileInfo", gosoap.Params{})
 	if err := xml.Unmarshal(res.Body, &lastDownloadFileInfoResponse); err != nil {
-		log.Fatalf("xml.Unmarshal error: %s", err)
+		logFatalf("xml.Unmarshal error: %s", err)
 	}
 	lastDownloadVersion = lastDownloadFileInfoResponse.Result
 }
@@ -148,7 +149,7 @@ func getLastDownloadVersion() {
 func getDownloadVersionList() {
 	res := executeSoap("GetAllDownloadFileInfo", gosoap.Params{})
 	if err := xml.Unmarshal(res.Body, &allDownloadFileInfoResponse); err != nil {
-		log.Fatalf("xml.Unmarshal error: %s", err)
+		logFatalf("xml.Unmarshal error: %s", err)
 	}
 
 	downloadVersionList = allDownloadFileInfoResponse.Result.Result

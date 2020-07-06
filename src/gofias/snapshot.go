@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"strings"
 )
 
@@ -31,21 +30,21 @@ const (
 )
 
 func registerRepository() {
-	_, err := elasticClient.SnapshotCreateRepository(getPrefixIndexName(repositoryName)).
+	_, err := elasticClient.SnapshotCreateRepository(GetPrefixIndexName(repositoryName)).
 		BodyString(strings.ReplaceAll(repositoryBody, "%location%", *storage)).
 		Do(context.Background())
 
 	if err != nil {
-		log.Fatal(err)
+		logFatal(err)
 	}
 }
 
 func restoreFromSnapshot(force bool) {
 	ctx := context.Background()
-	reposName := getPrefixIndexName(repositoryName)
-	snapName := getPrefixIndexName(snapshotName)
-	addressPrefixIndexName := getPrefixIndexName(addressIndexName)
-	housePrefixIndexName := getPrefixIndexName(houseIndexName)
+	reposName := GetPrefixIndexName(repositoryName)
+	snapName := GetPrefixIndexName(snapshotName)
+	addressPrefixIndexName := GetPrefixIndexName(addressIndexName)
+	housePrefixIndexName := GetPrefixIndexName(houseIndexName)
 
 	snapshot, _ := elasticClient.SnapshotGet(reposName).
 		Snapshot(snapName).
@@ -62,18 +61,18 @@ func restoreFromSnapshot(force bool) {
 			Do(ctx)
 
 		if err != nil {
-			log.Fatal(err)
+			logFatal(err)
 		}
 	}
 }
 
 func createFullSnapshot() {
-	log.Println("Create full snapshot")
+	logPrintln("Create full snapshot")
 	ctx := context.Background()
-	reposName := getPrefixIndexName(repositoryName)
-	snapName := getPrefixIndexName(snapshotName)
-	addressPrefixIndexName := getPrefixIndexName(addressIndexName)
-	housePrefixIndexName := getPrefixIndexName(houseIndexName)
+	reposName := GetPrefixIndexName(repositoryName)
+	snapName := GetPrefixIndexName(snapshotName)
+	addressPrefixIndexName := GetPrefixIndexName(addressIndexName)
+	housePrefixIndexName := GetPrefixIndexName(houseIndexName)
 
 	repository, _ := elasticClient.SnapshotGetRepository(reposName).Do(ctx)
 	if repository == nil {
@@ -83,7 +82,7 @@ func createFullSnapshot() {
 		if snapshot != nil {
 			_, err := elasticClient.SnapshotDelete(reposName, snapName).Do(ctx)
 			if err != nil {
-				log.Fatal(err)
+				logPrintln(err)
 			}
 		}
 	}
@@ -93,6 +92,6 @@ func createFullSnapshot() {
 
 	_, err := elasticClient.SnapshotCreate(reposName, snapName).BodyString(snapBody).Do(ctx)
 	if err != nil {
-		log.Fatal(err)
+		logPrintln(err)
 	}
 }

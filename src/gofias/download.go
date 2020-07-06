@@ -1,7 +1,6 @@
 package main
 
 import (
-	"log"
 	"os"
 	"os/user"
 )
@@ -13,17 +12,19 @@ var (
 func createTmpDir() {
 	usr, err := user.Current()
 	if err != nil {
-		log.Fatal(err)
+		logFatal(err)
 	}
 	dir := usr.HomeDir + *tmp
 
-	log.Printf("Tmp dir place in: %s", dir)
-	clearTmpDir()
+	logPrintf("Tmp dir place in: %s", dir)
+	if !*skipClear {
+		clearTmpDir()
+	}
 	if _, err := os.Stat(dir); err != nil {
-		log.Println("Create new Tmp dir")
+		logPrintln("Create new Tmp dir")
 		err := os.MkdirAll(dir, os.ModePerm)
 		if err != nil {
-			log.Fatal(err)
+			logFatal(err)
 		}
 	}
 
@@ -33,14 +34,14 @@ func createTmpDir() {
 func clearTmpDir() {
 	usr, err := user.Current()
 	if err != nil {
-		log.Fatal(err)
+		logFatal(err)
 	}
 	dir := usr.HomeDir + *tmp
 	if _, err := os.Stat(dir); err == nil {
-		log.Println("Clear Tmp dir")
+		logPrintln("Clear Tmp dir")
 		err = os.RemoveAll(dir)
 		if err != nil {
-			log.Fatal(err)
+			logFatal(err)
 		}
 	}
 }
@@ -55,7 +56,7 @@ func downloadFull() {
 	if _, err := os.Stat(fileName); err != nil {
 		err := DownloadFile(fileName, urlFullPath)
 		if err != nil {
-			log.Fatal(err)
+			logFatal(err)
 		}
 	}
 }
@@ -65,7 +66,7 @@ func downloadUpdate(fileUrl string) {
 	if _, err := os.Stat(fileName); err != nil {
 		err := DownloadFile(fileName, fileUrl)
 		if err != nil {
-			log.Fatal(err)
+			logFatal(err)
 		}
 	}
 }

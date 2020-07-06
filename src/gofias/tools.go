@@ -2,10 +2,8 @@ package main
 
 import (
 	"archive/zip"
-	"fmt"
 	"github.com/dustin/go-humanize"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -28,11 +26,11 @@ func (wc WriteCounter) PrintProgress() {
 	if *status {
 		// Clear the line by using a character return to go back to the start and remove
 		// the remaining characters by filling it with spaces
-		fmt.Printf("\r%s", strings.Repeat(" ", 35))
+		fmtPrintf("\r%s", strings.Repeat(" ", 35))
 
 		// Return again and print current status of download
 		// We use the humanize package to print the bytes in a meaningful way (e.g. 10 MB)
-		fmt.Printf("\rDownloading... %s complete", humanize.Bytes(wc.Total))
+		fmtPrintf("\rDownloading... %s complete", humanize.Bytes(wc.Total))
 	}
 }
 
@@ -40,7 +38,7 @@ func (wc WriteCounter) PrintProgress() {
 // write as it downloads and not load the whole file into memory. We pass an io.TeeReader
 // into Copy() to report progress on the download.
 func DownloadFile(filepath string, url string) error {
-	log.Printf("Download Started: %s to %s", url, filepath)
+	logPrintf("Download Started: %s to %s", url, filepath)
 
 	// Create the file, but give it a tmp file extension, this means we won't overwrite a
 	// file until it's downloaded, but we'll remove the tmp extension once downloaded.
@@ -64,20 +62,18 @@ func DownloadFile(filepath string, url string) error {
 	}
 
 	if *status {
-		fmt.Print("\n")
+		fmtPrint("\n")
 	}
 
 	if err = os.Rename(filepath+".tmp", filepath); err != nil {
 		return err
 	}
 
-	log.Println("Download Finished")
-
 	return nil
 }
 
 func Unzip(src, dest, part string) error {
-	log.Printf("Start unzip file: %s with part %s", src, part)
+	logPrintf("Start unzip file: %s with part %s", src, part)
 	r, err := zip.OpenReader(src)
 	if err != nil {
 		return err
@@ -126,7 +122,7 @@ func Unzip(src, dest, part string) error {
 		return nil
 	}
 
-	var hasFiles bool = false
+	var hasFiles = false
 	for _, f := range r.File {
 		if part != "" {
 			matched, err := regexp.MatchString(part, f.Name)
@@ -150,10 +146,8 @@ func Unzip(src, dest, part string) error {
 		}
 	}
 	if !hasFiles {
-		log.Println("Files not found")
+		logPrintln("Files not found")
 	}
-
-	log.Println("Unzip Finished")
 
 	return nil
 }
