@@ -80,6 +80,7 @@ func DownloadFile(filepath string, url string) error {
 	if err = os.Rename(filepath+".tmp", filepath); err != nil {
 		return err
 	}
+	logPrintln("Download Finished")
 
 	return nil
 }

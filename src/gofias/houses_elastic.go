@@ -250,6 +250,7 @@ func importHouse(filePath string) uint64 {
 		logFatal(err)
 	}
 
+	fmtPrintln("")
 	logPrintln("Import Finished")
 
 	return total

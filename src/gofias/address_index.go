@@ -6,7 +6,6 @@ import (
 	"github.com/olivere/elastic/v7"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -86,15 +85,8 @@ func result(done chan bool, begin time.Time, total uint64) {
 	ctx := context.Background()
 
 	for d := range results {
-		if *status {
-			// Simple progress
-			current := atomic.AddUint64(&total, 1)
-			dur := time.Since(begin).Seconds()
-			sec := int(dur)
-			pps := int64(float64(current) / dur)
-			fmtPrintf("%10d | %6d req/s | %02d:%02d\r", current, pps, sec/60, sec%60)
-		}
-
+		total++
+		PrintProcess(begin, total, 0, "item")
 		// Enqueue the document
 		bulk.Add(elastic.NewBulkIndexRequest().Id(d.ID).Doc(d))
 		if bulk.NumberOfActions() >= *bulkSize {
@@ -115,7 +107,9 @@ func result(done chan bool, begin time.Time, total uint64) {
 		if err != nil {
 			logFatal(err)
 		}
+		PrintProcess(begin, total, 0, "item")
 	}
+	fmtPrintln("")
 
 	done <- true
 }
