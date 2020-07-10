@@ -45,7 +45,9 @@ func CreateAddressIndex() {
 
 	logPrintf("Address update count: %d", addrUpdateCount)
 	logPrintf("Total address count: %d", countAllData(addressIndexName))
-	logPrintf("Total houses count: %d", countAllData(houseIndexName))
+	if IndexExists(houseIndexName) {
+		logPrintf("Total houses count: %d", countAllData(houseIndexName))
+	}
 
 	if addrUpdateCount > 0 {
 		go allocate(scanRes)
