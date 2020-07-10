@@ -64,19 +64,29 @@ const (
 			"search_analyzer": "stop_analyzer"
 		  },
 		  "full_address": {
-			"type": "keyword"
+			"type": "text",
+			"analyzer": "autocomplete",
+			"search_analyzer": "stop_analyzer"
 		  },
 		  "district_full": {
-			"type": "keyword"
+			"type": "text",
+			"analyzer": "autocomplete",
+			"search_analyzer": "stop_analyzer"
 		  },
 		  "settlement_full": {
-			"type": "keyword"
+			"type": "text",
+			"analyzer": "autocomplete",
+			"search_analyzer": "stop_analyzer"
 		  },
 		  "street_full": {
-			"type": "keyword"
+			"type": "text",
+			"analyzer": "autocomplete",
+			"search_analyzer": "stop_analyzer"
 		  },
 		  "formal_name": {
-			"type": "keyword"
+			"type": "text",
+			"analyzer": "autocomplete",
+			"search_analyzer": "stop_analyzer"
 		  },
 		  "short_name": {
 			"type": "keyword"
@@ -217,7 +227,9 @@ const (
 				"type": "keyword"
 			  },
 			  "house_num": {
-				"type": "keyword"
+				"type": "text",
+				"analyzer": "autocomplete",
+				"search_analyzer": "stop_analyzer"
 			  },
 			  "str_num": {
 				"type": "keyword"
