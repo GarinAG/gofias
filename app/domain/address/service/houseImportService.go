@@ -7,6 +7,7 @@ import (
 	"github.com/GarinAG/gofias/domain/address/repository"
 	"github.com/GarinAG/gofias/interfaces"
 	"github.com/GarinAG/gofias/util"
+	"os"
 	"sync"
 	"time"
 )
@@ -17,13 +18,25 @@ type HouseImportService struct {
 }
 
 func NewHouseService(houseRepo repository.HouseRepositoryInterface, logger interfaces.LoggerInterface) *HouseImportService {
+	err := houseRepo.Init()
+	if err != nil {
+		logger.Panic(err.Error())
+		os.Exit(1)
+	}
+
 	return &HouseImportService{
 		houseRepo: houseRepo,
 		logger:    logger,
 	}
 }
 
-func (h *HouseImportService) Import(filePath string, wg *sync.WaitGroup, isFull bool) {
+func (h *HouseImportService) Import(
+	filePath string,
+	wg *sync.WaitGroup,
+	isFull bool,
+	size int,
+	insertCollection func(repo repository.InsertUpdateInterface, collection []interface{}, node interface{}, isFull bool, size int) []interface{},
+) {
 	defer wg.Done()
 	start := time.Now()
 	houseChannel := make(chan interface{})
@@ -38,19 +51,27 @@ Loop:
 	for {
 		select {
 		case node := <-houseChannel:
-			//collection = insertCollection(h.houseRepo, collection, node, isFull)
+			collection = insertCollection(h.houseRepo, collection, node, isFull, size)
 			count++
 		case <-done:
 			break Loop
 		}
 	}
 	if len(collection) > 0 {
-		//collection = insertCollection(h.houseRepo, collection, nil, isFull)
+		collection = insertCollection(h.houseRepo, collection, nil, isFull, size)
 	}
 	finish := time.Now()
 
 	h.logger.Info("Number of homes added: ", count)
 	h.logger.Info("Time to import houses: ", finish.Sub(start))
+}
+
+func (h *HouseImportService) Flush(wg *sync.WaitGroup, fool bool, params ...interface{}) {
+	defer wg.Done()
+	err := h.houseRepo.Flush(fool, params)
+	if err != nil {
+		h.logger.Error(err.Error())
+	}
 }
 
 func (h *HouseImportService) ParseElement(decoder *xml.Decoder, element *xml.StartElement) (interface{}, error) {

@@ -10,4 +10,5 @@ require (
 	github.com/spf13/viper v1.7.0
 	github.com/tiaguinho/gosoap v1.4.2
 	github.com/urfave/cli v1.22.4
+	github.com/urfave/cli/v2 v2.2.0
 )

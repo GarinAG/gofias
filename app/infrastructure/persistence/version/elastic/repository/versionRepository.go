@@ -6,25 +6,74 @@ import (
 	"errors"
 	"github.com/GarinAG/gofias/domain/version/entity"
 	"github.com/GarinAG/gofias/domain/version/repository"
+	elasticHelper "github.com/GarinAG/gofias/infrastructure/persistence/elastic"
 	"github.com/GarinAG/gofias/infrastructure/persistence/version/elastic/dto"
 	"github.com/GarinAG/gofias/interfaces"
 	"github.com/olivere/elastic/v7"
 )
 
+const (
+	versionIndexSettings = `
+	{
+	  "settings": {
+		"index": {
+		  "number_of_shards": 1,
+		  "number_of_replicas": "0",
+		  "refresh_interval": "-1",
+		  "requests": {
+			"cache": {
+			  "enable": "false"
+			}
+		  },
+		  "blocks": {
+			"read_only_allow_delete": "false"
+		  }
+		}
+	  },
+	  "mappings": {
+		"dynamic": false,
+		"properties": {
+		  "version_id": {
+			"type": "keyword"
+		  },
+		  "fias_version": {
+			"type": "keyword"
+		  },
+		  "update_date": {
+			"type": "date"
+		  },
+		  "rec_upd_address": {
+			"type": "integer"
+		  },
+		  "rec_upd_houses": {
+			"type": "integer"
+		  }
+		}
+	  }
+	}
+	`
+)
+
 type ElasticVersionRepository struct {
-	elasticClient *elastic.Client
+	elasticClient *elasticHelper.Client
 	indexName     string
 }
 
-func NewElasticVersionRepository(elasticClient *elastic.Client, configInterface interfaces.ConfigInterface) repository.VersionRepositoryInterface {
-	return &ElasticVersionRepository{
+func NewElasticVersionRepository(elasticClient *elasticHelper.Client, configInterface interfaces.ConfigInterface) repository.VersionRepositoryInterface {
+	repos := &ElasticVersionRepository{
 		elasticClient: elasticClient,
 		indexName:     configInterface.GetString("project.prefix") + entity.Version{}.TableName(),
 	}
+
+	return repos
+}
+
+func (v *ElasticVersionRepository) Init() error {
+	return v.elasticClient.CreateIndex(v.indexName, versionIndexSettings)
 }
 
 func (v *ElasticVersionRepository) GetVersion() (*entity.Version, error) {
-	versionSearchResult, _ := v.elasticClient.Search(v.indexName).
+	versionSearchResult, _ := v.elasticClient.Client.Search(v.indexName).
 		Sort("version_id", false).
 		Size(1).
 		RequestCache(false).
@@ -43,7 +92,7 @@ func (v *ElasticVersionRepository) GetVersion() (*entity.Version, error) {
 }
 
 func (v *ElasticVersionRepository) SetVersion(version *entity.Version) error {
-	res, err := v.elasticClient.Bulk().
+	res, err := v.elasticClient.Client.Bulk().
 		Index(v.indexName).
 		Refresh("true").
 		Add(elastic.NewBulkIndexRequest().Doc(v.convertToDto(*version))).

@@ -1,4 +1,4 @@
-package cli
+package main
 
 import (
 	addressCli "github.com/GarinAG/gofias/domain/address/delivery/cli"

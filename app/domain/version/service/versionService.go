@@ -4,6 +4,7 @@ import (
 	"github.com/GarinAG/gofias/domain/version/entity"
 	"github.com/GarinAG/gofias/domain/version/repository"
 	"github.com/GarinAG/gofias/interfaces"
+	"os"
 )
 
 type VersionService struct {
@@ -12,6 +13,12 @@ type VersionService struct {
 }
 
 func NewVersionService(versionRepo repository.VersionRepositoryInterface, logger interfaces.LoggerInterface) *VersionService {
+	err := versionRepo.Init()
+	if err != nil {
+		logger.Panic(err.Error())
+		os.Exit(1)
+	}
+
 	return &VersionService{
 		versionRepo: versionRepo,
 		logger:      logger,

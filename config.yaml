@@ -1,0 +1,17 @@
+project:
+  prefix:
+elastic:
+  scheme: http
+  host: localhost:9200
+  sniff: false
+  gzip: true
+  username:
+  password:
+batch:
+  size: 5000
+directory:
+  filePath: ~/tmp/fias/
+process:
+  print: true
+fiasApi:
+  url: https://fias.nalog.ru/WebServices/Public/

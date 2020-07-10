@@ -10,7 +10,7 @@ import (
 	"github.com/GarinAG/gofias/infrastructure/persistence/config"
 	"github.com/GarinAG/gofias/infrastructure/registry"
 	"github.com/GarinAG/gofias/interfaces"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 	"os"
 )
 
@@ -26,12 +26,13 @@ type App struct {
 }
 
 func NewApp() *App {
-	envConfig := config.EnvConfig{}
-	err := envConfig.Init()
+	yamlConfig := config.YamlConfig{ConfigPath: "../"}
+	//envConfig := config.EnvConfig{}
+	err := yamlConfig.Init()
 	if err != nil {
 		panic(fmt.Sprintf("Failed to init configuration: %v", err))
 	}
-	ctn, err := registry.NewContainer(&envConfig)
+	ctn, err := registry.NewContainer(&yamlConfig)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to build container: %v", err))
 	}

@@ -3,10 +3,11 @@ package repository
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"github.com/GarinAG/gofias/domain/address/entity"
 	"github.com/GarinAG/gofias/domain/address/repository"
 	"github.com/GarinAG/gofias/infrastructure/persistence/address/elastic/dto"
-	elastic2 "github.com/GarinAG/gofias/infrastructure/persistence/elastic"
+	elasticHelper "github.com/GarinAG/gofias/infrastructure/persistence/elastic"
 	"github.com/GarinAG/gofias/interfaces"
 	"github.com/olivere/elastic/v7"
 	"time"
@@ -110,11 +111,11 @@ const (
 )
 
 type ElasticHouseRepository struct {
-	elasticClient *elastic.Client
+	elasticClient *elasticHelper.Client
 	indexName     string
 }
 
-func NewElasticHouseRepository(elasticClient *elastic.Client, configInterface interfaces.ConfigInterface) repository.HouseRepositoryInterface {
+func NewElasticHouseRepository(elasticClient *elasticHelper.Client, configInterface interfaces.ConfigInterface) repository.HouseRepositoryInterface {
 	return &ElasticHouseRepository{
 		elasticClient: elasticClient,
 		indexName:     configInterface.GetString("project.prefix") + entity.HouseObject{}.TableName(),
@@ -122,20 +123,20 @@ func NewElasticHouseRepository(elasticClient *elastic.Client, configInterface in
 }
 
 func (a *ElasticHouseRepository) Init() error {
-	err := elastic2.CreateIndex(a.elasticClient, a.indexName, houseIndexSettings)
+	err := a.elasticClient.CreateIndex(a.indexName, houseIndexSettings)
 	if err != nil {
 		return err
 	}
 
-	return elastic2.CreatePreprocessor(a.elasticClient, housesPipelineId, houseDropPipeline)
+	return a.elasticClient.CreatePreprocessor(housesPipelineId, houseDropPipeline)
 }
 
 func (a *ElasticHouseRepository) Clear() error {
-	return elastic2.DropIndex(a.elasticClient, a.indexName)
+	return a.elasticClient.DropIndex(a.indexName)
 }
 
 func (a *ElasticHouseRepository) GetByAddressGuid(guid string) (*entity.HouseObject, error) {
-	res, err := a.elasticClient.
+	res, err := a.elasticClient.Client.
 		Search(a.indexName).
 		Query(elastic.NewTermQuery("ao_guid", guid)).
 		Size(1).
@@ -158,7 +159,29 @@ func (a *ElasticHouseRepository) GetByAddressGuid(guid string) (*entity.HouseObj
 }
 
 func (a *ElasticHouseRepository) InsertUpdateCollection(collection []interface{}, isFull bool) error {
-	panic("implement me")
+	bulk := a.elasticClient.Client.Bulk().Index(a.indexName).Pipeline(housesPipelineId)
+	for _, item := range collection {
+		item := item.(dto.JsonHouseDto)
+		bulk.Add(elastic.NewBulkIndexRequest().Id(item.ID).Doc(item))
+	}
+
+	if bulk.NumberOfActions() > 0 {
+		// Commit
+		res, err := bulk.Do(context.Background())
+		if err != nil {
+			return err
+		}
+		if res.Errors {
+			return errors.New("Add houses bulk commit failed")
+		}
+	}
+
+	return nil
+}
+
+func (a *ElasticHouseRepository) Flush(fool bool, params ...interface{}) error {
+
+	return nil
 }
 
 func (a *ElasticHouseRepository) convertToEntity(item dto.JsonHouseDto) entity.HouseObject {

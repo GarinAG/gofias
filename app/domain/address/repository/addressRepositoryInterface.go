@@ -10,4 +10,6 @@ type AddressRepositoryInterface interface {
 	GetByGuid(guid string) (*entity.AddressObject, error)
 	GetCities() ([]*entity.AddressObject, error)
 	GetCitiesByTerm(term string, count int64) ([]*entity.AddressObject, error)
+	InsertUpdateCollection(collection []interface{}, isFull bool) error
+	Flush(full bool, params ...interface{}) error
 }

@@ -48,6 +48,21 @@ func NewDownloadService(logger interfaces.LoggerInterface, config interfaces.Con
 	}
 }
 
+func (d *DownloadService) ClearDirectory() error {
+	dir := d.config.GetString("directory.filePath")
+
+	if _, err := os.Stat(dir); err == nil {
+		d.logger.Info("Clear Tmp dir", dir)
+		err = os.RemoveAll(dir)
+		if err != nil {
+			d.logger.Fatal(err.Error())
+			os.Exit(1)
+		}
+	}
+
+	return nil
+}
+
 func (d *DownloadService) GetDownloadSize(url string) uint64 {
 	resp, err := http.Head(url)
 	if err != nil {

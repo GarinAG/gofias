@@ -7,12 +7,11 @@ import (
 	fiasApiService "github.com/GarinAG/gofias/domain/fiasApi/service"
 	versionService "github.com/GarinAG/gofias/domain/version/service"
 	elasticRepository "github.com/GarinAG/gofias/infrastructure/persistence/address/elastic/repository"
-	helper "github.com/GarinAG/gofias/infrastructure/persistence/elastic"
+	elasticHelper "github.com/GarinAG/gofias/infrastructure/persistence/elastic"
 	fiasApiRepository "github.com/GarinAG/gofias/infrastructure/persistence/fiasApi/http/repository"
 	log "github.com/GarinAG/gofias/infrastructure/persistence/logger"
 	versionRepository "github.com/GarinAG/gofias/infrastructure/persistence/version/elastic/repository"
 	"github.com/GarinAG/gofias/interfaces"
-	"github.com/olivere/elastic/v7"
 	"github.com/sarulabs/di"
 )
 
@@ -31,7 +30,7 @@ func NewContainer(config interfaces.ConfigInterface) (*Container, error) {
 			Name: "logger",
 			Build: func(ctn di.Container) (interface{}, error) {
 				logger := log.InitLogrusLogger(config)
-				return &logger, nil
+				return logger, nil
 			},
 		},
 		{
@@ -43,27 +42,29 @@ func NewContainer(config interfaces.ConfigInterface) (*Container, error) {
 		{
 			Name: "elasticClient",
 			Build: func(ctn di.Container) (interface{}, error) {
-				return helper.InitElasticClient(config), nil
+				client := elasticHelper.NewElasticClient(config)
+
+				return client, nil
 			},
 		},
 		{
 			Name: "addressService",
 			Build: func(ctn di.Container) (interface{}, error) {
-				repo := elasticRepository.NewElasticAddressRepository(ctn.Get("elasticClient").(*elastic.Client), config)
+				repo := elasticRepository.NewElasticAddressRepository(ctn.Get("elasticClient").(*elasticHelper.Client), config)
 				return service.NewAddressService(repo, ctn.Get("logger").(interfaces.LoggerInterface)), nil
 			},
 		},
 		{
 			Name: "houseService",
 			Build: func(ctn di.Container) (interface{}, error) {
-				repo := elasticRepository.NewElasticHouseRepository(ctn.Get("elasticClient").(*elastic.Client), config)
+				repo := elasticRepository.NewElasticHouseRepository(ctn.Get("elasticClient").(*elasticHelper.Client), config)
 				return service.NewHouseService(repo, ctn.Get("logger").(interfaces.LoggerInterface)), nil
 			},
 		},
 		{
 			Name: "versionService",
 			Build: func(ctn di.Container) (interface{}, error) {
-				repo := versionRepository.NewElasticVersionRepository(ctn.Get("elasticClient").(*elastic.Client), config)
+				repo := versionRepository.NewElasticVersionRepository(ctn.Get("elasticClient").(*elasticHelper.Client), config)
 				return versionService.NewVersionService(repo, ctn.Get("logger").(interfaces.LoggerInterface)), nil
 			},
 		},
@@ -81,7 +82,8 @@ func NewContainer(config interfaces.ConfigInterface) (*Container, error) {
 					ctn.Get("logger").(interfaces.LoggerInterface),
 					ctn.Get("directoryService").(*directoryService.DirectoryService),
 					ctn.Get("addressService").(*service.AddressImportService),
-					ctn.Get("houseService").(*service.HouseImportService)), nil
+					ctn.Get("houseService").(*service.HouseImportService),
+					config), nil
 			},
 		},
 	}...); err != nil {

@@ -3,10 +3,11 @@ package repository
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"github.com/GarinAG/gofias/domain/address/entity"
 	"github.com/GarinAG/gofias/domain/address/repository"
 	"github.com/GarinAG/gofias/infrastructure/persistence/address/elastic/dto"
-	elastic2 "github.com/GarinAG/gofias/infrastructure/persistence/elastic"
+	elasticHelper "github.com/GarinAG/gofias/infrastructure/persistence/elastic"
 	"github.com/GarinAG/gofias/interfaces"
 	"github.com/olivere/elastic/v7"
 	"time"
@@ -65,19 +66,29 @@ const (
 			"search_analyzer": "stop_analyzer"
 		  },
 		  "full_address": {
-			"type": "keyword"
+			"type": "text",
+			"analyzer": "autocomplete",
+			"search_analyzer": "stop_analyzer"
 		  },
 		  "district_full": {
-			"type": "keyword"
+			"type": "text",
+			"analyzer": "autocomplete",
+			"search_analyzer": "stop_analyzer"
 		  },
 		  "settlement_full": {
-			"type": "keyword"
+			"type": "text",
+			"analyzer": "autocomplete",
+			"search_analyzer": "stop_analyzer"
 		  },
 		  "street_full": {
-			"type": "keyword"
+			"type": "text",
+			"analyzer": "autocomplete",
+			"search_analyzer": "stop_analyzer"
 		  },
 		  "formal_name": {
-			"type": "keyword"
+			"type": "text",
+			"analyzer": "autocomplete",
+			"search_analyzer": "stop_analyzer"
 		  },
 		  "short_name": {
 			"type": "keyword"
@@ -215,7 +226,9 @@ const (
 				"type": "keyword"
 			  },
 			  "house_num": {
-				"type": "keyword"
+				"type": "text",
+				"analyzer": "autocomplete",
+				"search_analyzer": "stop_analyzer"
 			  },
 			  "str_num": {
 				"type": "keyword"
@@ -288,11 +301,11 @@ const (
 )
 
 type ElasticAddressRepository struct {
-	elasticClient *elastic.Client
+	elasticClient *elasticHelper.Client
 	indexName     string
 }
 
-func NewElasticAddressRepository(elasticClient *elastic.Client, configInterface interfaces.ConfigInterface) repository.AddressRepositoryInterface {
+func NewElasticAddressRepository(elasticClient *elasticHelper.Client, configInterface interfaces.ConfigInterface) repository.AddressRepositoryInterface {
 	return &ElasticAddressRepository{
 		elasticClient: elasticClient,
 		indexName:     configInterface.GetString("project.prefix") + entity.AddressObject{}.TableName(),
@@ -300,20 +313,20 @@ func NewElasticAddressRepository(elasticClient *elastic.Client, configInterface 
 }
 
 func (a *ElasticAddressRepository) Init() error {
-	err := elastic2.CreateIndex(a.elasticClient, a.indexName, addrIndexSettings)
+	err := a.elasticClient.CreateIndex(a.indexName, addrIndexSettings)
 	if err != nil {
 		return err
 	}
 
-	return elastic2.CreatePreprocessor(a.elasticClient, addrPipelineId, addrDropPipeline)
+	return a.elasticClient.CreatePreprocessor(addrPipelineId, addrDropPipeline)
 }
 
 func (a *ElasticAddressRepository) Clear() error {
-	return elastic2.DropIndex(a.elasticClient, a.indexName)
+	return a.elasticClient.DropIndex(a.indexName)
 }
 
 func (a *ElasticAddressRepository) GetByFormalName(term string) (*entity.AddressObject, error) {
-	res, err := a.elasticClient.
+	res, err := a.elasticClient.Client.
 		Search(a.indexName).
 		Query(elastic.NewMatchQuery("formal_name", term)).
 		Size(1).
@@ -336,7 +349,7 @@ func (a *ElasticAddressRepository) GetByFormalName(term string) (*entity.Address
 }
 
 func (a *ElasticAddressRepository) GetByGuid(guid string) (*entity.AddressObject, error) {
-	res, err := a.elasticClient.
+	res, err := a.elasticClient.Client.
 		Search(a.indexName).
 		Query(elastic.NewTermQuery("ao_guid", guid)).
 		Size(1).
@@ -359,7 +372,7 @@ func (a *ElasticAddressRepository) GetByGuid(guid string) (*entity.AddressObject
 }
 
 func (a ElasticAddressRepository) GetCityByFormalName(term string) (*entity.AddressObject, error) {
-	res, err := a.elasticClient.
+	res, err := a.elasticClient.Client.
 		Search(a.indexName).
 		Query(elastic.NewBoolQuery().Filter(
 			elastic.NewTermQuery("short_name", "г"),
@@ -386,7 +399,7 @@ func (a ElasticAddressRepository) GetCityByFormalName(term string) (*entity.Addr
 }
 
 func (a *ElasticAddressRepository) GetCities() ([]*entity.AddressObject, error) {
-	res, err := a.elasticClient.
+	res, err := a.elasticClient.Client.
 		Search(a.indexName).
 		Query(elastic.NewBoolQuery().Filter(
 			elastic.NewTermQuery("short_name", "г"),
@@ -413,7 +426,7 @@ func (a *ElasticAddressRepository) GetCities() ([]*entity.AddressObject, error) 
 }
 
 func (a *ElasticAddressRepository) GetCitiesByTerm(term string, count int64) ([]*entity.AddressObject, error) {
-	res, err := a.elasticClient.
+	res, err := a.elasticClient.Client.
 		Search(a.indexName).
 		Query(elastic.NewBoolQuery().Filter(
 			elastic.NewTermQuery("short_name", "г"),
@@ -442,7 +455,29 @@ func (a *ElasticAddressRepository) GetCitiesByTerm(term string, count int64) ([]
 }
 
 func (a *ElasticAddressRepository) InsertUpdateCollection(collection []interface{}, isFull bool) error {
-	panic("implement me")
+	bulk := a.elasticClient.Client.Bulk().Index(a.indexName).Pipeline(addrPipelineId)
+	for _, item := range collection {
+		item := item.(dto.JsonAddressDto)
+		bulk.Add(elastic.NewBulkIndexRequest().Id(item.ID).Doc(item))
+	}
+
+	if bulk.NumberOfActions() > 0 {
+		// Commit
+		res, err := bulk.Do(context.Background())
+		if err != nil {
+			return err
+		}
+		if res.Errors {
+			return errors.New("Add addresses bulk commit failed")
+		}
+	}
+
+	return nil
+}
+
+func (a *ElasticAddressRepository) Flush(fool bool, params ...interface{}) error {
+
+	return nil
 }
 
 func (a *ElasticAddressRepository) convertToEntity(item dto.JsonAddressDto) entity.AddressObject {

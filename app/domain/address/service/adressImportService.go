@@ -7,6 +7,7 @@ import (
 	"github.com/GarinAG/gofias/domain/address/repository"
 	"github.com/GarinAG/gofias/interfaces"
 	"github.com/GarinAG/gofias/util"
+	"os"
 	"sync"
 	"time"
 )
@@ -17,13 +18,26 @@ type AddressImportService struct {
 }
 
 func NewAddressService(addressRepo repository.AddressRepositoryInterface, logger interfaces.LoggerInterface) *AddressImportService {
+	err := addressRepo.Init()
+	if err != nil {
+		logger.Panic(err.Error())
+		os.Exit(1)
+	}
+
 	return &AddressImportService{
 		addressRepo: addressRepo,
 		logger:      logger,
 	}
 }
 
-func (a *AddressImportService) Import(filePath string, wg *sync.WaitGroup, isFull bool) {
+func (a *AddressImportService) Import(
+	filePath string,
+	wg *sync.WaitGroup,
+	isFull bool,
+	size int,
+	insertCollection func(repo repository.InsertUpdateInterface, collection []interface{}, node interface{}, isFull bool, size int) []interface{},
+) {
+
 	defer wg.Done()
 	start := time.Now()
 	addressChannel := make(chan interface{})
@@ -37,19 +51,27 @@ Loop:
 	for {
 		select {
 		case node := <-addressChannel:
-			//collection = insertCollection(a.addressRepo, collection, node, isFull)
+			collection = insertCollection(a.addressRepo, collection, node, isFull, size)
 			count++
 		case <-done:
 			break Loop
 		}
 	}
 	if len(collection) > 0 {
-		//collection = insertCollection(a.addressRepo, collection, nil, isFull)
+		collection = insertCollection(a.addressRepo, collection, nil, isFull, size)
 	}
 	finish := time.Now()
 
 	a.logger.Info("Number of addresses added: ", count)
 	a.logger.Info("Time to import addresses: ", finish.Sub(start))
+}
+
+func (a *AddressImportService) Flush(wg *sync.WaitGroup, fool bool, params ...interface{}) {
+	defer wg.Done()
+	err := a.addressRepo.Flush(fool, params)
+	if err != nil {
+		a.logger.Error(err.Error())
+	}
 }
 
 func (a *AddressImportService) ParseElement(decoder *xml.Decoder, element *xml.StartElement) (interface{}, error) {
