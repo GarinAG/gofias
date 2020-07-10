@@ -66,9 +66,8 @@ Loop:
 	a.logger.Info("Time to import addresses: ", finish.Sub(start))
 }
 
-func (a *AddressImportService) Flush(wg *sync.WaitGroup, fool bool, params ...interface{}) {
-	defer wg.Done()
-	err := a.addressRepo.Flush(fool, params)
+func (a *AddressImportService) Index(houseRepos repository.HouseRepositoryInterface, isFull bool, start time.Time) {
+	err := a.addressRepo.Index(houseRepos, isFull, start)
 	if err != nil {
 		a.logger.Error(err.Error())
 	}

@@ -30,6 +30,10 @@ func NewHouseService(houseRepo repository.HouseRepositoryInterface, logger inter
 	}
 }
 
+func (h *HouseImportService) GetRepo() repository.HouseRepositoryInterface {
+	return h.houseRepo
+}
+
 func (h *HouseImportService) Import(
 	filePath string,
 	wg *sync.WaitGroup,
@@ -64,14 +68,6 @@ Loop:
 
 	h.logger.Info("Number of homes added: ", count)
 	h.logger.Info("Time to import houses: ", finish.Sub(start))
-}
-
-func (h *HouseImportService) Flush(wg *sync.WaitGroup, fool bool, params ...interface{}) {
-	defer wg.Done()
-	err := h.houseRepo.Flush(fool, params)
-	if err != nil {
-		h.logger.Error(err.Error())
-	}
 }
 
 func (h *HouseImportService) ParseElement(decoder *xml.Decoder, element *xml.StartElement) (interface{}, error) {

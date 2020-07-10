@@ -50,7 +50,9 @@ func NewContainer(config interfaces.ConfigInterface) (*Container, error) {
 		{
 			Name: "addressService",
 			Build: func(ctn di.Container) (interface{}, error) {
-				repo := elasticRepository.NewElasticAddressRepository(ctn.Get("elasticClient").(*elasticHelper.Client), config)
+				repo := elasticRepository.NewElasticAddressRepository(
+					ctn.Get("elasticClient").(*elasticHelper.Client),
+					config, ctn.Get("logger").(interfaces.LoggerInterface))
 				return service.NewAddressService(repo, ctn.Get("logger").(interfaces.LoggerInterface)), nil
 			},
 		},

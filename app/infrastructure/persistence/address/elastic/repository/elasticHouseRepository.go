@@ -122,6 +122,10 @@ func NewElasticHouseRepository(elasticClient *elasticHelper.Client, configInterf
 	}
 }
 
+func (a *ElasticHouseRepository) GetIndexName() string {
+	return a.indexName
+}
+
 func (a *ElasticHouseRepository) Init() error {
 	err := a.elasticClient.CreateIndex(a.indexName, houseIndexSettings)
 	if err != nil {
@@ -175,11 +179,6 @@ func (a *ElasticHouseRepository) InsertUpdateCollection(collection []interface{}
 			return errors.New("Add houses bulk commit failed")
 		}
 	}
-
-	return nil
-}
-
-func (a *ElasticHouseRepository) Flush(fool bool, params ...interface{}) error {
 
 	return nil
 }

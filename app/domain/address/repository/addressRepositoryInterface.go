@@ -1,6 +1,9 @@
 package repository
 
-import "github.com/GarinAG/gofias/domain/address/entity"
+import (
+	"github.com/GarinAG/gofias/domain/address/entity"
+	"time"
+)
 
 type AddressRepositoryInterface interface {
 	Init() error
@@ -11,5 +14,6 @@ type AddressRepositoryInterface interface {
 	GetCities() ([]*entity.AddressObject, error)
 	GetCitiesByTerm(term string, count int64) ([]*entity.AddressObject, error)
 	InsertUpdateCollection(collection []interface{}, isFull bool) error
-	Flush(full bool, params ...interface{}) error
+	Index(houseRepos HouseRepositoryInterface, isFull bool, start time.Time) error
+	GetIndexName() string
 }

@@ -7,5 +7,5 @@ type HouseRepositoryInterface interface {
 	Clear() error
 	GetByAddressGuid(term string) (*entity.HouseObject, error)
 	InsertUpdateCollection(collection []interface{}, isFull bool) error
-	Flush(fool bool, params ...interface{}) error
+	GetIndexName() string
 }

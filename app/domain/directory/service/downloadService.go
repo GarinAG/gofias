@@ -9,7 +9,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"path"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -63,6 +62,21 @@ func (d *DownloadService) ClearDirectory() error {
 	return nil
 }
 
+func (d *DownloadService) CreateDirectory() error {
+	dir := d.config.GetString("directory.filePath")
+
+	if _, err := os.Stat(dir); err != nil {
+		d.logger.Info("Create tmp dir", dir)
+		err := os.MkdirAll(dir, os.ModePerm)
+		if err != nil {
+			d.logger.Fatal(err.Error())
+			os.Exit(1)
+		}
+	}
+
+	return nil
+}
+
 func (d *DownloadService) GetDownloadSize(url string) uint64 {
 	resp, err := http.Head(url)
 	if err != nil {
@@ -75,8 +89,13 @@ func (d *DownloadService) GetDownloadSize(url string) uint64 {
 	return uint64(size)
 }
 
-func (d *DownloadService) DownloadFile(url string) (*fileEntity.File, error) {
-	fileName := path.Base(url)
+func (d *DownloadService) DownloadFile(url string, fileName string) (*fileEntity.File, error) {
+	err := d.CreateDirectory()
+	if err != nil {
+		d.logger.Fatal(err.Error())
+		os.Exit(1)
+	}
+
 	filePathLocal := d.config.GetString("directory.filePath") + fileName
 	if _, err := os.Stat(filePathLocal); os.IsNotExist(err) {
 		d.logger.Info("Download Started: %s to %s", url, filePathLocal)

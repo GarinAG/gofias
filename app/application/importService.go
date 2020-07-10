@@ -53,7 +53,7 @@ func (is *ImportService) CheckUpdates(api *fiasApiService.FiasApiService, versio
 
 	is.clearDirectory(false)
 	for i := len(needVersionList) - 1; i >= 0; i-- {
-		xmlFiles := is.directoryService.DownloadAndExtractFile(needVersionList[i].FiasDeltaXmlUrl, parts...)
+		xmlFiles := is.directoryService.DownloadAndExtractFile(needVersionList[i].FiasDeltaXmlUrl, "fias_delta.zip", parts...)
 		is.ParseFiles(xmlFiles)
 		is.clearDirectory(true)
 	}
@@ -68,41 +68,31 @@ func (is *ImportService) StartFullImport(api *fiasApiService.FiasApiService) {
 		if !is.SkipHouses {
 			parts = append(parts, addressEntity.HouseObject{}.GetXmlFile())
 		}
-		xmlFiles := is.directoryService.DownloadAndExtractFile(fileResult.FiasCompleteXmlUrl, parts...)
+		xmlFiles := is.directoryService.DownloadAndExtractFile(fileResult.FiasCompleteXmlUrl, "fias_full.zip", parts...)
 		is.ParseFiles(xmlFiles)
 	}
 }
 
 func (is *ImportService) ParseFiles(files *[]directoryEntity.File) {
 	var wg sync.WaitGroup
-	hasAddress := false
-	hasHouses := false
 	begin := time.Now()
 
 	for _, file := range *files {
 		if r, err := regexp.MatchString(addressEntity.AddressObject{}.GetXmlFile(), file.Path); err == nil && r {
 			wg.Add(1)
-			hasAddress = true
 			go is.addressImportService.Import(file.Path, &wg, is.IsFull, is.config.GetInt("bach.size"), is.insertCollection)
 		}
 		if r, err := regexp.MatchString(addressEntity.HouseObject{}.GetXmlFile(), file.Path); err == nil && r {
 			wg.Add(1)
-			hasHouses = true
 			go is.houseImportService.Import(file.Path, &wg, is.IsFull, is.config.GetInt("bach.size"), is.insertCollection)
 		}
 	}
 	wg.Wait()
+	is.Index(begin)
+}
 
-	if hasAddress {
-		wg.Add(1)
-		is.addressImportService.Flush(&wg, is.IsFull, begin)
-	}
-	if hasHouses {
-		wg.Add(1)
-		is.houseImportService.Flush(&wg, is.IsFull, begin)
-	}
-
-	wg.Wait()
+func (is *ImportService) Index(begin time.Time) {
+	is.addressImportService.Index(is.houseImportService.GetRepo(), is.IsFull, begin)
 }
 
 func (is *ImportService) insertCollection(repo repository.InsertUpdateInterface, collection []interface{}, node interface{}, isFull bool, size int) []interface{} {

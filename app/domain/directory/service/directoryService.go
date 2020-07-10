@@ -28,8 +28,8 @@ func (d *DirectoryService) ClearDirectory() error {
 	return err
 }
 
-func (d *DirectoryService) DownloadAndExtractFile(url string, parts ...string) *[]entity.File {
-	file, err := d.downloadService.DownloadFile(url)
+func (d *DirectoryService) DownloadAndExtractFile(url string, fileName string, parts ...string) *[]entity.File {
+	file, err := d.downloadService.DownloadFile(url, fileName)
 	if err != nil {
 		d.logger.Fatal(err.Error())
 		os.Exit(1)
