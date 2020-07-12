@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	importService "github.com/GarinAG/gofias/application"
 	"github.com/GarinAG/gofias/domain/address/service"
 	directoryService "github.com/GarinAG/gofias/domain/directory/service"
 	fiasApiService "github.com/GarinAG/gofias/domain/fiasApi/service"
@@ -17,7 +16,7 @@ import (
 type App struct {
 	Server           *cli.App
 	Logger           interfaces.LoggerInterface
-	ImportService    *importService.ImportService
+	ImportService    *service.ImportService
 	AddressService   *service.AddressImportService
 	HouseService     *service.HouseImportService
 	VersionService   *versionService.VersionService
@@ -49,7 +48,7 @@ func NewApp() *App {
 		Server:           server,
 		Logger:           logger,
 		DirectoryService: ctn.Resolve("directoryService").(*directoryService.DirectoryService),
-		ImportService:    ctn.Resolve("importService").(*importService.ImportService),
+		ImportService:    ctn.Resolve("importService").(*service.ImportService),
 		AddressService:   ctn.Resolve("addressService").(*service.AddressImportService),
 		HouseService:     ctn.Resolve("houseService").(*service.HouseImportService),
 		VersionService:   ctn.Resolve("versionService").(*versionService.VersionService),

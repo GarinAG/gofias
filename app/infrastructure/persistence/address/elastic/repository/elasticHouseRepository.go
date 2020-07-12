@@ -9,6 +9,7 @@ import (
 	"github.com/GarinAG/gofias/infrastructure/persistence/address/elastic/dto"
 	elasticHelper "github.com/GarinAG/gofias/infrastructure/persistence/elastic"
 	"github.com/GarinAG/gofias/interfaces"
+	"github.com/GarinAG/gofias/util"
 	"github.com/olivere/elastic/v7"
 	"time"
 )
@@ -112,14 +113,22 @@ const (
 
 type ElasticHouseRepository struct {
 	elasticClient *elasticHelper.Client
+	logger        interfaces.LoggerInterface
+	config        interfaces.ConfigInterface
 	indexName     string
+	bulk          *elastic.BulkService
 }
 
-func NewElasticHouseRepository(elasticClient *elasticHelper.Client, configInterface interfaces.ConfigInterface) repository.HouseRepositoryInterface {
-	return &ElasticHouseRepository{
+func NewElasticHouseRepository(elasticClient *elasticHelper.Client, config interfaces.ConfigInterface, logger interfaces.LoggerInterface) repository.HouseRepositoryInterface {
+	repos := &ElasticHouseRepository{
 		elasticClient: elasticClient,
-		indexName:     configInterface.GetString("project.prefix") + entity.HouseObject{}.TableName(),
+		logger:        logger,
+		config:        config,
+		indexName:     config.GetString("project.prefix") + entity.HouseObject{}.TableName(),
 	}
+	repos.bulk = repos.elasticClient.Client.Bulk().Index(repos.indexName).Pipeline(housesPipelineId)
+
+	return repos
 }
 
 func (a *ElasticHouseRepository) GetIndexName() string {
@@ -150,28 +159,51 @@ func (a *ElasticHouseRepository) GetByAddressGuid(guid string) (*entity.HouseObj
 		return nil, err
 	}
 
-	var item *entity.HouseObject
+	var item dto.JsonHouseDto
 	if len(res.Hits.Hits) > 0 {
 		if err := json.Unmarshal(res.Hits.Hits[0].Source, &item); err != nil {
 			return nil, err
 		}
-
-		return item, nil
+		entityItem := a.ConvertToEntity(item)
+		return &entityItem, nil
 	}
 
 	return nil, nil
 }
 
-func (a *ElasticHouseRepository) InsertUpdateCollection(collection []interface{}, isFull bool) error {
+func (a *ElasticHouseRepository) InsertUpdateCollection(channel chan interface{}, done chan bool, count chan int) error {
 	bulk := a.elasticClient.Client.Bulk().Index(a.indexName).Pipeline(housesPipelineId)
-	for _, item := range collection {
-		item := item.(dto.JsonHouseDto)
-		bulk.Add(elastic.NewBulkIndexRequest().Id(item.ID).Doc(item))
+	ctx := context.Background()
+	begin := time.Now()
+	var total uint64
+	for d := range channel {
+		total++
+		saveItem := a.ConvertToDto(d.(entity.HouseObject))
+		util.PrintProcess(begin, total, 0, "item")
+		// Enqueue the document
+		bulk.Add(elastic.NewBulkIndexRequest().Id(saveItem.ID).Doc(saveItem))
+		if bulk.NumberOfActions() >= a.config.GetInt("batch.size") {
+			// Commit
+			res, err := bulk.Do(ctx)
+			if err != nil {
+				return err
+			}
+			if res.Errors {
+				return errors.New("Add houses bulk commit failed")
+			}
+		}
+
+		select {
+		default:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 	}
 
+	// Commit the final batch before exiting
 	if bulk.NumberOfActions() > 0 {
-		// Commit
-		res, err := bulk.Do(context.Background())
+		res, err := bulk.Do(ctx)
+		util.PrintProcess(begin, total, 0, "item")
 		if err != nil {
 			return err
 		}
@@ -179,11 +211,12 @@ func (a *ElasticHouseRepository) InsertUpdateCollection(collection []interface{}
 			return errors.New("Add houses bulk commit failed")
 		}
 	}
+	count <- int(total)
 
 	return nil
 }
 
-func (a *ElasticHouseRepository) convertToEntity(item dto.JsonHouseDto) entity.HouseObject {
+func (a *ElasticHouseRepository) ConvertToEntity(item dto.JsonHouseDto) entity.HouseObject {
 	return entity.HouseObject{
 		ID:         item.ID,
 		AoGuid:     item.AoGuid,
@@ -208,7 +241,7 @@ func (a *ElasticHouseRepository) convertToEntity(item dto.JsonHouseDto) entity.H
 	}
 }
 
-func (a *ElasticHouseRepository) convertToDto(item entity.HouseObject) dto.JsonHouseDto {
+func (a *ElasticHouseRepository) ConvertToDto(item entity.HouseObject) dto.JsonHouseDto {
 	return dto.JsonHouseDto{
 		ID:              item.ID,
 		AoGuid:          item.AoGuid,

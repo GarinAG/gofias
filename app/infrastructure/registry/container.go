@@ -1,7 +1,6 @@
 package registry
 
 import (
-	importService "github.com/GarinAG/gofias/application"
 	"github.com/GarinAG/gofias/domain/address/service"
 	directoryService "github.com/GarinAG/gofias/domain/directory/service"
 	fiasApiService "github.com/GarinAG/gofias/domain/fiasApi/service"
@@ -52,14 +51,18 @@ func NewContainer(config interfaces.ConfigInterface) (*Container, error) {
 			Build: func(ctn di.Container) (interface{}, error) {
 				repo := elasticRepository.NewElasticAddressRepository(
 					ctn.Get("elasticClient").(*elasticHelper.Client),
-					config, ctn.Get("logger").(interfaces.LoggerInterface))
+					config,
+					ctn.Get("logger").(interfaces.LoggerInterface))
 				return service.NewAddressService(repo, ctn.Get("logger").(interfaces.LoggerInterface)), nil
 			},
 		},
 		{
 			Name: "houseService",
 			Build: func(ctn di.Container) (interface{}, error) {
-				repo := elasticRepository.NewElasticHouseRepository(ctn.Get("elasticClient").(*elasticHelper.Client), config)
+				repo := elasticRepository.NewElasticHouseRepository(
+					ctn.Get("elasticClient").(*elasticHelper.Client),
+					config,
+					ctn.Get("logger").(interfaces.LoggerInterface))
 				return service.NewHouseService(repo, ctn.Get("logger").(interfaces.LoggerInterface)), nil
 			},
 		},
@@ -80,7 +83,7 @@ func NewContainer(config interfaces.ConfigInterface) (*Container, error) {
 		{
 			Name: "importService",
 			Build: func(ctn di.Container) (interface{}, error) {
-				return importService.NewImportService(
+				return service.NewImportService(
 					ctn.Get("logger").(interfaces.LoggerInterface),
 					ctn.Get("directoryService").(*directoryService.DirectoryService),
 					ctn.Get("addressService").(*service.AddressImportService),

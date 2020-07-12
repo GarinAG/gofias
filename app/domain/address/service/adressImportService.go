@@ -30,40 +30,12 @@ func NewAddressService(addressRepo repository.AddressRepositoryInterface, logger
 	}
 }
 
-func (a *AddressImportService) Import(
-	filePath string,
-	wg *sync.WaitGroup,
-	isFull bool,
-	size int,
-	insertCollection func(repo repository.InsertUpdateInterface, collection []interface{}, node interface{}, isFull bool, size int) []interface{},
-) {
-
+func (a *AddressImportService) Import(filePath string, wg *sync.WaitGroup, cnt chan int) {
 	defer wg.Done()
-	start := time.Now()
 	addressChannel := make(chan interface{})
 	done := make(chan bool)
-	//defer close(addressChannel)
 	go util.ParseFile(filePath, addressChannel, done, a.logger, a.ParseElement)
-	count := 0
-	var collection []interface{}
-
-Loop:
-	for {
-		select {
-		case node := <-addressChannel:
-			collection = insertCollection(a.addressRepo, collection, node, isFull, size)
-			count++
-		case <-done:
-			break Loop
-		}
-	}
-	if len(collection) > 0 {
-		collection = insertCollection(a.addressRepo, collection, nil, isFull, size)
-	}
-	finish := time.Now()
-
-	a.logger.Info("Number of addresses added: ", count)
-	a.logger.Info("Time to import addresses: ", finish.Sub(start))
+	go a.addressRepo.InsertUpdateCollection(addressChannel, done, cnt)
 }
 
 func (a *AddressImportService) Index(houseRepos repository.HouseRepositoryInterface, isFull bool, start time.Time) {

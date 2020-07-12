@@ -471,16 +471,39 @@ func (a *ElasticAddressRepository) GetCitiesByTerm(term string, count int64) ([]
 	return items, nil
 }
 
-func (a *ElasticAddressRepository) InsertUpdateCollection(collection []interface{}, isFull bool) error {
+func (a *ElasticAddressRepository) InsertUpdateCollection(channel chan interface{}, done chan bool, count chan int) error {
 	bulk := a.elasticClient.Client.Bulk().Index(a.indexName).Pipeline(addrPipelineId)
-	for _, item := range collection {
-		item := item.(dto.JsonAddressDto)
-		bulk.Add(elastic.NewBulkIndexRequest().Id(item.ID).Doc(item))
+	ctx := context.Background()
+	begin := time.Now()
+	var total uint64
+	for d := range channel {
+		total++
+		saveItem := a.ConvertToDto(d.(entity.AddressObject))
+		util.PrintProcess(begin, total, 0, "item")
+		// Enqueue the document
+		bulk.Add(elastic.NewBulkIndexRequest().Id(saveItem.ID).Doc(saveItem))
+		if bulk.NumberOfActions() >= a.config.GetInt("batch.size") {
+			// Commit
+			res, err := bulk.Do(ctx)
+			if err != nil {
+				return err
+			}
+			if res.Errors {
+				return errors.New("Add addresses bulk commit failed")
+			}
+		}
+
+		select {
+		default:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 	}
 
+	// Commit the final batch before exiting
 	if bulk.NumberOfActions() > 0 {
-		// Commit
-		res, err := bulk.Do(context.Background())
+		res, err := bulk.Do(ctx)
+		util.PrintProcess(begin, total, 0, "item")
 		if err != nil {
 			return err
 		}
@@ -488,6 +511,7 @@ func (a *ElasticAddressRepository) InsertUpdateCollection(collection []interface
 			return errors.New("Add addresses bulk commit failed")
 		}
 	}
+	count <- int(total)
 
 	return nil
 }
@@ -679,7 +703,7 @@ func (a *ElasticAddressRepository) searchAddressWorker(wg *sync.WaitGroup, house
 	wg.Done()
 }
 
-func (a *ElasticAddressRepository) convertToEntity(item dto.JsonAddressDto) entity.AddressObject {
+func (a *ElasticAddressRepository) ConvertToEntity(item dto.JsonAddressDto) entity.AddressObject {
 	return entity.AddressObject{
 		ID:         item.ID,
 		AoGuid:     item.AoGuid,
@@ -718,7 +742,7 @@ func (a *ElasticAddressRepository) convertToEntity(item dto.JsonAddressDto) enti
 	}
 }
 
-func (a *ElasticAddressRepository) convertToDto(item entity.AddressObject) dto.JsonAddressDto {
+func (a *ElasticAddressRepository) ConvertToDto(item entity.AddressObject) dto.JsonAddressDto {
 	return dto.JsonAddressDto{
 		ID:              item.ID,
 		AoGuid:          item.AoGuid,

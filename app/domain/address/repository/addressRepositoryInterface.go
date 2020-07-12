@@ -13,7 +13,7 @@ type AddressRepositoryInterface interface {
 	GetByGuid(guid string) (*entity.AddressObject, error)
 	GetCities() ([]*entity.AddressObject, error)
 	GetCitiesByTerm(term string, count int64) ([]*entity.AddressObject, error)
-	InsertUpdateCollection(collection []interface{}, isFull bool) error
+	InsertUpdateCollection(channel chan interface{}, done chan bool, count chan int) error
 	Index(houseRepos HouseRepositoryInterface, isFull bool, start time.Time) error
 	GetIndexName() string
 }

@@ -1,7 +1,5 @@
 package repository
 
 type InsertUpdateInterface interface {
-	InsertUpdateCollection(collection []interface{}, isFull bool) error
+	InsertUpdateCollection(channel chan interface{}, done chan bool, count chan int) error
 }
-
-type insertCollection func(repo InsertUpdateInterface, collection []interface{}, node interface{}, isFull bool, size int) []interface{}

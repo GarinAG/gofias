@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -139,7 +140,7 @@ func (d *DownloadService) DownloadFile(url string, fileName string) (*fileEntity
 }
 
 func (d *DownloadService) Unzip(file *fileEntity.File, parts ...string) ([]fileEntity.File, error) {
-	d.logger.Info("Start unzip file: %s with parts %s", file.Path, parts)
+	d.logger.Info(fmt.Sprintf("Start unzip file: %s with parts %s", file.Path, parts))
 	if len(parts) == 0 {
 		d.logger.Panic("Parts is required field")
 		os.Exit(1)
@@ -211,7 +212,7 @@ func (d *DownloadService) Unzip(file *fileEntity.File, parts ...string) ([]fileE
 			if err != nil {
 				return filenames, err
 			}
-			if matched {
+			if matched && strings.HasSuffix(f.Name, ".XML") {
 				file, err := extractAndWriteFile(f)
 
 				if err != nil {

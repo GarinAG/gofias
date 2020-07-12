@@ -1,5 +1,5 @@
 project:
-  prefix:
+  prefix: chtpz_
 elastic:
   scheme: http
   host: localhost:9200

@@ -1,0 +1,136 @@
+package service
+
+import (
+	addressEntity "github.com/GarinAG/gofias/domain/address/entity"
+	"github.com/GarinAG/gofias/domain/address/repository"
+	directoryEntity "github.com/GarinAG/gofias/domain/directory/entity"
+	"github.com/GarinAG/gofias/domain/directory/service"
+	"github.com/GarinAG/gofias/domain/fiasApi/entity"
+	fiasApiService "github.com/GarinAG/gofias/domain/fiasApi/service"
+	versionEntity "github.com/GarinAG/gofias/domain/version/entity"
+	versionService "github.com/GarinAG/gofias/domain/version/service"
+	"github.com/GarinAG/gofias/interfaces"
+	"github.com/GarinAG/gofias/util"
+	"os"
+	"regexp"
+	"sync"
+	"time"
+)
+
+type ImportService struct {
+	addressImportService *AddressImportService
+	houseImportService   *HouseImportService
+	logger               interfaces.LoggerInterface
+	directoryService     *service.DirectoryService
+	config               interfaces.ConfigInterface
+	IsFull               bool `default:"false"`
+	SkipHouses           bool `default:"false"`
+	SkipClear            bool `default:"false"`
+	Begin                time.Time
+}
+
+func NewImportService(logger interfaces.LoggerInterface, ds *service.DirectoryService, addressImportService *AddressImportService, houseImportService *HouseImportService, config interfaces.ConfigInterface) *ImportService {
+	return &ImportService{
+		addressImportService: addressImportService,
+		houseImportService:   houseImportService,
+		logger:               logger,
+		directoryService:     ds,
+		config:               config,
+		IsFull:               false,
+		Begin:                time.Now(),
+	}
+}
+
+func (is *ImportService) CheckUpdates(api *fiasApiService.FiasApiService, versionService *versionService.VersionService, version *versionEntity.Version) {
+	result := api.GetAllDownloadFileInfo()
+	var needVersionList []entity.DownloadFileInfo
+	for _, file := range result {
+		if file.VersionId == version.FiasVersion {
+			break
+		}
+		needVersionList = append(needVersionList, file)
+	}
+	parts := []string{addressEntity.HouseObject{}.GetXmlFile()}
+	if !is.SkipHouses {
+		parts = append(parts, addressEntity.HouseObject{}.GetXmlFile())
+	}
+
+	is.clearDirectory(false)
+	for i := len(needVersionList) - 1; i >= 0; i-- {
+		uploadedVersion := needVersionList[i]
+		xmlFiles := is.directoryService.DownloadAndExtractFile(uploadedVersion.FiasDeltaXmlUrl, "fias_delta_xml.zip", parts...)
+		cntAddr, cntHouses := is.ParseFiles(xmlFiles)
+		is.clearDirectory(true)
+		versionService.UpdateVersion(is.convertDownloadInfoToVersion(uploadedVersion, cntAddr, cntHouses))
+	}
+
+	is.logger.Info("Import finished")
+}
+
+func (is *ImportService) StartFullImport(api *fiasApiService.FiasApiService, versionService *versionService.VersionService) {
+	is.IsFull = true
+	fileResult := api.GetLastDownloadFileInfo()
+	if len(fileResult.FiasCompleteXmlUrl) > 0 {
+		is.clearDirectory(false)
+		parts := []string{addressEntity.AddressObject{}.GetXmlFile()}
+		if !is.SkipHouses {
+			parts = append(parts, addressEntity.HouseObject{}.GetXmlFile())
+		}
+		xmlFiles := is.directoryService.DownloadAndExtractFile(fileResult.FiasCompleteXmlUrl, "fias_xml.zip", parts...)
+		cntAddr, cntHouses := is.ParseFiles(xmlFiles)
+		versionService.UpdateVersion(is.convertDownloadInfoToVersion(fileResult, cntAddr, cntHouses))
+	}
+
+	is.logger.Info("Import finished")
+}
+
+func (is *ImportService) convertDownloadInfoToVersion(info entity.DownloadFileInfo, cntAddr int, cntHouses int) *versionEntity.Version {
+	versionDateSlice := info.TextVersion[len(info.TextVersion)-10 : len(info.TextVersion)]
+	versionTime, _ := time.Parse("02.01.2006", versionDateSlice)
+	versionDate := versionTime.Format("2006-01-02") + "T00:00:00Z"
+
+	return &versionEntity.Version{
+		FiasVersion:      info.VersionId,
+		UpdateDate:       versionDate,
+		RecUpdateAddress: cntAddr,
+		RecUpdateHouses:  cntHouses,
+	}
+}
+
+func (is *ImportService) clearDirectory(force bool) {
+	if !is.SkipClear || force {
+		err := is.directoryService.ClearDirectory()
+		if err != nil {
+			is.logger.Fatal(err.Error())
+			os.Exit(1)
+		}
+	}
+}
+
+func (is *ImportService) ParseFiles(files *[]directoryEntity.File) (int, int) {
+	var wg sync.WaitGroup
+	cha := make(chan int)
+	chb := make(chan int)
+
+	for _, file := range *files {
+		if r, err := regexp.MatchString(addressEntity.AddressObject{}.GetXmlFile(), file.Path); err == nil && r {
+			wg.Add(1)
+			go is.addressImportService.Import(file.Path, &wg, cha)
+		}
+		if r, err := regexp.MatchString(addressEntity.HouseObject{}.GetXmlFile(), file.Path); err == nil && r {
+			wg.Add(1)
+			go is.houseImportService.Import(file.Path, &wg, is.IsFull, is.config.GetInt("bach.size"), chb, is.insertCollection)
+		}
+	}
+	wg.Wait()
+	cntAddr := <-cha
+	cntHouses := <-chb
+	close(cha)
+	close(chb)
+
+	return cntAddr, cntHouses
+}
+
+func (is *ImportService) Index() {
+	is.addressImportService.Index(is.houseImportService.GetRepo(), is.IsFull, is.Begin)
+}

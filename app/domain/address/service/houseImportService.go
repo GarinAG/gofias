@@ -39,7 +39,8 @@ func (h *HouseImportService) Import(
 	wg *sync.WaitGroup,
 	isFull bool,
 	size int,
-	insertCollection func(repo repository.InsertUpdateInterface, collection []interface{}, node interface{}, isFull bool, size int) []interface{},
+	cnt chan int,
+	insertCollection func(repo repository.InsertUpdateInterface, collection []interface{}, node interface{}, isFull bool, size int, total uint64) []interface{},
 ) {
 	defer wg.Done()
 	start := time.Now()
@@ -55,19 +56,20 @@ Loop:
 	for {
 		select {
 		case node := <-houseChannel:
-			collection = insertCollection(h.houseRepo, collection, node, isFull, size)
 			count++
+			collection = insertCollection(h.houseRepo, collection, node, false, size, uint64(count))
 		case <-done:
 			break Loop
 		}
 	}
 	if len(collection) > 0 {
-		collection = insertCollection(h.houseRepo, collection, nil, isFull, size)
+		collection = insertCollection(h.houseRepo, collection, nil, true, size, uint64(count))
 	}
 	finish := time.Now()
 
 	h.logger.Info("Number of homes added: ", count)
 	h.logger.Info("Time to import houses: ", finish.Sub(start))
+	cnt <- count
 }
 
 func (h *HouseImportService) ParseElement(decoder *xml.Decoder, element *xml.StartElement) (interface{}, error) {
