@@ -19,12 +19,7 @@ func ParseFile(fileName string, done chan<- bool, c chan<- interface{}, logger i
 
 	br := bufio.NewReaderSize(f, 65536)
 	parser := xmlparser.NewXMLParser(br, xmlName).ParseAttributesOnly(xmlName)
-	cnt := 0
 	for xml := range parser.Stream() {
-		if cnt > 5000 {
-			break
-		}
-		cnt++
 		data, err := ParseElement(xml)
 		if err == nil {
 			c <- data
