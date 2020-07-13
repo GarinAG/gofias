@@ -5,6 +5,8 @@ import (
 	"time"
 )
 
+type GetHousesByGuid func(guid string) []*entity.HouseObject
+
 type AddressRepositoryInterface interface {
 	Init() error
 	Clear() error
@@ -13,7 +15,8 @@ type AddressRepositoryInterface interface {
 	GetByGuid(guid string) (*entity.AddressObject, error)
 	GetCities() ([]*entity.AddressObject, error)
 	GetCitiesByTerm(term string, count int64) ([]*entity.AddressObject, error)
-	InsertUpdateCollection(channel chan interface{}, done chan bool, count chan int) error
-	Index(houseRepos HouseRepositoryInterface, isFull bool, start time.Time) error
+	InsertUpdateCollection(channel <-chan interface{}, done <-chan bool, count chan<- int)
 	GetIndexName() string
+	CountAllData() (int64, error)
+	Index(isFull bool, start time.Time, housesCount int64, GetHousesByGuid GetHousesByGuid) error
 }

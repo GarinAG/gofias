@@ -3,7 +3,6 @@ package repository
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/GarinAG/gofias/domain/address/entity"
 	"github.com/GarinAG/gofias/domain/address/repository"
@@ -12,6 +11,7 @@ import (
 	"github.com/GarinAG/gofias/interfaces"
 	"github.com/GarinAG/gofias/util"
 	"github.com/olivere/elastic/v7"
+	"io"
 	"os"
 	"strings"
 	"sync"
@@ -307,21 +307,19 @@ const (
 
 type ElasticAddressRepository struct {
 	logger        interfaces.LoggerInterface
-	config        interfaces.ConfigInterface
+	batchSize     int
 	elasticClient *elasticHelper.Client
 	indexName     string
 	jobs          chan dto.JsonAddressDto
 	results       chan dto.JsonAddressDto
 }
 
-func NewElasticAddressRepository(elasticClient *elasticHelper.Client, config interfaces.ConfigInterface, logger interfaces.LoggerInterface) repository.AddressRepositoryInterface {
+func NewElasticAddressRepository(elasticClient *elasticHelper.Client, logger interfaces.LoggerInterface, batchSize int, prefix string) repository.AddressRepositoryInterface {
 	return &ElasticAddressRepository{
 		logger:        logger,
-		config:        config,
 		elasticClient: elasticClient,
-		indexName:     config.GetString("project.prefix") + entity.AddressObject{}.TableName(),
-		jobs:          make(chan dto.JsonAddressDto, 10),
-		results:       make(chan dto.JsonAddressDto, 10),
+		batchSize:     batchSize,
+		indexName:     prefix + entity.AddressObject{}.TableName(),
 	}
 }
 
@@ -353,13 +351,13 @@ func (a *ElasticAddressRepository) GetByFormalName(term string) (*entity.Address
 		return nil, err
 	}
 
-	var item *entity.AddressObject
+	var item *dto.JsonAddressDto
 	if len(res.Hits.Hits) > 0 {
 		if err := json.Unmarshal(res.Hits.Hits[0].Source, &item); err != nil {
 			return nil, err
 		}
 
-		return item, nil
+		return item.ToEntity(), nil
 	}
 
 	return nil, nil
@@ -376,13 +374,13 @@ func (a *ElasticAddressRepository) GetByGuid(guid string) (*entity.AddressObject
 		return nil, err
 	}
 
-	var item *entity.AddressObject
+	var item *dto.JsonAddressDto
 	if len(res.Hits.Hits) > 0 {
 		if err := json.Unmarshal(res.Hits.Hits[0].Source, &item); err != nil {
 			return nil, err
 		}
 
-		return item, nil
+		return item.ToEntity(), nil
 	}
 
 	return nil, nil
@@ -403,16 +401,20 @@ func (a ElasticAddressRepository) GetCityByFormalName(term string) (*entity.Addr
 		return nil, err
 	}
 
-	var item *entity.AddressObject
+	var item *dto.JsonAddressDto
 	if len(res.Hits.Hits) > 0 {
 		if err := json.Unmarshal(res.Hits.Hits[0].Source, &item); err != nil {
 			return nil, err
 		}
 
-		return item, nil
+		return item.ToEntity(), nil
 	}
 
 	return nil, nil
+}
+
+func (a *ElasticAddressRepository) CountAllData() (int64, error) {
+	return a.elasticClient.CountAllData(a.GetIndexName())
 }
 
 func (a *ElasticAddressRepository) GetCities() ([]*entity.AddressObject, error) {
@@ -429,14 +431,14 @@ func (a *ElasticAddressRepository) GetCities() ([]*entity.AddressObject, error) 
 	}
 
 	var items []*entity.AddressObject
-	var item *entity.AddressObject
+	var item *dto.JsonAddressDto
 	if len(res.Hits.Hits) > 0 {
 		for _, el := range res.Hits.Hits {
 			if err := json.Unmarshal(el.Source, &item); err != nil {
 				return nil, err
 			}
 		}
-		items = append(items, item)
+		items = append(items, item.ToEntity())
 	}
 
 	return items, nil
@@ -458,45 +460,60 @@ func (a *ElasticAddressRepository) GetCitiesByTerm(term string, count int64) ([]
 	}
 
 	var items []*entity.AddressObject
-	var item *entity.AddressObject
+	var item *dto.JsonAddressDto
 	if len(res.Hits.Hits) > 0 {
 		for _, el := range res.Hits.Hits {
 			if err := json.Unmarshal(el.Source, &item); err != nil {
 				return nil, err
 			}
 		}
-		items = append(items, item)
+		items = append(items, item.ToEntity())
 	}
 
 	return items, nil
 }
 
-func (a *ElasticAddressRepository) InsertUpdateCollection(channel chan interface{}, done chan bool, count chan int) error {
+func (a *ElasticAddressRepository) GetDataByQuery(query elastic.Query) ([]elastic.SearchHit, error) {
+	scrollService := a.elasticClient.Client.Scroll(a.GetIndexName()).Query(query).Sort("ao_level", true)
+	return a.elasticClient.ScrollData(scrollService)
+}
+
+func (a *ElasticAddressRepository) GetBulkService() *elastic.BulkService {
+	return a.elasticClient.Client.Bulk().Index(a.GetIndexName()).Pipeline(addrPipelineId)
+}
+
+func (a *ElasticAddressRepository) InsertUpdateCollection(channel <-chan interface{}, done <-chan bool, count chan<- int) {
 	bulk := a.elasticClient.Client.Bulk().Index(a.indexName).Pipeline(addrPipelineId)
 	ctx := context.Background()
 	begin := time.Now()
 	var total uint64
-	for d := range channel {
-		total++
-		saveItem := a.ConvertToDto(d.(entity.AddressObject))
-		util.PrintProcess(begin, total, 0, "item")
-		// Enqueue the document
-		bulk.Add(elastic.NewBulkIndexRequest().Id(saveItem.ID).Doc(saveItem))
-		if bulk.NumberOfActions() >= a.config.GetInt("batch.size") {
-			// Commit
-			res, err := bulk.Do(ctx)
-			if err != nil {
-				return err
-			}
-			if res.Errors {
-				return errors.New("Add addresses bulk commit failed")
-			}
-		}
 
+Loop:
+	for {
 		select {
-		default:
-		case <-ctx.Done():
-			return ctx.Err()
+		case d := <-channel:
+			if d == nil {
+				break Loop
+			}
+			total++
+			saveItem := dto.JsonAddressDto{}
+			saveItem.GetFromEntity(d.(entity.AddressObject))
+
+			util.PrintProcess(begin, total, 0, "item")
+			// Enqueue the document
+			bulk.Add(elastic.NewBulkIndexRequest().Id(saveItem.ID).Doc(saveItem))
+			if bulk.NumberOfActions() >= a.batchSize {
+				// Commit
+				res, err := bulk.Do(ctx)
+				if err != nil {
+					a.logger.WithFields(interfaces.LoggerFields{"error": err}).Fatal("Add addresses bulk commit failed")
+				}
+				if res.Errors {
+					a.logger.WithFields(interfaces.LoggerFields{"error": a.elasticClient.GetBulkError(res)}).Fatal("Add addresses bulk commit failed")
+				}
+			}
+		case <-done:
+			break Loop
 		}
 	}
 
@@ -505,241 +522,23 @@ func (a *ElasticAddressRepository) InsertUpdateCollection(channel chan interface
 		res, err := bulk.Do(ctx)
 		util.PrintProcess(begin, total, 0, "item")
 		if err != nil {
-			return err
+			a.logger.WithFields(interfaces.LoggerFields{"error": err}).Fatal("Add addresses bulk commit failed")
 		}
 		if res.Errors {
-			return errors.New("Add addresses bulk commit failed")
+			a.logger.WithFields(interfaces.LoggerFields{"error": a.elasticClient.GetBulkError(res)}).Fatal("Add addresses bulk commit failed")
 		}
 	}
-	count <- int(total)
 
-	return nil
+	count <- int(total)
 }
 
-func (a *ElasticAddressRepository) Index(houseRepos repository.HouseRepositoryInterface, isFull bool, start time.Time) error {
-	a.elasticClient.RefreshIndexes([]string{a.GetIndexName(), houseRepos.GetIndexName()})
+func (a *ElasticAddressRepository) Refresh() {
+	a.elasticClient.RefreshIndexes([]string{a.GetIndexName()})
+}
+
+func (a *ElasticAddressRepository) ReopenIndex() {
 	a.elasticClient.Client.CloseIndex(a.GetIndexName())
 	a.elasticClient.Client.OpenIndex(a.GetIndexName())
-
-	query := elastic.NewBoolQuery() /*.Filter(elastic.NewTermQuery("ao_level", "7"))*/
-	if !isFull {
-		a.logger.Info("Indexing...")
-		query.Must(elastic.NewRangeQuery("bazis_update_date").Gte(start))
-	} else {
-		a.logger.Info("Full indexing...")
-	}
-
-	scrollService := a.elasticClient.Client.Scroll(a.GetIndexName()).Query(query).Sort("ao_level", true)
-	scanRes, err := a.elasticClient.ScrollData(scrollService)
-	if err != nil {
-		a.logger.Error(err.Error())
-	}
-	addrUpdateCount := len(scanRes)
-	addTotalCount, err := a.elasticClient.CountAllData(a.GetIndexName())
-	houseTotalCount, err := a.elasticClient.CountAllData(houseRepos.GetIndexName())
-
-	a.logger.Info(fmt.Sprintf("Address update count: %d", addrUpdateCount))
-	a.logger.Info(fmt.Sprintf("Total address count: %d", addTotalCount))
-	a.logger.Info(fmt.Sprintf("Total houses count: %d", houseTotalCount))
-
-	if addrUpdateCount > 0 {
-		go a.allocate(scanRes)
-		done := make(chan bool)
-		var total uint64
-		go a.result(done, time.Now(), total)
-		noOfWorkers := 10
-		a.createWorkerPool(noOfWorkers, houseRepos)
-		<-done
-	}
-	a.logger.Info("Index Finished")
-
-	return nil
-}
-
-func (a *ElasticAddressRepository) createWorkerPool(noOfWorkers int, houseRepos repository.HouseRepositoryInterface) {
-	var wg sync.WaitGroup
-	for i := 0; i < noOfWorkers; i++ {
-		wg.Add(1)
-		go a.searchAddressWorker(&wg, houseRepos)
-	}
-	wg.Wait()
-	close(a.results)
-}
-
-func (a *ElasticAddressRepository) allocate(scanRes []elastic.SearchHit) {
-	for _, addressItem := range scanRes {
-		var item dto.JsonAddressDto
-		if err := json.Unmarshal(addressItem.Source, &item); err != nil {
-			a.logger.Fatal(err.Error())
-		}
-		a.jobs <- item
-	}
-	close(a.jobs)
-}
-
-func (a *ElasticAddressRepository) result(done chan bool, begin time.Time, total uint64) {
-	bulk := a.elasticClient.Client.Bulk().Index(a.GetIndexName()).Pipeline(addrPipelineId)
-	ctx := context.Background()
-
-	for d := range a.results {
-		total++
-		util.PrintProcess(begin, total, 0, "item")
-		// Enqueue the document
-		bulk.Add(elastic.NewBulkIndexRequest().Id(d.ID).Doc(d))
-		if bulk.NumberOfActions() >= a.config.GetInt("batch.size") {
-			// Commit
-			res, err := bulk.Do(ctx)
-			if err != nil {
-				a.logger.Fatal(err.Error())
-				os.Exit(1)
-			}
-			if res.Errors {
-				a.logger.Fatal("Bulk commit failed")
-				os.Exit(1)
-			}
-		}
-	}
-
-	// Commit the final batch before exiting
-	if bulk.NumberOfActions() > 0 {
-		_, err := bulk.Do(ctx)
-		if err != nil {
-			a.logger.Fatal(err.Error())
-			os.Exit(1)
-		}
-		util.PrintProcess(begin, total, 0, "item")
-	}
-	fmt.Println("")
-
-	done <- true
-}
-
-func (a *ElasticAddressRepository) searchAddressWorker(wg *sync.WaitGroup, houseRepos repository.HouseRepositoryInterface) {
-	for address := range a.jobs {
-		searchCity, err := a.elasticClient.Client.
-			Search(a.GetIndexName()).
-			Query(elastic.NewMatchQuery("ao_guid", address.ParentGuid)).
-			Do(context.Background())
-		if err != nil {
-			a.logger.Fatal(err.Error())
-			os.Exit(1)
-		}
-
-		if len(searchCity.Hits.Hits) == 0 {
-			continue
-		}
-
-		var city dto.JsonAddressDto
-		var district dto.JsonAddressDto
-		var house dto.JsonHouseDto
-		var houseList []dto.JsonHouseDto
-
-		if err := json.Unmarshal(searchCity.Hits.Hits[0].Source, &city); err != nil {
-			a.logger.Fatal(err.Error())
-			os.Exit(1)
-		}
-		if city.ParentGuid == "" {
-			district = city
-		} else {
-			searchDistrict, err := a.elasticClient.Client.
-				Search(a.GetIndexName()).
-				Query(elastic.NewMatchQuery("ao_guid", city.ParentGuid)).
-				Do(context.Background())
-			if err != nil {
-				a.logger.Fatal(err.Error())
-				os.Exit(1)
-			}
-
-			if len(searchDistrict.Hits.Hits) == 0 {
-				continue
-			}
-
-			if err := json.Unmarshal(searchDistrict.Hits.Hits[0].Source, &district); err != nil {
-				a.logger.Fatal(err.Error())
-				os.Exit(1)
-			}
-		}
-
-		searchHouses, err := a.elasticClient.Client.
-			Search(houseRepos.GetIndexName()).
-			Query(elastic.NewMatchQuery("ao_guid", address.AoGuid)).
-			Do(context.Background())
-		if err != nil {
-			a.logger.Fatal(err.Error())
-			os.Exit(1)
-		}
-
-		for _, houseData := range searchHouses.Hits.Hits {
-			if err := json.Unmarshal(houseData.Source, &house); err != nil {
-				a.logger.Fatal(err.Error())
-				os.Exit(1)
-			}
-			houseList = append(houseList, house)
-		}
-
-		postalCode := address.PostalCode
-		if postalCode != "" {
-			postalCode += ", "
-		}
-
-		address.StreetType = strings.TrimSpace(address.ShortName)
-		address.Street = strings.TrimSpace(address.OffName)
-		address.Settlement = strings.TrimSpace(city.OffName)
-		address.SettlementType = strings.TrimSpace(city.ShortName)
-		address.District = strings.TrimSpace(district.OffName)
-		address.DistrictType = strings.TrimSpace(district.ShortName)
-		address.StreetAddressSuggest = strings.ToLower(address.District +
-			" " + address.Settlement +
-			" " + address.Street)
-		address.FullAddress = postalCode +
-			district.ShortName + " " + district.OffName + ", " +
-			city.ShortName + " " + city.OffName + ", " +
-			address.ShortName + " " + address.OffName
-		address.Houses = houseList
-
-		a.results <- address
-	}
-
-	wg.Done()
-}
-
-func (a *ElasticAddressRepository) ConvertToEntity(item dto.JsonAddressDto) entity.AddressObject {
-	return entity.AddressObject{
-		ID:         item.ID,
-		AoGuid:     item.AoGuid,
-		ParentGuid: item.ParentGuid,
-		FormalName: item.FormalName,
-		ShortName:  item.ShortName,
-		AoLevel:    item.AoLevel,
-		OffName:    item.OffName,
-		AreaCode:   item.AreaCode,
-		CityCode:   item.CityCode,
-		PlaceCode:  item.PlaceCode,
-		AutoCode:   item.AutoCode,
-		PlanCode:   item.PlanCode,
-		StreetCode: item.StreetCode,
-		CTarCode:   item.CTarCode,
-		ExtrCode:   item.ExtrCode,
-		SextCode:   item.SextCode,
-		Code:       item.Code,
-		RegionCode: item.RegionCode,
-		PlainCode:  item.PlainCode,
-		PostalCode: item.PostalCode,
-		Okato:      item.Okato,
-		Oktmo:      item.Oktmo,
-		IfNsFl:     item.IfNsFl,
-		IfNsUl:     item.IfNsUl,
-		TerrIfNsFl: item.TerrIfNsFl,
-		TerrIfNsUl: item.TerrIfNsUl,
-		NormDoc:    item.NormDoc,
-		ActStatus:  item.ActStatus,
-		LiveStatus: item.LiveStatus,
-		CurrStatus: item.CurrStatus,
-		OperStatus: item.OperStatus,
-		StartDate:  item.StartDate,
-		EndDate:    item.EndDate,
-		UpdateDate: item.UpdateDate,
-	}
 }
 
 func (a *ElasticAddressRepository) ConvertToDto(item entity.AddressObject) dto.JsonAddressDto {
@@ -781,4 +580,196 @@ func (a *ElasticAddressRepository) ConvertToDto(item entity.AddressObject) dto.J
 		BazisUpdateDate: time.Now().Format("2006-01-02") + "T00:00:00Z",
 		BazisFinishDate: item.EndDate,
 	}
+}
+
+func (a *ElasticAddressRepository) Index(isFull bool, start time.Time, housesCount int64, GetHousesByGuid repository.GetHousesByGuid) error {
+	a.jobs = make(chan dto.JsonAddressDto, 20)
+	a.results = make(chan dto.JsonAddressDto, 20)
+	a.ReopenIndex()
+
+	query := elastic.NewBoolQuery().Filter(elastic.NewTermQuery("ao_level", "7"))
+	if !isFull {
+		a.logger.Info("Indexing...")
+		query.Must(elastic.NewRangeQuery("bazis_update_date").Gte(start))
+	} else {
+		a.logger.Info("Full indexing...")
+	}
+
+	addTotalCount, err := a.CountAllData()
+	if err != nil {
+		a.logger.Error(err.Error())
+	}
+
+	a.logger.WithFields(interfaces.LoggerFields{"count": addTotalCount}).Info("Total address count")
+	a.logger.WithFields(interfaces.LoggerFields{"count": housesCount}).Info("Total houses count")
+
+	go a.allocate(query)
+	done := make(chan bool)
+	var total uint64
+	go a.result(done, time.Now(), total)
+	noOfWorkers := 10
+	a.createWorkerPool(noOfWorkers, GetHousesByGuid)
+	<-done
+	a.logger.Info("Index Finished")
+
+	return nil
+}
+
+func (a *ElasticAddressRepository) allocate(query elastic.Query) {
+	scrollService := a.elasticClient.Client.Scroll(a.GetIndexName()).Query(query).Sort("ao_level", true).Size(a.batchSize)
+	ctx := context.Background()
+	scrollService.Scroll("1h")
+	count := 0
+	var wg sync.WaitGroup
+
+	for {
+		res, err := scrollService.Do(ctx)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			a.logger.Error(err.Error())
+			break
+		}
+		if res == nil || len(res.Hits.Hits) == 0 {
+			break
+		}
+		count += len(res.Hits.Hits)
+		wg.Add(1)
+		go a.addJobs(res.Hits.Hits, &wg)
+	}
+
+	wg.Wait()
+	a.logger.WithFields(interfaces.LoggerFields{"count": count}).Info("Address update count")
+
+	close(a.jobs)
+}
+
+func (a *ElasticAddressRepository) addJobs(hits []*elastic.SearchHit, wg *sync.WaitGroup) {
+	defer wg.Done()
+	for _, hit := range hits {
+		var item dto.JsonAddressDto
+		if err := json.Unmarshal(hit.Source, &item); err != nil {
+			a.logger.Fatal(err.Error())
+		}
+		a.jobs <- item
+	}
+}
+
+func (a *ElasticAddressRepository) createWorkerPool(noOfWorkers int, GetHousesByGuid repository.GetHousesByGuid) {
+	var wg sync.WaitGroup
+	for i := 0; i < noOfWorkers; i++ {
+		wg.Add(1)
+		go a.searchAddressWorker(&wg, GetHousesByGuid)
+	}
+	wg.Wait()
+	close(a.results)
+}
+
+func (a *ElasticAddressRepository) searchAddressWorker(wg *sync.WaitGroup, GetHousesByGuid repository.GetHousesByGuid) {
+	for address := range a.jobs {
+		searchCity, err := a.GetByGuid(address.ParentGuid)
+
+		if err != nil {
+			a.logger.Error(err.Error())
+		}
+
+		if searchCity == nil {
+			continue
+		}
+
+		city := dto.JsonAddressDto{}
+		district := dto.JsonAddressDto{}
+		var houseList []dto.JsonHouseDto
+
+		city.GetFromEntity(*searchCity)
+
+		if city.ParentGuid == "" {
+			district = city
+		} else {
+			searchDistrict, err := a.GetByGuid(city.ParentGuid)
+			if err != nil {
+				a.logger.Error(err.Error())
+			}
+			if searchDistrict == nil {
+				continue
+			}
+
+			district.GetFromEntity(*searchDistrict)
+		}
+
+		searchHouses := GetHousesByGuid(address.AoGuid)
+
+		for _, houseData := range searchHouses {
+			houseItem := dto.JsonHouseDto{}
+			houseItem.GetFromEntity(*houseData)
+			houseList = append(houseList, houseItem)
+		}
+
+		postalCode := address.PostalCode
+		if postalCode != "" {
+			postalCode += ", "
+		}
+
+		address.StreetType = strings.TrimSpace(address.ShortName)
+		address.Street = strings.TrimSpace(address.OffName)
+		address.Settlement = strings.TrimSpace(city.OffName)
+		address.SettlementType = strings.TrimSpace(city.ShortName)
+		address.District = strings.TrimSpace(district.OffName)
+		address.DistrictType = strings.TrimSpace(district.ShortName)
+		address.StreetAddressSuggest = strings.ToLower(address.District +
+			" " + address.Settlement +
+			" " + address.Street)
+		address.FullAddress = postalCode +
+			district.ShortName + " " + district.OffName + ", " +
+			city.ShortName + " " + city.OffName + ", " +
+			address.ShortName + " " + address.OffName
+		address.Houses = houseList
+
+		a.results <- address
+	}
+
+	wg.Done()
+}
+
+func (a *ElasticAddressRepository) result(done chan bool, begin time.Time, total uint64) {
+	bulk := a.GetBulkService()
+	ctx := context.Background()
+
+	for d := range a.results {
+		total++
+		util.PrintProcess(begin, total, 0, "item")
+		// Enqueue the document
+		bulk.Add(elastic.NewBulkIndexRequest().Id(d.ID).Doc(d))
+		if bulk.NumberOfActions() >= a.batchSize {
+			// Commit
+			res, err := bulk.Do(ctx)
+			if err != nil {
+				a.logger.WithFields(interfaces.LoggerFields{"error": err}).Fatal("Index bulk commit failed")
+				os.Exit(1)
+			}
+			if res.Errors {
+				a.logger.WithFields(interfaces.LoggerFields{"error": a.elasticClient.GetBulkError(res)}).Fatal("Index bulk commit failed")
+				os.Exit(1)
+			}
+		}
+	}
+
+	// Commit the final batch before exiting
+	if bulk.NumberOfActions() > 0 {
+		res, err := bulk.Do(ctx)
+		if err != nil {
+			a.logger.WithFields(interfaces.LoggerFields{"error": err}).Fatal("Index bulk commit failed")
+			os.Exit(1)
+		}
+		if res.Errors {
+			a.logger.WithFields(interfaces.LoggerFields{"error": a.elasticClient.GetBulkError(res)}).Fatal("Index bulk commit failed")
+			os.Exit(1)
+		}
+		util.PrintProcess(begin, total, 0, "item")
+	}
+	fmt.Println("")
+	a.logger.WithFields(interfaces.LoggerFields{"count": total}).Info("Number of indexed addresses")
+
+	done <- true
 }

@@ -6,26 +6,15 @@ gofias is a [Go](http://www.golang.org/) (golang) library that import [fias](htt
 
 ```shell script
 git clone https://github.com/GarinAG/gofias.git
-cd gofias
-go build ./src/gofias/
-./gofias --host=localhost:9200 --bulk-size=5000 --status --skip-houses --skip-snapshot --skip-clear
+cd gofias/app/
+go build ./application/cli/
+./cli update --skip-houses --skip-clear
 ```
 
 ## CLI props
 
-* `bulk-size (int)` - Number of documents to collect before committing (default `1000`)
-* `cpu (int)` - Count of CPU usage (default `0`)
-* `force (bool)` - Force full download (default `false`)
-* `force-index (bool)` - Start force index without import (default `false`)
-* `host (string)` - Elasticsearch host (default `"localhost:9200"`)
-* `logs (string)` - Logs dir path (default `"./logs"`)
-* `prefix (string)` - Prefix for elasticsearch indexes (default `"fias_"`)
 * `skip-clear (bool)` - Skip clear tmp directory on start (default `false`)
 * `skip-houses (bool)` - Skip houses index (default `false`)
-* `skip-snapshot (bool)` - Skip create ElasticSearch snapshot (default `false`)
-* `status (bool)` - Show import status (default `false`)
-* `storage (string)` - Snapshots storage path (default `"/usr/share/elasticsearch/snapshots"`)
-* `tmp (string)` - Tmp folder relative path in user home dir (default `"/tmp/fias/"`)
 
 
 ## ElasticSearch indexes info

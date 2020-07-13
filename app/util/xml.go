@@ -1,34 +1,37 @@
 package util
 
 import (
-	"encoding/xml"
+	"bufio"
 	"github.com/GarinAG/gofias/interfaces"
+	"github.com/tamerh/xml-stream-parser"
 	"os"
 )
 
-type ParseElement func(decoder *xml.Decoder, element *xml.StartElement) (interface{}, error)
+type ParseElement func(element *xmlparser.XMLElement) (interface{}, error)
 
-func ParseFile(fileName string, c chan interface{}, done chan bool, logger interfaces.LoggerInterface, ParseElement ParseElement) {
-	xmlFile, err := os.Open(fileName)
+func ParseFile(fileName string, done chan<- bool, c chan<- interface{}, logger interfaces.LoggerInterface, ParseElement ParseElement, xmlName string) {
+	logger.WithFields(interfaces.LoggerFields{"fileName": fileName}).Info("Start parse xml file")
+	f, err := os.Open(fileName)
 	if err != nil {
-		logger.Error("Error opening file: ", err)
+		logger.WithFields(interfaces.LoggerFields{"error": err}).Error("Error opening file")
 	}
-	defer xmlFile.Close()
+	defer f.Close()
 
-	decoder := xml.NewDecoder(xmlFile)
-
-	for {
-		t, _ := decoder.Token()
-		if t == nil {
+	br := bufio.NewReaderSize(f, 65536)
+	parser := xmlparser.NewXMLParser(br, xmlName).ParseAttributesOnly(xmlName)
+	cnt := 0
+	for xml := range parser.Stream() {
+		if cnt > 5000 {
 			break
 		}
-		switch se := t.(type) {
-		case xml.StartElement:
-			data, err := ParseElement(decoder, &se)
-			if err == nil {
-				c <- data
-			}
+		cnt++
+		data, err := ParseElement(xml)
+		if err == nil {
+			c <- data
 		}
 	}
+
+	close(c)
+	logger.WithFields(interfaces.LoggerFields{"fileName": fileName}).Info("Parse finished")
 	done <- true
 }

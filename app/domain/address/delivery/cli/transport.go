@@ -5,7 +5,7 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-func RegisterCliEndpoints(app *server.App) {
+func RegisterImportCliEndpoint(app *server.App) {
 	h := NewHandler(app.ImportService, app.Logger)
 	app.Server.Commands = append(app.Server.Commands, &cli.Command{
 		Name:  "update",

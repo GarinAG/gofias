@@ -22,7 +22,7 @@ func NewFiasApiService(fiasApiRepo repository.FiasApiRepositoryInterface, logger
 func (f *FiasApiService) GetAllDownloadFileInfo() []entity.DownloadFileInfo {
 	res, err := f.fiasApiRepo.GetAllDownloadFileInfo()
 	if err != nil {
-		f.logger.Fatal("Error", err.Error())
+		f.logger.WithFields(interfaces.LoggerFields{"error": err}).Fatal("GetAllDownloadFileInfo error")
 		os.Exit(1)
 	}
 
@@ -32,7 +32,7 @@ func (f *FiasApiService) GetAllDownloadFileInfo() []entity.DownloadFileInfo {
 func (f *FiasApiService) GetLastDownloadFileInfo() entity.DownloadFileInfo {
 	res, err := f.fiasApiRepo.GetLastDownloadFileInfo()
 	if err != nil {
-		f.logger.Fatal("Error", err.Error())
+		f.logger.WithFields(interfaces.LoggerFields{"error": err}).Fatal("GetLastDownloadFileInfo error")
 		os.Exit(1)
 	}
 

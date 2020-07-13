@@ -1,19 +1,17 @@
 package service
 
 import (
-	"encoding/xml"
-	"errors"
 	"github.com/GarinAG/gofias/domain/address/entity"
 	"github.com/GarinAG/gofias/domain/address/repository"
 	"github.com/GarinAG/gofias/interfaces"
 	"github.com/GarinAG/gofias/util"
+	xmlparser "github.com/tamerh/xml-stream-parser"
 	"os"
 	"sync"
-	"time"
 )
 
 type HouseImportService struct {
-	houseRepo repository.HouseRepositoryInterface
+	HouseRepo repository.HouseRepositoryInterface
 	logger    interfaces.LoggerInterface
 }
 
@@ -25,63 +23,63 @@ func NewHouseService(houseRepo repository.HouseRepositoryInterface, logger inter
 	}
 
 	return &HouseImportService{
-		houseRepo: houseRepo,
+		HouseRepo: houseRepo,
 		logger:    logger,
 	}
 }
 
 func (h *HouseImportService) GetRepo() repository.HouseRepositoryInterface {
-	return h.houseRepo
+	return h.HouseRepo
 }
 
-func (h *HouseImportService) Import(
-	filePath string,
-	wg *sync.WaitGroup,
-	isFull bool,
-	size int,
-	cnt chan int,
-	insertCollection func(repo repository.InsertUpdateInterface, collection []interface{}, node interface{}, isFull bool, size int, total uint64) []interface{},
-) {
+func (h *HouseImportService) Import(filePath string, wg *sync.WaitGroup, cnt chan int) {
 	defer wg.Done()
-	start := time.Now()
-	houseChannel := make(chan interface{})
+	addressChannel := make(chan interface{})
 	done := make(chan bool)
-	defer close(houseChannel)
-
-	go util.ParseFile(filePath, houseChannel, done, h.logger, h.ParseElement)
-	var collection []interface{}
-	count := 0
-
-Loop:
-	for {
-		select {
-		case node := <-houseChannel:
-			count++
-			collection = insertCollection(h.houseRepo, collection, node, false, size, uint64(count))
-		case <-done:
-			break Loop
-		}
-	}
-	if len(collection) > 0 {
-		collection = insertCollection(h.houseRepo, collection, nil, true, size, uint64(count))
-	}
-	finish := time.Now()
-
-	h.logger.Info("Number of homes added: ", count)
-	h.logger.Info("Time to import houses: ", finish.Sub(start))
-	cnt <- count
+	go util.ParseFile(filePath, done, addressChannel, h.logger, h.ParseElement, "House")
+	go h.HouseRepo.InsertUpdateCollection(addressChannel, done, cnt)
 }
 
-func (h *HouseImportService) ParseElement(decoder *xml.Decoder, element *xml.StartElement) (interface{}, error) {
-	result := entity.HouseObject{}
-	if element.Name.Local == "House" {
-		err := decoder.DecodeElement(&result, element)
-		if err != nil {
-			return nil, err
-		}
+func (h *HouseImportService) ParseElement(element *xmlparser.XMLElement) (interface{}, error) {
+	result := entity.HouseObject{
+		ID:         element.Attrs["HOUSEID"],
+		AoGuid:     element.Attrs["AOGUID"],
+		HouseNum:   element.Attrs["HOUSENUM"],
+		RegionCode: element.Attrs["REGIONCODE"],
+		PostalCode: element.Attrs["POSTALCODE"],
+		Okato:      element.Attrs["OKATO"],
+		Oktmo:      element.Attrs["OKTMO"],
+		IfNsFl:     element.Attrs["IFNSFL"],
+		IfNsUl:     element.Attrs["IFNSUL"],
+		TerrIfNsFl: element.Attrs["TERRIFNSFL"],
+		TerrIfNsUl: element.Attrs["TERRIFNSUL"],
+		NormDoc:    element.Attrs["NORMDOC"],
+		StartDate:  element.Attrs["STARTDATE"],
+		EndDate:    element.Attrs["ENDDATE"],
+		UpdateDate: element.Attrs["UPDATEDATE"],
+		DivType:    element.Attrs["DIVTYPE"],
+		BuildNum:   element.Attrs["BUILDNUM"],
+		StructNum:  element.Attrs["STRUCNUM"],
+		Counter:    element.Attrs["COUNTER"],
+		CadNum:     element.Attrs["CADNUM"],
+	}
+	return result, nil
+}
 
-		return result, nil
+func (h *HouseImportService) GetByAddressGuid(giud string) []*entity.HouseObject {
+	res, err := h.HouseRepo.GetByAddressGuid(giud)
+	if err != nil {
+		h.logger.Error(err.Error())
 	}
 
-	return nil, errors.New("object is not a house")
+	return res
+}
+
+func (h *HouseImportService) CountAllData() int64 {
+	res, err := h.HouseRepo.CountAllData()
+	if err != nil {
+		h.logger.Error(err.Error())
+	}
+
+	return res
 }

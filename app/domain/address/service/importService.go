@@ -2,7 +2,6 @@ package service
 
 import (
 	addressEntity "github.com/GarinAG/gofias/domain/address/entity"
-	"github.com/GarinAG/gofias/domain/address/repository"
 	directoryEntity "github.com/GarinAG/gofias/domain/directory/entity"
 	"github.com/GarinAG/gofias/domain/directory/service"
 	"github.com/GarinAG/gofias/domain/fiasApi/entity"
@@ -10,7 +9,6 @@ import (
 	versionEntity "github.com/GarinAG/gofias/domain/version/entity"
 	versionService "github.com/GarinAG/gofias/domain/version/service"
 	"github.com/GarinAG/gofias/interfaces"
-	"github.com/GarinAG/gofias/util"
 	"os"
 	"regexp"
 	"sync"
@@ -45,7 +43,7 @@ func (is *ImportService) CheckUpdates(api *fiasApiService.FiasApiService, versio
 	result := api.GetAllDownloadFileInfo()
 	var needVersionList []entity.DownloadFileInfo
 	for _, file := range result {
-		if file.VersionId == version.FiasVersion {
+		if file.VersionId == version.ID {
 			break
 		}
 		needVersionList = append(needVersionList, file)
@@ -56,6 +54,10 @@ func (is *ImportService) CheckUpdates(api *fiasApiService.FiasApiService, versio
 	}
 
 	is.clearDirectory(false)
+	if len(needVersionList) == 0 {
+		is.logger.Info("Last version is uploaded")
+		os.Exit(1)
+	}
 	for i := len(needVersionList) - 1; i >= 0; i-- {
 		uploadedVersion := needVersionList[i]
 		xmlFiles := is.directoryService.DownloadAndExtractFile(uploadedVersion.FiasDeltaXmlUrl, "fias_delta_xml.zip", parts...)
@@ -90,7 +92,8 @@ func (is *ImportService) convertDownloadInfoToVersion(info entity.DownloadFileIn
 	versionDate := versionTime.Format("2006-01-02") + "T00:00:00Z"
 
 	return &versionEntity.Version{
-		FiasVersion:      info.VersionId,
+		ID:               info.VersionId,
+		FiasVersion:      info.TextVersion,
 		UpdateDate:       versionDate,
 		RecUpdateAddress: cntAddr,
 		RecUpdateHouses:  cntHouses,
@@ -109,28 +112,28 @@ func (is *ImportService) clearDirectory(force bool) {
 
 func (is *ImportService) ParseFiles(files *[]directoryEntity.File) (int, int) {
 	var wg sync.WaitGroup
-	cha := make(chan int)
-	chb := make(chan int)
+	cntAddr := 0
+	cntHouse := 0
 
 	for _, file := range *files {
 		if r, err := regexp.MatchString(addressEntity.AddressObject{}.GetXmlFile(), file.Path); err == nil && r {
 			wg.Add(1)
+			cha := make(chan int)
 			go is.addressImportService.Import(file.Path, &wg, cha)
+			cntAddr = <-cha
 		}
 		if r, err := regexp.MatchString(addressEntity.HouseObject{}.GetXmlFile(), file.Path); err == nil && r {
 			wg.Add(1)
-			go is.houseImportService.Import(file.Path, &wg, is.IsFull, is.config.GetInt("bach.size"), chb, is.insertCollection)
+			chb := make(chan int)
+			go is.houseImportService.Import(file.Path, &wg, chb)
+			cntHouse = <-chb
 		}
 	}
 	wg.Wait()
-	cntAddr := <-cha
-	cntHouses := <-chb
-	close(cha)
-	close(chb)
 
-	return cntAddr, cntHouses
+	return cntAddr, cntHouse
 }
 
 func (is *ImportService) Index() {
-	is.addressImportService.Index(is.houseImportService.GetRepo(), is.IsFull, is.Begin)
+	is.addressImportService.Index(is.IsFull, is.Begin, is.houseImportService.CountAllData(), is.houseImportService.GetByAddressGuid)
 }

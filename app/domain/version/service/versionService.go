@@ -15,7 +15,7 @@ type VersionService struct {
 func NewVersionService(versionRepo repository.VersionRepositoryInterface, logger interfaces.LoggerInterface) *VersionService {
 	err := versionRepo.Init()
 	if err != nil {
-		logger.Panic(err.Error())
+		logger.Fatal(err.Error())
 		os.Exit(1)
 	}
 
@@ -28,18 +28,17 @@ func NewVersionService(versionRepo repository.VersionRepositoryInterface, logger
 func (v *VersionService) GetLastVersionInfo() *entity.Version {
 	version, err := v.versionRepo.GetVersion()
 	if err != nil {
-		v.logger.Error(err.Error())
+		v.logger.Fatal(err.Error())
+		os.Exit(1)
 	}
 
 	return version
 }
 
-func (v *VersionService) UpdateVersion(version *entity.Version) bool {
+func (v *VersionService) UpdateVersion(version *entity.Version) {
 	err := v.versionRepo.SetVersion(version)
 	if err != nil {
-		v.logger.Error(err.Error())
-		return false
+		v.logger.Fatal(err.Error())
+		os.Exit(1)
 	}
-
-	return true
 }

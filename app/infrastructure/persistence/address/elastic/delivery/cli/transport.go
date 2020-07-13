@@ -5,13 +5,14 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-func RegisterVersionCliEndpoint(app *server.App) {
-	h := NewHandler(*app.VersionService)
+func RegisterIndexCliEndpoint(app *server.App) {
+	h := NewHandler(app.ImportService, app.Logger)
 	app.Server.Commands = append(app.Server.Commands, &cli.Command{
-		Name:  "version",
-		Usage: "Get current fias version",
+		Name:  "index",
+		Usage: "Run fias elastic index",
 		Action: func(c *cli.Context) error {
-			h.GetVersionInfo()
+			h.importService.IsFull = true
+			h.Index()
 			return nil
 		},
 	})

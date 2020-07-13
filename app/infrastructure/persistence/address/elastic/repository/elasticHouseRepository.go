@@ -3,7 +3,6 @@ package repository
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"github.com/GarinAG/gofias/domain/address/entity"
 	"github.com/GarinAG/gofias/domain/address/repository"
 	"github.com/GarinAG/gofias/infrastructure/persistence/address/elastic/dto"
@@ -115,20 +114,17 @@ type ElasticHouseRepository struct {
 	elasticClient *elasticHelper.Client
 	logger        interfaces.LoggerInterface
 	config        interfaces.ConfigInterface
+	batchSize     int
 	indexName     string
-	bulk          *elastic.BulkService
 }
 
-func NewElasticHouseRepository(elasticClient *elasticHelper.Client, config interfaces.ConfigInterface, logger interfaces.LoggerInterface) repository.HouseRepositoryInterface {
-	repos := &ElasticHouseRepository{
+func NewElasticHouseRepository(elasticClient *elasticHelper.Client, logger interfaces.LoggerInterface, batchSize int, prefix string) repository.HouseRepositoryInterface {
+	return &ElasticHouseRepository{
 		elasticClient: elasticClient,
 		logger:        logger,
-		config:        config,
-		indexName:     config.GetString("project.prefix") + entity.HouseObject{}.TableName(),
+		batchSize:     batchSize,
+		indexName:     prefix + entity.HouseObject{}.TableName(),
 	}
-	repos.bulk = repos.elasticClient.Client.Bulk().Index(repos.indexName).Pipeline(housesPipelineId)
-
-	return repos
 }
 
 func (a *ElasticHouseRepository) GetIndexName() string {
@@ -148,55 +144,61 @@ func (a *ElasticHouseRepository) Clear() error {
 	return a.elasticClient.DropIndex(a.indexName)
 }
 
-func (a *ElasticHouseRepository) GetByAddressGuid(guid string) (*entity.HouseObject, error) {
+func (a *ElasticHouseRepository) GetByAddressGuid(guid string) ([]*entity.HouseObject, error) {
 	res, err := a.elasticClient.Client.
 		Search(a.indexName).
 		Query(elastic.NewTermQuery("ao_guid", guid)).
-		Size(1).
 		Do(context.Background())
 
 	if err != nil {
 		return nil, err
 	}
 
-	var item dto.JsonHouseDto
+	var items []*entity.HouseObject
+	var item *dto.JsonHouseDto
 	if len(res.Hits.Hits) > 0 {
-		if err := json.Unmarshal(res.Hits.Hits[0].Source, &item); err != nil {
-			return nil, err
+		for _, el := range res.Hits.Hits {
+			if err := json.Unmarshal(el.Source, &item); err != nil {
+				return nil, err
+			}
 		}
-		entityItem := a.ConvertToEntity(item)
-		return &entityItem, nil
+		items = append(items, item.ToEntity())
 	}
 
-	return nil, nil
+	return items, nil
 }
 
-func (a *ElasticHouseRepository) InsertUpdateCollection(channel chan interface{}, done chan bool, count chan int) error {
+func (a *ElasticHouseRepository) InsertUpdateCollection(channel <-chan interface{}, done <-chan bool, count chan<- int) {
 	bulk := a.elasticClient.Client.Bulk().Index(a.indexName).Pipeline(housesPipelineId)
 	ctx := context.Background()
 	begin := time.Now()
 	var total uint64
-	for d := range channel {
-		total++
-		saveItem := a.ConvertToDto(d.(entity.HouseObject))
-		util.PrintProcess(begin, total, 0, "item")
-		// Enqueue the document
-		bulk.Add(elastic.NewBulkIndexRequest().Id(saveItem.ID).Doc(saveItem))
-		if bulk.NumberOfActions() >= a.config.GetInt("batch.size") {
-			// Commit
-			res, err := bulk.Do(ctx)
-			if err != nil {
-				return err
-			}
-			if res.Errors {
-				return errors.New("Add houses bulk commit failed")
-			}
-		}
 
+Loop:
+	for {
 		select {
-		default:
-		case <-ctx.Done():
-			return ctx.Err()
+		case d := <-channel:
+			if d == nil {
+				break Loop
+			}
+			total++
+			saveItem := dto.JsonHouseDto{}
+			saveItem.GetFromEntity(d.(entity.HouseObject))
+			util.PrintProcess(begin, total, 0, "item")
+			// Enqueue the document
+			bulk.Add(elastic.NewBulkIndexRequest().Id(saveItem.ID).Doc(saveItem))
+			if bulk.NumberOfActions() >= a.config.GetInt("batch.size") {
+				// Commit
+				res, err := bulk.Do(ctx)
+				if err != nil {
+					a.logger.WithFields(interfaces.LoggerFields{"error": err}).Fatal("Add houses bulk commit failed")
+				}
+				if res.Errors {
+					a.logger.WithFields(interfaces.LoggerFields{"error": a.elasticClient.GetBulkError(res)}).Fatal("Add houses bulk commit failed")
+				}
+			}
+		case <-done:
+			break Loop
 		}
 	}
 
@@ -205,65 +207,19 @@ func (a *ElasticHouseRepository) InsertUpdateCollection(channel chan interface{}
 		res, err := bulk.Do(ctx)
 		util.PrintProcess(begin, total, 0, "item")
 		if err != nil {
-			return err
+			a.logger.WithFields(interfaces.LoggerFields{"error": err}).Fatal("Add houses bulk commit failed")
 		}
 		if res.Errors {
-			return errors.New("Add houses bulk commit failed")
+			a.logger.WithFields(interfaces.LoggerFields{"error": a.elasticClient.GetBulkError(res)}).Fatal("Add houses bulk commit failed")
 		}
 	}
 	count <- int(total)
-
-	return nil
 }
 
-func (a *ElasticHouseRepository) ConvertToEntity(item dto.JsonHouseDto) entity.HouseObject {
-	return entity.HouseObject{
-		ID:         item.ID,
-		AoGuid:     item.AoGuid,
-		HouseNum:   item.HouseNum,
-		RegionCode: item.RegionCode,
-		PostalCode: item.PostalCode,
-		Okato:      item.Okato,
-		Oktmo:      item.Oktmo,
-		IfNsFl:     item.IfNsFl,
-		IfNsUl:     item.IfNsUl,
-		TerrIfNsFl: item.TerrIfNsFl,
-		TerrIfNsUl: item.TerrIfNsUl,
-		NormDoc:    item.NormDoc,
-		StartDate:  item.StartDate,
-		EndDate:    item.EndDate,
-		UpdateDate: item.UpdateDate,
-		DivType:    item.DivType,
-		BuildNum:   item.BuildNum,
-		StructNum:  item.StructNum,
-		Counter:    item.Counter,
-		CadNum:     item.CadNum,
-	}
+func (a *ElasticHouseRepository) CountAllData() (int64, error) {
+	return a.elasticClient.CountAllData(a.GetIndexName())
 }
 
-func (a *ElasticHouseRepository) ConvertToDto(item entity.HouseObject) dto.JsonHouseDto {
-	return dto.JsonHouseDto{
-		ID:              item.ID,
-		AoGuid:          item.AoGuid,
-		HouseNum:        item.HouseNum,
-		RegionCode:      item.RegionCode,
-		PostalCode:      item.PostalCode,
-		Okato:           item.Okato,
-		Oktmo:           item.Oktmo,
-		IfNsFl:          item.IfNsFl,
-		IfNsUl:          item.IfNsUl,
-		TerrIfNsFl:      item.TerrIfNsFl,
-		TerrIfNsUl:      item.TerrIfNsUl,
-		NormDoc:         item.NormDoc,
-		StartDate:       item.StartDate,
-		EndDate:         item.EndDate,
-		UpdateDate:      item.UpdateDate,
-		DivType:         item.DivType,
-		BuildNum:        item.BuildNum,
-		StructNum:       item.StructNum,
-		Counter:         item.Counter,
-		CadNum:          item.CadNum,
-		BazisUpdateDate: time.Now().Format("2006-01-02") + "T00:00:00Z",
-		BazisFinishDate: item.EndDate,
-	}
+func (a *ElasticHouseRepository) Refresh() {
+	a.elasticClient.RefreshIndexes([]string{a.GetIndexName()})
 }

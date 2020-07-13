@@ -1,5 +1,5 @@
 project:
-  prefix: chtpz_
+  prefix:
 elastic:
   scheme: http
   host: localhost:9200
@@ -15,3 +15,13 @@ process:
   print: true
 fiasApi:
   url: https://fias.nalog.ru/WebServices/Public/
+logger:
+  console:
+    enable: true
+    level: debug
+    json: false
+  file:
+    enable: true
+    level: info
+    json: true
+    path: ./log.log

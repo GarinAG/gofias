@@ -52,7 +52,7 @@ func (d *DownloadService) ClearDirectory() error {
 	dir := d.config.GetString("directory.filePath")
 
 	if _, err := os.Stat(dir); err == nil {
-		d.logger.Info("Clear Tmp dir", dir)
+		d.logger.WithFields(interfaces.LoggerFields{"dir": dir}).Info("Clear Tmp dir")
 		err = os.RemoveAll(dir)
 		if err != nil {
 			d.logger.Fatal(err.Error())
@@ -67,7 +67,7 @@ func (d *DownloadService) CreateDirectory() error {
 	dir := d.config.GetString("directory.filePath")
 
 	if _, err := os.Stat(dir); err != nil {
-		d.logger.Info("Create tmp dir", dir)
+		d.logger.WithFields(interfaces.LoggerFields{"dir": dir}).Info("Create tmp dir")
 		err := os.MkdirAll(dir, os.ModePerm)
 		if err != nil {
 			d.logger.Fatal(err.Error())
@@ -81,10 +81,10 @@ func (d *DownloadService) CreateDirectory() error {
 func (d *DownloadService) GetDownloadSize(url string) uint64 {
 	resp, err := http.Head(url)
 	if err != nil {
-		d.logger.Fatal("Get download file size error: ", err)
+		d.logger.WithFields(interfaces.LoggerFields{"error": err}).Fatal("Get download file size error")
 	}
-	if resp.StatusCode != http.StatusOK {
-		d.logger.Fatal("Wrong http status code of file: %d", resp.StatusCode)
+	if resp != nil && resp.StatusCode != http.StatusOK {
+		d.logger.WithFields(interfaces.LoggerFields{"code": resp.StatusCode}).Fatal("Wrong http status code of file")
 	}
 	size, _ := strconv.Atoi(resp.Header.Get("Content-Length"))
 	return uint64(size)
@@ -99,7 +99,7 @@ func (d *DownloadService) DownloadFile(url string, fileName string) (*fileEntity
 
 	filePathLocal := d.config.GetString("directory.filePath") + fileName
 	if _, err := os.Stat(filePathLocal); os.IsNotExist(err) {
-		d.logger.Info("Download Started: %s to %s", url, filePathLocal)
+		d.logger.WithFields(interfaces.LoggerFields{"url": url, "path": filePathLocal}).Info("Download Started")
 
 		out, err := os.Create(filePathLocal + ".tmp")
 		if err != nil {
@@ -140,7 +140,7 @@ func (d *DownloadService) DownloadFile(url string, fileName string) (*fileEntity
 }
 
 func (d *DownloadService) Unzip(file *fileEntity.File, parts ...string) ([]fileEntity.File, error) {
-	d.logger.Info(fmt.Sprintf("Start unzip file: %s with parts %s", file.Path, parts))
+	d.logger.WithFields(interfaces.LoggerFields{"file": file.Path, "parts": parts}).Info("Start unzip file")
 	if len(parts) == 0 {
 		d.logger.Panic("Parts is required field")
 		os.Exit(1)
@@ -154,7 +154,7 @@ func (d *DownloadService) Unzip(file *fileEntity.File, parts ...string) ([]fileE
 	}
 	defer func() {
 		if err := r.Close(); err != nil {
-			d.logger.Panic("Open zip error: ", err.Error())
+			d.logger.WithFields(interfaces.LoggerFields{"error": err}).Panic("Open zip error")
 			os.Exit(1)
 		}
 	}()

@@ -129,3 +129,22 @@ func (e *Client) CountAllData(index string) (int64, error) {
 
 	return res, nil
 }
+
+func (e *Client) GetBulkError(bulk *elastic.BulkResponse) *elastic.ErrorDetails {
+	var errorDetail *elastic.ErrorDetails
+
+Loop:
+	for {
+		for _, resItems := range bulk.Items {
+			for _, resItem := range resItems {
+				if resItem.Error != nil {
+					errorDetail = resItem.Error
+					break Loop
+				}
+			}
+		}
+		break
+	}
+
+	return errorDetail
+}

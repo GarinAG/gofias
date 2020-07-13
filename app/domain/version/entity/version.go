@@ -1,8 +1,8 @@
 package entity
 
 type Version struct {
-	ID               string
-	FiasVersion      int
+	ID               int
+	FiasVersion      string
 	UpdateDate       string
 	RecUpdateAddress int
 	RecUpdateHouses  int

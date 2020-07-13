@@ -28,8 +28,17 @@ func NewContainer(config interfaces.ConfigInterface) (*Container, error) {
 		{
 			Name: "logger",
 			Build: func(ctn di.Container) (interface{}, error) {
-				logger := log.InitLogrusLogger(config)
-				return logger, nil
+				loggerConfig := interfaces.LoggerConfiguration{
+					EnableConsole:     config.GetBool("logger.console.enable"),
+					ConsoleLevel:      config.GetString("logger.console.level"),
+					ConsoleJSONFormat: config.GetBool("logger.console.json"),
+					EnableFile:        config.GetBool("logger.file.enable"),
+					FileLevel:         config.GetString("logger.file.level"),
+					FileJSONFormat:    config.GetBool("logger.file.json"),
+					FileLocation:      config.GetString("logger.file.path"),
+				}
+
+				return log.NewZapLogger(loggerConfig)
 			},
 		},
 		{
@@ -51,8 +60,9 @@ func NewContainer(config interfaces.ConfigInterface) (*Container, error) {
 			Build: func(ctn di.Container) (interface{}, error) {
 				repo := elasticRepository.NewElasticAddressRepository(
 					ctn.Get("elasticClient").(*elasticHelper.Client),
-					config,
-					ctn.Get("logger").(interfaces.LoggerInterface))
+					ctn.Get("logger").(interfaces.LoggerInterface),
+					config.GetInt("batch.size"),
+					config.GetString("project.prefix"))
 				return service.NewAddressService(repo, ctn.Get("logger").(interfaces.LoggerInterface)), nil
 			},
 		},
@@ -61,8 +71,9 @@ func NewContainer(config interfaces.ConfigInterface) (*Container, error) {
 			Build: func(ctn di.Container) (interface{}, error) {
 				repo := elasticRepository.NewElasticHouseRepository(
 					ctn.Get("elasticClient").(*elasticHelper.Client),
-					config,
-					ctn.Get("logger").(interfaces.LoggerInterface))
+					ctn.Get("logger").(interfaces.LoggerInterface),
+					config.GetInt("batch.size"),
+					config.GetString("project.prefix"))
 				return service.NewHouseService(repo, ctn.Get("logger").(interfaces.LoggerInterface)), nil
 			},
 		},

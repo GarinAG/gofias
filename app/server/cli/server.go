@@ -1,12 +1,10 @@
 package cli
 
 import (
-	"fmt"
 	"github.com/GarinAG/gofias/domain/address/service"
 	directoryService "github.com/GarinAG/gofias/domain/directory/service"
 	fiasApiService "github.com/GarinAG/gofias/domain/fiasApi/service"
 	versionService "github.com/GarinAG/gofias/domain/version/service"
-	"github.com/GarinAG/gofias/infrastructure/persistence/config"
 	"github.com/GarinAG/gofias/infrastructure/registry"
 	"github.com/GarinAG/gofias/interfaces"
 	"github.com/urfave/cli/v2"
@@ -15,6 +13,8 @@ import (
 
 type App struct {
 	Server           *cli.App
+	Container        *registry.Container
+	Config           interfaces.ConfigInterface
 	Logger           interfaces.LoggerInterface
 	ImportService    *service.ImportService
 	AddressService   *service.AddressImportService
@@ -24,28 +24,22 @@ type App struct {
 	FiasApiService   *fiasApiService.FiasApiService
 }
 
-func NewApp() *App {
-	yamlConfig := config.YamlConfig{ConfigPath: "../"}
-	//envConfig := config.EnvConfig{}
-	err := yamlConfig.Init()
-	if err != nil {
-		panic(fmt.Sprintf("Failed to init configuration: %v", err))
-	}
-	ctn, err := registry.NewContainer(&yamlConfig)
-	if err != nil {
-		panic(fmt.Sprintf("Failed to build container: %v", err))
-	}
-	logger := ctn.Resolve("logger").(interfaces.LoggerInterface)
+func NewApp(config interfaces.ConfigInterface) *App {
 	server := initCli()
+	ctn, _ := registry.NewContainer(config)
+	logger := ctn.Resolve("logger").(interfaces.LoggerInterface)
+
 	defer func() {
 		if r := recover(); r != nil {
-			logger.Panic("Error: ", r)
+			logger.WithFields(interfaces.LoggerFields{"error": r}).Panic("Program fatal error")
 			os.Exit(1)
 		}
 	}()
 
 	return &App{
 		Server:           server,
+		Container:        ctn,
+		Config:           config,
 		Logger:           logger,
 		DirectoryService: ctn.Resolve("directoryService").(*directoryService.DirectoryService),
 		ImportService:    ctn.Resolve("importService").(*service.ImportService),
@@ -59,7 +53,7 @@ func NewApp() *App {
 func initCli() *cli.App {
 	app := cli.App{
 		Name:    "fiascli",
-		Usage:   "cli fias program",
+		Usage:   "Cli fias program",
 		Version: "0.1.0",
 	}
 
