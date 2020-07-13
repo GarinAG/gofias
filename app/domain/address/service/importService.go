@@ -112,24 +112,32 @@ func (is *ImportService) clearDirectory(force bool) {
 
 func (is *ImportService) ParseFiles(files *[]directoryEntity.File) (int, int) {
 	var wg sync.WaitGroup
+	cha := make(chan int)
+	chb := make(chan int)
+	hasAddress := false
+	hasHouse := false
 	cntAddr := 0
 	cntHouse := 0
 
 	for _, file := range *files {
 		if r, err := regexp.MatchString(addressEntity.AddressObject{}.GetXmlFile(), file.Path); err == nil && r {
+			hasAddress = true
 			wg.Add(1)
-			cha := make(chan int)
 			go is.addressImportService.Import(file.Path, &wg, cha)
-			cntAddr = <-cha
 		}
 		if r, err := regexp.MatchString(addressEntity.HouseObject{}.GetXmlFile(), file.Path); err == nil && r {
+			hasHouse = true
 			wg.Add(1)
-			chb := make(chan int)
 			go is.houseImportService.Import(file.Path, &wg, chb)
-			cntHouse = <-chb
 		}
 	}
 	wg.Wait()
+	if hasAddress {
+		cntAddr = <-cha
+	}
+	if hasHouse {
+		cntHouse = <-chb
+	}
 
 	return cntAddr, cntHouse
 }
