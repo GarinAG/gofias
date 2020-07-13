@@ -4,13 +4,11 @@ import (
 	"fmt"
 	"github.com/dustin/go-humanize"
 	"strconv"
-	"sync/atomic"
 	"time"
 )
 
-func PrintProcess(begin time.Time, total uint64, size uint64, unit string) {
+func PrintProcess(begin time.Time, current uint64, size uint64, unit string) {
 	// Simple progress
-	current := atomic.AddUint64(&total, 1)
 	dur := time.Since(begin).Seconds()
 	sec := int(dur)
 	pps := int64(float64(current) / dur)

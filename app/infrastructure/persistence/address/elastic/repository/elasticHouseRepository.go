@@ -113,7 +113,6 @@ const (
 type ElasticHouseRepository struct {
 	elasticClient *elasticHelper.Client
 	logger        interfaces.LoggerInterface
-	config        interfaces.ConfigInterface
 	batchSize     int
 	indexName     string
 }
@@ -187,7 +186,7 @@ Loop:
 			util.PrintProcess(begin, total, 0, "item")
 			// Enqueue the document
 			bulk.Add(elastic.NewBulkIndexRequest().Id(saveItem.ID).Doc(saveItem))
-			if bulk.NumberOfActions() >= a.config.GetInt("batch.size") {
+			if bulk.NumberOfActions() >= a.batchSize {
 				// Commit
 				res, err := bulk.Do(ctx)
 				if err != nil {
