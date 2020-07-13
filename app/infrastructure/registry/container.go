@@ -29,7 +29,7 @@ func NewContainer() (*Container, error) {
 		{
 			Name: "config",
 			Build: func(ctn di.Container) (interface{}, error) {
-				appConfig := config.YamlConfig{ConfigPath: "../"}
+				appConfig := config.YamlConfig{ConfigPath: "./"}
 				err := appConfig.Init()
 
 				return &appConfig, err
