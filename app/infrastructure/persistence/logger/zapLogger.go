@@ -44,7 +44,7 @@ func getZapLevel(level string) zapcore.Level {
 	}
 }
 
-func NewZapLogger(config interfaces.LoggerConfiguration) (interfaces.LoggerInterface, error) {
+func NewZapLogger(config interfaces.LoggerConfiguration) interfaces.LoggerInterface {
 	var cores []zapcore.Core
 
 	if config.EnableConsole {
@@ -77,7 +77,7 @@ func NewZapLogger(config interfaces.LoggerConfiguration) (interfaces.LoggerInter
 
 	return &zapLogger{
 		sugaredLogger: logger,
-	}, nil
+	}
 }
 
 func (l *zapLogger) Debug(format string, args ...interface{}) {

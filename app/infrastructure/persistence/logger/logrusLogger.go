@@ -27,7 +27,7 @@ func getFormatter(isJSON bool) logrus.Formatter {
 	}
 }
 
-func NewLogrusLogger(config interfaces.LoggerConfiguration) (interfaces.LoggerInterface, error) {
+func NewLogrusLogger(config interfaces.LoggerConfiguration) interfaces.LoggerInterface {
 	logLevel := config.ConsoleLevel
 	if logLevel == "" {
 		logLevel = config.FileLevel
@@ -35,7 +35,7 @@ func NewLogrusLogger(config interfaces.LoggerConfiguration) (interfaces.LoggerIn
 
 	level, err := logrus.ParseLevel(logLevel)
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
 	stdOutHandler := os.Stdout
 	fileHandler := &lumberjack.Logger{
@@ -62,7 +62,7 @@ func NewLogrusLogger(config interfaces.LoggerConfiguration) (interfaces.LoggerIn
 
 	return &logrusLogger{
 		logger: lLogger,
-	}, nil
+	}
 }
 
 func (l *logrusLogger) Debug(format string, args ...interface{}) {

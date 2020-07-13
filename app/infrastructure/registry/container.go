@@ -48,9 +48,9 @@ func NewContainer() (*Container, error) {
 					FileJSONFormat:    appConfig.GetBool("logger.file.json"),
 					FileLocation:      appConfig.GetString("logger.file.path"),
 				}
+				logger := log.NewZapLogger(loggerConfig)
 
-				logger, err := log.NewZapLogger(loggerConfig)
-				return logger, err
+				return logger, nil
 			},
 		},
 		{
