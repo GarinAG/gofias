@@ -487,6 +487,7 @@ func (a *ElasticAddressRepository) InsertUpdateCollection(channel <-chan interfa
 	ctx := context.Background()
 	begin := time.Now()
 	var total uint64
+	step := 1
 
 Loop:
 	for {
@@ -511,6 +512,10 @@ Loop:
 				if res.Errors {
 					a.logger.WithFields(interfaces.LoggerFields{"error": a.elasticClient.GetBulkError(res)}).Fatal("Add addresses bulk commit failed")
 				}
+				if total%uint64(a.batchSize*10) == 0 {
+					a.logger.WithFields(interfaces.LoggerFields{"step": step, "count": total}).Info("Add addresses to index")
+					step++
+				}
 			}
 		case <-done:
 			break Loop
@@ -528,6 +533,7 @@ Loop:
 			a.logger.WithFields(interfaces.LoggerFields{"error": a.elasticClient.GetBulkError(res)}).Fatal("Add addresses bulk commit failed")
 		}
 	}
+	a.logger.WithFields(interfaces.LoggerFields{"step": step, "count": total}).Info("Add addresses to index")
 
 	count <- int(total)
 }

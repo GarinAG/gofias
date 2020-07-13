@@ -8,9 +8,7 @@ import (
 	"github.com/GarinAG/gofias/infrastructure/persistence/address/elastic/dto"
 	elasticHelper "github.com/GarinAG/gofias/infrastructure/persistence/elastic"
 	"github.com/GarinAG/gofias/interfaces"
-	"github.com/GarinAG/gofias/util"
 	"github.com/olivere/elastic/v7"
-	"time"
 )
 
 const (
@@ -170,8 +168,8 @@ func (a *ElasticHouseRepository) GetByAddressGuid(guid string) ([]*entity.HouseO
 func (a *ElasticHouseRepository) InsertUpdateCollection(channel <-chan interface{}, done <-chan bool, count chan<- int) {
 	bulk := a.elasticClient.Client.Bulk().Index(a.indexName).Pipeline(housesPipelineId)
 	ctx := context.Background()
-	begin := time.Now()
 	var total uint64
+	step := 1
 
 Loop:
 	for {
@@ -183,17 +181,18 @@ Loop:
 			total++
 			saveItem := dto.JsonHouseDto{}
 			saveItem.GetFromEntity(d.(entity.HouseObject))
-			util.PrintProcess(begin, total, 0, "item")
-			// Enqueue the document
 			bulk.Add(elastic.NewBulkIndexRequest().Id(saveItem.ID).Doc(saveItem))
 			if bulk.NumberOfActions() >= a.batchSize {
-				// Commit
 				res, err := bulk.Do(ctx)
 				if err != nil {
 					a.logger.WithFields(interfaces.LoggerFields{"error": err}).Fatal("Add houses bulk commit failed")
 				}
 				if res.Errors {
 					a.logger.WithFields(interfaces.LoggerFields{"error": a.elasticClient.GetBulkError(res)}).Fatal("Add houses bulk commit failed")
+				}
+				if total%uint64(a.batchSize*10) == 0 {
+					a.logger.WithFields(interfaces.LoggerFields{"step": step, "count": total}).Info("Add houses to index")
+					step++
 				}
 			}
 		case <-done:
@@ -204,7 +203,6 @@ Loop:
 	// Commit the final batch before exiting
 	if bulk.NumberOfActions() > 0 {
 		res, err := bulk.Do(ctx)
-		util.PrintProcess(begin, total, 0, "item")
 		if err != nil {
 			a.logger.WithFields(interfaces.LoggerFields{"error": err}).Fatal("Add houses bulk commit failed")
 		}
@@ -212,6 +210,7 @@ Loop:
 			a.logger.WithFields(interfaces.LoggerFields{"error": a.elasticClient.GetBulkError(res)}).Fatal("Add houses bulk commit failed")
 		}
 	}
+	a.logger.WithFields(interfaces.LoggerFields{"step": step, "count": total}).Info("Add houses to index")
 	count <- int(total)
 }
 

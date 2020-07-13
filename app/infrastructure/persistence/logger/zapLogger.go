@@ -6,6 +6,7 @@ import (
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
 	"os"
+	"path/filepath"
 	"time"
 )
 
@@ -55,9 +56,10 @@ func NewZapLogger(config interfaces.LoggerConfiguration) interfaces.LoggerInterf
 	}
 
 	if config.EnableFile {
+		filePath := filepath.Dir(config.FileLocation) + "/log-" + time.Now().Format("2006-01-02") + ".log"
 		level := getZapLevel(config.FileLevel)
 		writer := zapcore.AddSync(&lumberjack.Logger{
-			Filename: config.FileLocation,
+			Filename: filePath,
 			MaxSize:  100,
 			Compress: true,
 			MaxAge:   28,

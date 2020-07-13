@@ -6,6 +6,8 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 	"io"
 	"os"
+	"path/filepath"
+	"time"
 )
 
 type logrusLogger struct {
@@ -38,8 +40,9 @@ func NewLogrusLogger(config interfaces.LoggerConfiguration) interfaces.LoggerInt
 		panic(err)
 	}
 	stdOutHandler := os.Stdout
+	filePath := filepath.Dir(config.FileLocation) + "/log-" + time.Now().Format("2006-01-02") + ".log"
 	fileHandler := &lumberjack.Logger{
-		Filename: config.FileLocation,
+		Filename: filePath,
 		MaxSize:  100,
 		Compress: true,
 		MaxAge:   28,
