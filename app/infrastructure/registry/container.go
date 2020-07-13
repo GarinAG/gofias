@@ -8,7 +8,6 @@ import (
 	elasticRepository "github.com/GarinAG/gofias/infrastructure/persistence/address/elastic/repository"
 	elasticHelper "github.com/GarinAG/gofias/infrastructure/persistence/elastic"
 	fiasApiRepository "github.com/GarinAG/gofias/infrastructure/persistence/fiasApi/http/repository"
-	log "github.com/GarinAG/gofias/infrastructure/persistence/logger"
 	versionRepository "github.com/GarinAG/gofias/infrastructure/persistence/version/elastic/repository"
 	"github.com/GarinAG/gofias/interfaces"
 	"github.com/sarulabs/di"
@@ -18,7 +17,7 @@ type Container struct {
 	ctn di.Container
 }
 
-func NewContainer(config interfaces.ConfigInterface) (*Container, error) {
+func NewContainer(config interfaces.ConfigInterface, logger interfaces.LoggerInterface) (*Container, error) {
 	builder, err := di.NewBuilder()
 	if err != nil {
 		return nil, err
@@ -28,17 +27,7 @@ func NewContainer(config interfaces.ConfigInterface) (*Container, error) {
 		{
 			Name: "logger",
 			Build: func(ctn di.Container) (interface{}, error) {
-				loggerConfig := interfaces.LoggerConfiguration{
-					EnableConsole:     config.GetBool("logger.console.enable"),
-					ConsoleLevel:      config.GetString("logger.console.level"),
-					ConsoleJSONFormat: config.GetBool("logger.console.json"),
-					EnableFile:        config.GetBool("logger.file.enable"),
-					FileLevel:         config.GetString("logger.file.level"),
-					FileJSONFormat:    config.GetBool("logger.file.json"),
-					FileLocation:      config.GetString("logger.file.path"),
-				}
-
-				return log.NewZapLogger(loggerConfig)
+				return logger, nil
 			},
 		},
 		{

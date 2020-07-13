@@ -24,10 +24,9 @@ type App struct {
 	FiasApiService   *fiasApiService.FiasApiService
 }
 
-func NewApp(config interfaces.ConfigInterface) *App {
+func NewApp(config interfaces.ConfigInterface, logger interfaces.LoggerInterface) *App {
 	server := initCli()
-	ctn, _ := registry.NewContainer(config)
-	logger := ctn.Resolve("logger").(interfaces.LoggerInterface)
+	ctn, _ := registry.NewContainer(config, logger)
 
 	defer func() {
 		if r := recover(); r != nil {
