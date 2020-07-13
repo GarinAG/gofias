@@ -1,7 +1,6 @@
 package registry
 
 import (
-	"fmt"
 	"github.com/GarinAG/gofias/domain/address/service"
 	directoryService "github.com/GarinAG/gofias/domain/directory/service"
 	fiasApiService "github.com/GarinAG/gofias/domain/fiasApi/service"
@@ -32,11 +31,8 @@ func NewContainer() (*Container, error) {
 			Build: func(ctn di.Container) (interface{}, error) {
 				appConfig := config.YamlConfig{ConfigPath: "../"}
 				err := appConfig.Init()
-				if err != nil {
-					panic(fmt.Sprintf("Failed to init configuration: %v", err))
-				}
 
-				return &appConfig, nil
+				return &appConfig, err
 			},
 		},
 		{
@@ -54,11 +50,7 @@ func NewContainer() (*Container, error) {
 				}
 
 				logger, err := log.NewZapLogger(loggerConfig)
-				if err != nil {
-					panic(fmt.Sprintf("Failed to init logger: %v", err))
-				}
-
-				return logger, nil
+				return logger, err
 			},
 		},
 		{

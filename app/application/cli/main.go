@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	addressCli "github.com/GarinAG/gofias/domain/address/delivery/cli"
 	versionCli "github.com/GarinAG/gofias/domain/version/delivery/cli"
 	indexCli "github.com/GarinAG/gofias/infrastructure/persistence/address/elastic/delivery/cli"
@@ -12,7 +13,10 @@ import (
 
 func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
-	ctn, _ := registry.NewContainer()
+	ctn, err := registry.NewContainer()
+	if err != nil {
+		panic(fmt.Sprintf("Failed to init container: %v", err))
+	}
 	app := cli.NewApp(ctn)
 
 	addressCli.RegisterImportCliEndpoint(app)
