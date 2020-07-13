@@ -10,7 +10,7 @@ elastic:
 batch:
   size: 5000
 directory:
-  filePath: ~/tmp/fias/
+  filePath: /tmp/fias/
 process:
   print: true
 fiasApi:

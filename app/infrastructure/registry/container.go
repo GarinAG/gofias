@@ -1,13 +1,16 @@
 package registry
 
 import (
+	"fmt"
 	"github.com/GarinAG/gofias/domain/address/service"
 	directoryService "github.com/GarinAG/gofias/domain/directory/service"
 	fiasApiService "github.com/GarinAG/gofias/domain/fiasApi/service"
 	versionService "github.com/GarinAG/gofias/domain/version/service"
 	elasticRepository "github.com/GarinAG/gofias/infrastructure/persistence/address/elastic/repository"
+	"github.com/GarinAG/gofias/infrastructure/persistence/config"
 	elasticHelper "github.com/GarinAG/gofias/infrastructure/persistence/elastic"
 	fiasApiRepository "github.com/GarinAG/gofias/infrastructure/persistence/fiasApi/http/repository"
+	log "github.com/GarinAG/gofias/infrastructure/persistence/logger"
 	versionRepository "github.com/GarinAG/gofias/infrastructure/persistence/version/elastic/repository"
 	"github.com/GarinAG/gofias/interfaces"
 	"github.com/sarulabs/di"
@@ -17,7 +20,7 @@ type Container struct {
 	ctn di.Container
 }
 
-func NewContainer(config interfaces.ConfigInterface, logger interfaces.LoggerInterface) (*Container, error) {
+func NewContainer() (*Container, error) {
 	builder, err := di.NewBuilder()
 	if err != nil {
 		return nil, err
@@ -25,21 +28,50 @@ func NewContainer(config interfaces.ConfigInterface, logger interfaces.LoggerInt
 
 	if err := builder.Add([]di.Def{
 		{
+			Name: "config",
+			Build: func(ctn di.Container) (interface{}, error) {
+				appConfig := config.YamlConfig{ConfigPath: "../"}
+				err := appConfig.Init()
+				if err != nil {
+					panic(fmt.Sprintf("Failed to init configuration: %v", err))
+				}
+
+				return &appConfig, nil
+			},
+		},
+		{
 			Name: "logger",
 			Build: func(ctn di.Container) (interface{}, error) {
+				appConfig := ctn.Get("config").(interfaces.ConfigInterface)
+				loggerConfig := interfaces.LoggerConfiguration{
+					EnableConsole:     appConfig.GetBool("logger.console.enable"),
+					ConsoleLevel:      appConfig.GetString("logger.console.level"),
+					ConsoleJSONFormat: appConfig.GetBool("logger.console.json"),
+					EnableFile:        appConfig.GetBool("logger.file.enable"),
+					FileLevel:         appConfig.GetString("logger.file.level"),
+					FileJSONFormat:    appConfig.GetBool("logger.file.json"),
+					FileLocation:      appConfig.GetString("logger.file.path"),
+				}
+
+				logger, err := log.NewZapLogger(loggerConfig)
+				if err != nil {
+					panic(fmt.Sprintf("Failed to init logger: %v", err))
+				}
+
 				return logger, nil
 			},
 		},
 		{
 			Name: "directoryService",
 			Build: func(ctn di.Container) (interface{}, error) {
-				return directoryService.NewDirectoryService(ctn.Get("logger").(interfaces.LoggerInterface), config), nil
+				return directoryService.NewDirectoryService(ctn.Get("logger").(interfaces.LoggerInterface),
+					ctn.Get("config").(interfaces.ConfigInterface)), nil
 			},
 		},
 		{
 			Name: "elasticClient",
 			Build: func(ctn di.Container) (interface{}, error) {
-				client := elasticHelper.NewElasticClient(config)
+				client := elasticHelper.NewElasticClient(ctn.Get("config").(interfaces.ConfigInterface))
 
 				return client, nil
 			},
@@ -47,36 +79,39 @@ func NewContainer(config interfaces.ConfigInterface, logger interfaces.LoggerInt
 		{
 			Name: "addressService",
 			Build: func(ctn di.Container) (interface{}, error) {
+				appConfig := ctn.Get("config").(interfaces.ConfigInterface)
 				repo := elasticRepository.NewElasticAddressRepository(
 					ctn.Get("elasticClient").(*elasticHelper.Client),
 					ctn.Get("logger").(interfaces.LoggerInterface),
-					config.GetInt("batch.size"),
-					config.GetString("project.prefix"))
+					appConfig.GetInt("batch.size"),
+					appConfig.GetString("project.prefix"))
 				return service.NewAddressService(repo, ctn.Get("logger").(interfaces.LoggerInterface)), nil
 			},
 		},
 		{
 			Name: "houseService",
 			Build: func(ctn di.Container) (interface{}, error) {
+				appConfig := ctn.Get("config").(interfaces.ConfigInterface)
 				repo := elasticRepository.NewElasticHouseRepository(
 					ctn.Get("elasticClient").(*elasticHelper.Client),
 					ctn.Get("logger").(interfaces.LoggerInterface),
-					config.GetInt("batch.size"),
-					config.GetString("project.prefix"))
+					appConfig.GetInt("batch.size"),
+					appConfig.GetString("project.prefix"))
 				return service.NewHouseService(repo, ctn.Get("logger").(interfaces.LoggerInterface)), nil
 			},
 		},
 		{
 			Name: "versionService",
 			Build: func(ctn di.Container) (interface{}, error) {
-				repo := versionRepository.NewElasticVersionRepository(ctn.Get("elasticClient").(*elasticHelper.Client), config)
+				repo := versionRepository.NewElasticVersionRepository(ctn.Get("elasticClient").(*elasticHelper.Client),
+					ctn.Get("config").(interfaces.ConfigInterface))
 				return versionService.NewVersionService(repo, ctn.Get("logger").(interfaces.LoggerInterface)), nil
 			},
 		},
 		{
 			Name: "fiasApiService",
 			Build: func(ctn di.Container) (interface{}, error) {
-				repo := fiasApiRepository.NewHttpFiasApiRepository(config)
+				repo := fiasApiRepository.NewHttpFiasApiRepository(ctn.Get("config").(interfaces.ConfigInterface))
 				return fiasApiService.NewFiasApiService(repo, ctn.Get("logger").(interfaces.LoggerInterface)), nil
 			},
 		},
@@ -88,7 +123,7 @@ func NewContainer(config interfaces.ConfigInterface, logger interfaces.LoggerInt
 					ctn.Get("directoryService").(*directoryService.DirectoryService),
 					ctn.Get("addressService").(*service.AddressImportService),
 					ctn.Get("houseService").(*service.HouseImportService),
-					config), nil
+					ctn.Get("config").(interfaces.ConfigInterface)), nil
 			},
 		},
 	}...); err != nil {
