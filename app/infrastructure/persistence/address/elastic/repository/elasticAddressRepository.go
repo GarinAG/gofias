@@ -723,15 +723,18 @@ func (a *ElasticAddressRepository) searchAddressWorker(wg *sync.WaitGroup, GetHo
 		guid := address.ParentGuid
 		address.FullAddress = address.ShortName + ". " + address.OffName
 		address.AddressSuggest = strings.TrimSpace(address.OffName)
+		shortNames := []string{address.ShortName}
 
 		for guid != "" {
 			search, _ := a.GetByGuid(guid)
 			if search != nil {
 				dtoItem.GetFromEntity(*search)
 				guid = dtoItem.ParentGuid
-				address.FullAddress = dtoItem.ShortName + ". " + dtoItem.OffName + ", " + address.FullAddress
-				address.AddressSuggest = strings.TrimSpace(dtoItem.OffName) + " " + address.AddressSuggest
-
+				if !util.ContainsString(shortNames, dtoItem.ShortName) {
+					shortNames = append(shortNames, dtoItem.ShortName)
+					address.FullAddress = dtoItem.ShortName + ". " + dtoItem.OffName + ", " + address.FullAddress
+					address.AddressSuggest = strings.TrimSpace(dtoItem.OffName) + " " + address.AddressSuggest
+				}
 				if dtoItem.AoLevel >= 4 {
 					city = dtoItem
 				}
