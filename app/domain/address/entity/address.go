@@ -6,7 +6,7 @@ type AddressObject struct {
 	ParentGuid string `xml:"PARENTGUID,attr"`
 	FormalName string `xml:"FORMALNAME,attr"`
 	ShortName  string `xml:"SHORTNAME,attr"`
-	AoLevel    string `xml:"AOLEVEL,attr"`
+	AoLevel    int    `xml:"AOLEVEL,attr"`
 	OffName    string `xml:"OFFNAME,attr"`
 	AreaCode   string `xml:"AREACODE,attr"`
 	CityCode   string `xml:"CITYCODE,attr"`

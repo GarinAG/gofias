@@ -7,6 +7,7 @@ import (
 	"github.com/GarinAG/gofias/util"
 	xmlparser "github.com/tamerh/xml-stream-parser"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -45,13 +46,15 @@ func (a *AddressImportService) Index(isFull bool, start time.Time, housesCount i
 }
 
 func (a *AddressImportService) ParseElement(element *xmlparser.XMLElement) (interface{}, error) {
+	level, _ := strconv.Atoi(element.Attrs["AOLEVEL"])
+
 	result := entity.AddressObject{
 		ID:         element.Attrs["AOID"],
 		AoGuid:     element.Attrs["AOGUID"],
 		ParentGuid: element.Attrs["PARENTGUID"],
 		FormalName: element.Attrs["FORMALNAME"],
 		ShortName:  element.Attrs["SHORTNAME"],
-		AoLevel:    element.Attrs["AOLEVEL"],
+		AoLevel:    level,
 		OffName:    element.Attrs["OFFNAME"],
 		AreaCode:   element.Attrs["AREACODE"],
 		CityCode:   element.Attrs["CITYCODE"],

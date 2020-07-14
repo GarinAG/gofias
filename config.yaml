@@ -8,7 +8,7 @@ elastic:
   username:
   password:
 batch:
-  size: 5000
+  size: 10000
 directory:
   filePath: /tmp/fias/
 process:

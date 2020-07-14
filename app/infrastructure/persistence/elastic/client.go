@@ -91,10 +91,11 @@ func (e *Client) CreatePreprocessor(pipelineId, pipeline string) error {
 }
 
 func (e *Client) RefreshIndexes(indexes []string) {
-	e.Client.Refresh(indexes...)
-	e.Client.Flush(indexes...)
-	e.Client.Forcemerge(indexes...)
-	e.Client.ClearCache(indexes...)
+	ctx := context.Background()
+	e.Client.Refresh(indexes...).Do(ctx)
+	e.Client.Flush(indexes...).Do(ctx)
+	e.Client.Forcemerge(indexes...).Do(ctx)
+	e.Client.ClearCache(indexes...).Do(ctx)
 }
 
 func (e *Client) ScrollData(scrollService *elastic.ScrollService) ([]elastic.SearchHit, error) {

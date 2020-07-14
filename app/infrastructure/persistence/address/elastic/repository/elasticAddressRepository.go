@@ -36,6 +36,14 @@ const (
 		  },
 		  "analysis": {
 			"filter": {
+			  "ru_stop": {
+				"type": "stop",
+				"stopwords": "_russian_"
+			  },
+			  "ru_stemmer": {
+				"type": "stemmer",
+				"language": "russian"
+			  },
 			  "autocomplete_filter": {
 				"type": "edge_ngram",
 				"min_gram": 2,
@@ -57,6 +65,23 @@ const (
 				"type": "custom",
 				"tokenizer": "whitespace",
 				"filter": ["lowercase", "fias_word_delimiter"]
+			  },
+			  "index_analyzer": {
+				"type": "custom",
+				"tokenizer": "edge-tokenizer",
+				"filter": ["lowercase", "ru_stop", "trim"]
+			  },
+			  "search_analyzer": {
+				"type": "custom",
+				"tokenizer": "standard",
+				"filter": ["lowercase", "ru_stop", "trim"]
+			  }
+			},
+			"tokenizer": {
+			  "edge-tokenizer": {
+				"type": "edge_ngram",
+				"min_gram": 2,
+				"max_gram": 20
 			  }
 			}
 		  }
@@ -65,35 +90,32 @@ const (
 	  "mappings": {
 		"dynamic": false,
 		"properties": {
-		  "street_address_suggest": {
+		  "address_suggest": {
 			"type": "text",
 			"analyzer": "autocomplete",
 			"search_analyzer": "stop_analyzer"
 		  },
 		  "full_address": {
-			"type": "text",
-			"analyzer": "autocomplete",
-			"search_analyzer": "stop_analyzer"
+			"type": "keyword"
 		  },
 		  "district_full": {
-			"type": "text",
-			"analyzer": "autocomplete",
-			"search_analyzer": "stop_analyzer"
+			"type": "keyword"
 		  },
 		  "settlement_full": {
-			"type": "text",
-			"analyzer": "autocomplete",
-			"search_analyzer": "stop_analyzer"
+			"type": "keyword"
 		  },
 		  "street_full": {
-			"type": "text",
-			"analyzer": "autocomplete",
-			"search_analyzer": "stop_analyzer"
+			"type": "keyword"
 		  },
 		  "formal_name": {
 			"type": "text",
-			"analyzer": "autocomplete",
-			"search_analyzer": "stop_analyzer"
+			"analyzer": "index_analyzer",
+			"search_analyzer": "search_analyzer",
+			"fields": {
+			  "keyword": {
+				"type": "keyword"
+			  }
+			}
 		  },
 		  "short_name": {
 			"type": "keyword"
@@ -123,7 +145,7 @@ const (
 			"type": "keyword"
 		  },
 		  "ao_level": {
-			"type": "keyword"
+			"type": "integer"
 		  },
 		  "area_code": {
 			"type": "keyword"
@@ -232,8 +254,13 @@ const (
 			  },
 			  "house_num": {
 				"type": "text",
-				"analyzer": "autocomplete",
-				"search_analyzer": "stop_analyzer"
+				"analyzer": "index_analyzer",
+				"search_analyzer": "search_analyzer",
+				"fields": {
+				  "keyword": {
+					"type": "keyword"
+				  }
+				}
 			  },
 			  "str_num": {
 				"type": "keyword"
@@ -499,10 +526,9 @@ Loop:
 			total++
 			saveItem := dto.JsonAddressDto{}
 			saveItem.GetFromEntity(d.(entity.AddressObject))
-
-			util.PrintProcess(begin, total, 0, "item")
+			util.PrintProcess(begin, total, 0, "address")
 			// Enqueue the document
-			bulk.Add(elastic.NewBulkIndexRequest().Id(saveItem.ID).Doc(saveItem))
+			bulk.Add(elastic.NewBulkIndexRequest().Id(saveItem.AoGuid).Doc(saveItem))
 			if bulk.NumberOfActions() >= a.batchSize {
 				// Commit
 				res, err := bulk.Do(ctx)
@@ -525,7 +551,7 @@ Loop:
 	// Commit the final batch before exiting
 	if bulk.NumberOfActions() > 0 {
 		res, err := bulk.Do(ctx)
-		util.PrintProcess(begin, total, 0, "item")
+		util.PrintProcess(begin, total, 0, "address")
 		if err != nil {
 			a.logger.WithFields(interfaces.LoggerFields{"error": err}).Fatal("Add addresses bulk commit failed")
 		}
@@ -533,7 +559,10 @@ Loop:
 			a.logger.WithFields(interfaces.LoggerFields{"error": a.elasticClient.GetBulkError(res)}).Fatal("Add addresses bulk commit failed")
 		}
 	}
+	finish := time.Now()
 	a.logger.WithFields(interfaces.LoggerFields{"step": step, "count": total}).Info("Add addresses to index")
+	a.logger.WithFields(interfaces.LoggerFields{"execTime": finish.Sub(begin)}).Info("Address index execution time")
+	a.Refresh()
 
 	count <- int(total)
 }
@@ -548,6 +577,11 @@ func (a *ElasticAddressRepository) ReopenIndex() {
 }
 
 func (a *ElasticAddressRepository) ConvertToDto(item entity.AddressObject) dto.JsonAddressDto {
+	postalCode := item.PostalCode
+	if postalCode != "" {
+		postalCode += ", "
+	}
+
 	return dto.JsonAddressDto{
 		ID:              item.ID,
 		AoGuid:          item.AoGuid,
@@ -583,17 +617,21 @@ func (a *ElasticAddressRepository) ConvertToDto(item entity.AddressObject) dto.J
 		StartDate:       item.StartDate,
 		EndDate:         item.EndDate,
 		UpdateDate:      item.UpdateDate,
+		FullAddress:     postalCode + item.ShortName + " " + item.OffName,
 		BazisUpdateDate: time.Now().Format("2006-01-02") + "T00:00:00Z",
 		BazisFinishDate: item.EndDate,
 	}
 }
 
 func (a *ElasticAddressRepository) Index(isFull bool, start time.Time, housesCount int64, GetHousesByGuid repository.GetHousesByGuid) error {
-	a.jobs = make(chan dto.JsonAddressDto, 20)
-	a.results = make(chan dto.JsonAddressDto, 20)
+	noOfWorkers := 10
+	a.jobs = make(chan dto.JsonAddressDto, noOfWorkers)
+	a.results = make(chan dto.JsonAddressDto, noOfWorkers)
+	time.Sleep(1 * time.Second)
+	a.Refresh()
 	a.ReopenIndex()
 
-	query := elastic.NewBoolQuery().Filter(elastic.NewTermQuery("ao_level", "7"))
+	query := elastic.NewBoolQuery()
 	if !isFull {
 		a.logger.Info("Indexing...")
 		query.Must(elastic.NewRangeQuery("bazis_update_date").Gte(start))
@@ -613,16 +651,20 @@ func (a *ElasticAddressRepository) Index(isFull bool, start time.Time, housesCou
 	done := make(chan bool)
 	var total uint64
 	go a.result(done, time.Now(), total)
-	noOfWorkers := 10
 	a.createWorkerPool(noOfWorkers, GetHousesByGuid)
 	<-done
+	a.Refresh()
 	a.logger.Info("Index Finished")
 
 	return nil
 }
 
 func (a *ElasticAddressRepository) allocate(query elastic.Query) {
-	scrollService := a.elasticClient.Client.Scroll(a.GetIndexName()).Query(query).Sort("ao_level", true).Size(a.batchSize)
+	scrollService := a.elasticClient.Client.Scroll(a.GetIndexName()).
+		Query(query).
+		Sort("ao_level", true).
+		Size(a.batchSize)
+
 	ctx := context.Background()
 	scrollService.Scroll("1h")
 	count := 0
@@ -674,63 +716,58 @@ func (a *ElasticAddressRepository) createWorkerPool(noOfWorkers int, GetHousesBy
 
 func (a *ElasticAddressRepository) searchAddressWorker(wg *sync.WaitGroup, GetHousesByGuid repository.GetHousesByGuid) {
 	for address := range a.jobs {
-		searchCity, err := a.GetByGuid(address.ParentGuid)
-
-		if err != nil {
-			a.logger.Error(err.Error())
-		}
-
-		if searchCity == nil {
-			continue
-		}
-
+		var houseList []dto.JsonHouseDto
+		dtoItem := dto.JsonAddressDto{}
 		city := dto.JsonAddressDto{}
 		district := dto.JsonAddressDto{}
-		var houseList []dto.JsonHouseDto
+		guid := address.ParentGuid
+		address.FullAddress = address.ShortName + ". " + address.OffName
+		address.AddressSuggest = strings.TrimSpace(address.OffName)
 
-		city.GetFromEntity(*searchCity)
+		for guid != "" {
+			search, _ := a.GetByGuid(guid)
+			if search != nil {
+				dtoItem.GetFromEntity(*search)
+				guid = dtoItem.ParentGuid
+				address.FullAddress = dtoItem.ShortName + ". " + dtoItem.OffName + ", " + address.FullAddress
+				address.AddressSuggest = strings.TrimSpace(dtoItem.OffName) + " " + address.AddressSuggest
 
-		if city.ParentGuid == "" {
+				if dtoItem.AoLevel >= 4 {
+					city = dtoItem
+				}
+				if dtoItem.AoLevel < 4 {
+					district = dtoItem
+				}
+			} else {
+				guid = ""
+			}
+		}
+
+		if district.ID == "" && city.ID != "" {
 			district = city
-		} else {
-			searchDistrict, err := a.GetByGuid(city.ParentGuid)
-			if err != nil {
-				a.logger.Error(err.Error())
-			}
-			if searchDistrict == nil {
-				continue
-			}
-
-			district.GetFromEntity(*searchDistrict)
 		}
 
-		searchHouses := GetHousesByGuid(address.AoGuid)
-
-		for _, houseData := range searchHouses {
-			houseItem := dto.JsonHouseDto{}
-			houseItem.GetFromEntity(*houseData)
-			houseList = append(houseList, houseItem)
-		}
-
-		postalCode := address.PostalCode
-		if postalCode != "" {
-			postalCode += ", "
-		}
-
-		address.StreetType = strings.TrimSpace(address.ShortName)
-		address.Street = strings.TrimSpace(address.OffName)
-		address.Settlement = strings.TrimSpace(city.OffName)
-		address.SettlementType = strings.TrimSpace(city.ShortName)
 		address.District = strings.TrimSpace(district.OffName)
 		address.DistrictType = strings.TrimSpace(district.ShortName)
-		address.StreetAddressSuggest = strings.ToLower(address.District +
-			" " + address.Settlement +
-			" " + address.Street)
-		address.FullAddress = postalCode +
-			district.ShortName + " " + district.OffName + ", " +
-			city.ShortName + " " + city.OffName + ", " +
-			address.ShortName + " " + address.OffName
-		address.Houses = houseList
+		address.Settlement = strings.TrimSpace(city.OffName)
+		address.SettlementType = strings.TrimSpace(city.ShortName)
+
+		switch address.AoLevel {
+		case 7:
+			address.StreetType = strings.TrimSpace(address.ShortName)
+			address.Street = strings.TrimSpace(address.OffName)
+
+			searchHouses := GetHousesByGuid(address.AoGuid)
+
+			for _, houseData := range searchHouses {
+				houseItem := dto.JsonHouseDto{}
+				houseItem.GetFromEntity(*houseData)
+				houseList = append(houseList, houseItem)
+				address.Houses = houseList
+			}
+		}
+
+		address.AddressSuggest = strings.ToLower(address.AddressSuggest)
 
 		a.results <- address
 	}
@@ -744,9 +781,9 @@ func (a *ElasticAddressRepository) result(done chan bool, begin time.Time, total
 
 	for d := range a.results {
 		total++
-		util.PrintProcess(begin, total, 0, "item")
+		util.PrintProcess(begin, total, 0, "address")
 		// Enqueue the document
-		bulk.Add(elastic.NewBulkIndexRequest().Id(d.ID).Doc(d))
+		bulk.Add(elastic.NewBulkIndexRequest().Id(d.AoGuid).Doc(d))
 		if bulk.NumberOfActions() >= a.batchSize {
 			// Commit
 			res, err := bulk.Do(ctx)
@@ -772,10 +809,12 @@ func (a *ElasticAddressRepository) result(done chan bool, begin time.Time, total
 			a.logger.WithFields(interfaces.LoggerFields{"error": a.elasticClient.GetBulkError(res)}).Fatal("Index bulk commit failed")
 			os.Exit(1)
 		}
-		util.PrintProcess(begin, total, 0, "item")
+		util.PrintProcess(begin, total, 0, "address")
 	}
 	fmt.Println("")
+	finish := time.Now()
 	a.logger.WithFields(interfaces.LoggerFields{"count": total}).Info("Number of indexed addresses")
+	a.logger.WithFields(interfaces.LoggerFields{"execTime": finish.Sub(begin)}).Info("Address index execution time")
 
 	done <- true
 }

@@ -27,8 +27,8 @@ func PrintProcess(begin time.Time, current uint64, size uint64, unit string) {
 	}
 
 	if size > 0 {
-		fmt.Printf("%s/%s | %s%s/s | %02d:%02d     \r", currentPrint, sizePrint, PpsPrint, unit, sec/60, sec%60)
+		fmt.Printf("%s/%s | %s%s/s | %02d:%02d     		\r", currentPrint, sizePrint, PpsPrint, unit, sec/60, sec%60)
 	} else {
-		fmt.Printf("%s | %s%s/s | %02d:%02d     \r", currentPrint, PpsPrint, unit, sec/60, sec%60)
+		fmt.Printf("%s | %s%s/s | %02d:%02d     		\r", currentPrint, PpsPrint, unit, sec/60, sec%60)
 	}
 }

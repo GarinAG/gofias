@@ -131,13 +131,13 @@ func (is *ImportService) ParseFiles(files *[]directoryEntity.File) (int, int) {
 			go is.houseImportService.Import(file.Path, &wg, chb)
 		}
 	}
-	wg.Wait()
 	if hasAddress {
 		cntAddr = <-cha
 	}
 	if hasHouse {
 		cntHouse = <-chb
 	}
+	wg.Wait()
 
 	return cntAddr, cntHouse
 }

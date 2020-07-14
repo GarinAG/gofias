@@ -10,6 +10,7 @@ import (
 	"github.com/GarinAG/gofias/infrastructure/persistence/version/elastic/dto"
 	"github.com/GarinAG/gofias/interfaces"
 	"github.com/olivere/elastic/v7"
+	"strconv"
 )
 
 const (
@@ -92,10 +93,12 @@ func (v *ElasticVersionRepository) GetVersion() (*entity.Version, error) {
 }
 
 func (v *ElasticVersionRepository) SetVersion(version *entity.Version) error {
+	doc := v.convertToDto(*version)
+	id := strconv.Itoa(doc.ID)
 	res, err := v.elasticClient.Client.Bulk().
 		Index(v.indexName).
 		Refresh("true").
-		Add(elastic.NewBulkIndexRequest().Doc(v.convertToDto(*version))).
+		Add(elastic.NewBulkIndexRequest().Id(id).Doc(doc)).
 		Do(context.Background())
 
 	if err != nil {

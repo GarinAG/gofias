@@ -8,7 +8,9 @@ import (
 	"github.com/GarinAG/gofias/infrastructure/persistence/address/elastic/dto"
 	elasticHelper "github.com/GarinAG/gofias/infrastructure/persistence/elastic"
 	"github.com/GarinAG/gofias/interfaces"
+	"github.com/GarinAG/gofias/util"
 	"github.com/olivere/elastic/v7"
+	"time"
 )
 
 const (
@@ -26,6 +28,36 @@ const (
 		  },
 		  "blocks": {
 			"read_only_allow_delete": "false"
+		  },"analysis": {
+			"filter": {
+			  "ru_stop": {
+				"type": "stop",
+				"stopwords": "_russian_"
+			  },
+			  "ru_stemmer": {
+				"type": "stemmer",
+				"language": "russian"
+			  }
+			},
+			"analyzer": {
+			  "index_analyzer": {
+				"type": "custom",
+				"tokenizer": "edge-tokenizer",
+				"filter": ["lowercase", "ru_stop", "trim"]
+			  },
+			  "search_analyzer": {
+				"type": "custom",
+				"tokenizer": "standard",
+				"filter": ["lowercase", "ru_stop", "trim"]
+			  }
+			},
+			"tokenizer": {
+			  "edge-tokenizer": {
+				"type": "edge_ngram",
+				"min_gram": 2,
+				"max_gram": 20
+			  }
+			}
 		  }
 		}
 	  },
@@ -39,7 +71,14 @@ const (
 			"type": "keyword"
 		  },
 		  "house_num": {
-			"type": "keyword"
+			"type": "text",
+			"analyzer": "index_analyzer",
+			"search_analyzer": "search_analyzer",
+			"fields": {
+			  "keyword": {
+				"type": "keyword"
+			  }
+			}
 		  },
 		  "str_num": {
 			"type": "keyword"
@@ -169,6 +208,7 @@ func (a *ElasticHouseRepository) InsertUpdateCollection(channel <-chan interface
 	bulk := a.elasticClient.Client.Bulk().Index(a.indexName).Pipeline(housesPipelineId)
 	ctx := context.Background()
 	var total uint64
+	begin := time.Now()
 	step := 1
 
 Loop:
@@ -179,6 +219,7 @@ Loop:
 				break Loop
 			}
 			total++
+			util.PrintProcess(begin, total, 0, "house")
 			saveItem := dto.JsonHouseDto{}
 			saveItem.GetFromEntity(d.(entity.HouseObject))
 			bulk.Add(elastic.NewBulkIndexRequest().Id(saveItem.ID).Doc(saveItem))
@@ -209,8 +250,12 @@ Loop:
 		if res.Errors {
 			a.logger.WithFields(interfaces.LoggerFields{"error": a.elasticClient.GetBulkError(res)}).Fatal("Add houses bulk commit failed")
 		}
+		util.PrintProcess(begin, total, 0, "house")
 	}
+	finish := time.Now()
 	a.logger.WithFields(interfaces.LoggerFields{"step": step, "count": total}).Info("Add houses to index")
+	a.logger.WithFields(interfaces.LoggerFields{"execTime": finish.Sub(begin)}).Info("House import execution time")
+	a.Refresh()
 	count <- int(total)
 }
 
