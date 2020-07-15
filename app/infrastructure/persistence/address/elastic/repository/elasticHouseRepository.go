@@ -65,11 +65,6 @@ const (
 	  },
 	  "mappings": {
 		"dynamic": false,
-		"_all": {
-		  "type": "string",
-          "index_analyzer": "index_analyzer",
-          "search_analyzer": "search_analyzer"
-        },
 		"properties": {
 		  "house_id": {
 			"type": "keyword"
