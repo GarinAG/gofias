@@ -119,7 +119,7 @@ const (
 			  }
 			}
 		  },
-		  "formal_name_full": {
+		  "full_name": {
 			"type": "keyword"
 		  },
 		  "ao_id": {
