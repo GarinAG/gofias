@@ -27,7 +27,7 @@ const (
 		  "number_of_shards": 1,
 		  "number_of_replicas": "0",
 		  "refresh_interval": "-1",
-          "max_ngram_diff": "38",
+          "max_ngram_diff": "18",
 		  "requests": {
 			"cache": {
 			  "enable": "true"
@@ -79,7 +79,7 @@ const (
 			  "ngram-tokenizer": {
 				"type": "ngram",
 				"min_gram": 2,
-				"max_gram": 40,
+				"max_gram": 20,
                 "token_chars": [
                   "letter",
                   "digit",
