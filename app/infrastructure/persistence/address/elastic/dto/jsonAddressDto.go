@@ -15,6 +15,7 @@ type JsonAddressDto struct {
 	ShortName       string         `json:"short_name"`
 	AoLevel         int            `json:"ao_level"`
 	OffName         string         `json:"off_name"`
+	FullName        string         `json:"full_name"`
 	Code            string         `json:"code"`
 	RegionCode      string         `json:"region_code"`
 	PostalCode      string         `json:"postal_code"`
@@ -72,7 +73,8 @@ func (item *JsonAddressDto) GetFromEntity(entity entity.AddressObject) {
 	item.FormalName = strings.Trim(entity.FormalName, " -.,")
 	item.ShortName = strings.Trim(entity.ShortName, " -.,")
 	item.OffName = strings.Trim(entity.OffName, " -.,")
-	item.FullAddress = util.PrepareFullName(item.ShortName, item.OffName)
+	item.FullName = util.PrepareFullName(item.ShortName, item.OffName)
+	item.FullAddress = item.FullName
 	item.AddressSuggest = strings.ToLower(strings.TrimSpace(item.OffName))
 	item.Code = entity.Code
 	item.RegionCode = entity.RegionCode

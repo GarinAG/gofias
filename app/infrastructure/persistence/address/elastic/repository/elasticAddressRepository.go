@@ -119,6 +119,9 @@ const (
 			  }
 			}
 		  },
+		  "formal_name_full": {
+			"type": "keyword"
+		  },
 		  "ao_id": {
 			"type": "keyword"
 		  },
@@ -625,7 +628,8 @@ func (a *ElasticAddressRepository) searchAddressWorker(wg *sync.WaitGroup, GetHo
 		city := dto.JsonAddressDto{}
 		district := dto.JsonAddressDto{}
 		guid := address.ParentGuid
-		address.FullAddress = util.PrepareFullName(address.ShortName, address.OffName)
+		address.FullName = util.PrepareFullName(address.ShortName, address.OffName)
+		address.FullAddress = address.FullName
 		address.AddressSuggest = strings.TrimSpace(address.OffName)
 
 		for guid != "" {
