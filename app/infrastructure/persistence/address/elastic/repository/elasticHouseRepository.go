@@ -9,6 +9,7 @@ import (
 	elasticHelper "github.com/GarinAG/gofias/infrastructure/persistence/elastic"
 	"github.com/GarinAG/gofias/interfaces"
 	"github.com/GarinAG/gofias/util"
+	"github.com/dustin/go-humanize"
 	"github.com/olivere/elastic/v7"
 	"time"
 )
@@ -64,6 +65,12 @@ const (
 	  "mappings": {
 		"dynamic": false,
 		"properties": {
+		  "house_id": {
+			"type": "keyword"
+		  },
+		  "house_guid": {
+			"type": "keyword"
+		  },
 		  "ao_guid": {
 			"type": "keyword"
 		  },
@@ -71,6 +78,9 @@ const (
 			"type": "keyword"
 		  },
 		  "house_num": {
+			"type": "keyword"
+		  },
+		  "house_full_num": {
 			"type": "text",
 			"analyzer": "index_analyzer",
 			"search_analyzer": "search_analyzer",
@@ -81,12 +91,6 @@ const (
 			}
 		  },
 		  "str_num": {
-			"type": "keyword"
-		  },
-		  "ifns_fl": {
-			"type": "keyword"
-		  },
-		  "ifns_ul": {
 			"type": "keyword"
 		  },
 		  "postal_code": {
@@ -101,9 +105,6 @@ const (
 		  "start_date": {
 			"type": "date"
 		  },
-		  "bazis_finish_date": {
-			"type": "date"
-		  },
 		  "bazis_update_date": {
 			"type": "date"
 		  },
@@ -111,12 +112,6 @@ const (
 			"type": "date"
 		  },
 		  "cad_num": {
-			"type": "keyword"
-		  },
-		  "terr_ifns_fl": {
-			"type": "keyword"
-		  },
-		  "terr_ifns_ul": {
 			"type": "keyword"
 		  },
 		  "okato": {
@@ -252,9 +247,8 @@ Loop:
 		}
 		util.PrintProcess(begin, total, 0, "house")
 	}
-	finish := time.Now()
 	a.logger.WithFields(interfaces.LoggerFields{"step": step, "count": total}).Info("Add houses to index")
-	a.logger.WithFields(interfaces.LoggerFields{"execTime": finish.Sub(begin)}).Info("House import execution time")
+	a.logger.WithFields(interfaces.LoggerFields{"execTime": humanize.RelTime(begin, time.Now(), "", "")}).Info("House import execution time")
 	a.Refresh()
 	count <- int(total)
 }

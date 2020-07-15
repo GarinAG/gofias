@@ -6,18 +6,14 @@ import (
 )
 
 type JsonHouseDto struct {
-	ID              string `json:"_id"`
+	ID              string `json:"house_id"`
+	HouseGuid       string `json:"house_guid"`
 	AoGuid          string `json:"ao_guid"`
 	HouseNum        string `json:"house_num"`
-	RegionCode      string `json:"region_code"`
+	HouseFullNum    string `json:"house_full_num"`
 	PostalCode      string `json:"postal_code"`
 	Okato           string `json:"okato"`
 	Oktmo           string `json:"oktmo"`
-	IfNsFl          string `json:"ifns_fl"`
-	IfNsUl          string `json:"ifns_ul"`
-	TerrIfNsFl      string `json:"terr_ifns_fl"`
-	TerrIfNsUl      string `json:"terr_ifns_ul"`
-	NormDoc         string `json:"norm_doc"`
 	StartDate       string `json:"start_date"`
 	EndDate         string `json:"end_date"`
 	UpdateDate      string `json:"update_date"`
@@ -26,25 +22,18 @@ type JsonHouseDto struct {
 	StructNum       string `json:"str_num"`
 	Counter         string `json:"counter"`
 	CadNum          string `json:"cad_num"`
-	BazisCreateDate string `json:"bazis_create_date"`
 	BazisUpdateDate string `json:"bazis_update_date"`
-	BazisFinishDate string `json:"bazis_finish_date"`
 }
 
 func (item *JsonHouseDto) ToEntity() *entity.HouseObject {
 	return &entity.HouseObject{
 		ID:         item.ID,
+		HouseGuid:  item.HouseGuid,
 		AoGuid:     item.AoGuid,
 		HouseNum:   item.HouseNum,
-		RegionCode: item.RegionCode,
 		PostalCode: item.PostalCode,
 		Okato:      item.Okato,
 		Oktmo:      item.Oktmo,
-		IfNsFl:     item.IfNsFl,
-		IfNsUl:     item.IfNsUl,
-		TerrIfNsFl: item.TerrIfNsFl,
-		TerrIfNsUl: item.TerrIfNsUl,
-		NormDoc:    item.NormDoc,
 		StartDate:  item.StartDate,
 		EndDate:    item.EndDate,
 		UpdateDate: item.UpdateDate,
@@ -57,18 +46,22 @@ func (item *JsonHouseDto) ToEntity() *entity.HouseObject {
 }
 
 func (item *JsonHouseDto) GetFromEntity(entity entity.HouseObject) {
+	fullNum := "д. " + entity.HouseNum
+	if entity.StructNum != "" {
+		fullNum += ", стр. " + entity.StructNum
+	}
+	if entity.BuildNum != "" {
+		fullNum += ", кор. " + entity.BuildNum
+	}
+
 	item.ID = entity.ID
+	item.HouseGuid = entity.HouseGuid
 	item.AoGuid = entity.AoGuid
 	item.HouseNum = entity.HouseNum
-	item.RegionCode = entity.RegionCode
+	item.HouseFullNum = fullNum
 	item.PostalCode = entity.PostalCode
 	item.Okato = entity.Okato
 	item.Oktmo = entity.Oktmo
-	item.IfNsFl = entity.IfNsFl
-	item.IfNsUl = entity.IfNsUl
-	item.TerrIfNsFl = entity.TerrIfNsFl
-	item.TerrIfNsUl = entity.TerrIfNsUl
-	item.NormDoc = entity.NormDoc
 	item.StartDate = entity.StartDate
 	item.EndDate = entity.EndDate
 	item.UpdateDate = entity.UpdateDate
@@ -78,5 +71,4 @@ func (item *JsonHouseDto) GetFromEntity(entity entity.HouseObject) {
 	item.Counter = entity.Counter
 	item.CadNum = entity.CadNum
 	item.BazisUpdateDate = time.Now().Format("2006-01-02") + "T00:00:00Z"
-	item.BazisFinishDate = entity.EndDate
 }
