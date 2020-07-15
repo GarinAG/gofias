@@ -22,6 +22,7 @@ const (
 		  "number_of_shards": 1,
 		  "number_of_replicas": "0",
 		  "refresh_interval": "-1",
+          "max_ngram_diff": "18",
 		  "requests": {
 			"cache": {
 			  "enable": "true"
@@ -43,7 +44,7 @@ const (
 			"analyzer": {
 			  "index_analyzer": {
 				"type": "custom",
-				"tokenizer": "edge-tokenizer",
+				"tokenizer": "ngram-tokenizer",
 				"filter": ["lowercase", "ru_stop", "trim"]
 			  },
 			  "search_analyzer": {
@@ -53,8 +54,8 @@ const (
 			  }
 			},
 			"tokenizer": {
-			  "edge-tokenizer": {
-				"type": "edge_ngram",
+			  "ngram-tokenizer": {
+				"type": "ngram",
 				"min_gram": 2,
 				"max_gram": 20
 			  }
@@ -64,6 +65,11 @@ const (
 	  },
 	  "mappings": {
 		"dynamic": false,
+		"_all": {
+		  "type": "string",
+          "index_analyzer": "index_analyzer",
+          "search_analyzer": "search_analyzer"
+        },
 		"properties": {
 		  "house_id": {
 			"type": "keyword"
