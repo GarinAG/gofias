@@ -22,7 +22,6 @@ const (
 		  "number_of_shards": 1,
 		  "number_of_replicas": "0",
 		  "refresh_interval": "-1",
-          "max_ngram_diff": "18",
 		  "requests": {
 			"cache": {
 			  "enable": "true"
@@ -30,34 +29,28 @@ const (
 		  },
 		  "blocks": {
 			"read_only_allow_delete": "false"
-		  },"analysis": {
+		  },
+		  "analysis": {
 			"filter": {
-			  "ru_stop": {
-				"type": "stop",
-				"stopwords": "_russian_"
-			  },
-			  "ru_stemmer": {
+			  "russian_stemmer": {
 				"type": "stemmer",
-				"language": "russian"
+				"name": "russian"
+			  },
+			  "edge_ngram": {
+				"type": "edge_ngram",
+				"min_gram": "2",
+				"max_gram": "25",
+				"token_chars": ["letter", "digit"]
 			  }
 			},
 			"analyzer": {
-			  "index_analyzer": {
-				"type": "custom",
-				"tokenizer": "ngram-tokenizer",
-				"filter": ["lowercase", "ru_stop", "trim"]
+			  "edge_ngram_analyzer": {
+				"filter": ["lowercase", "russian_stemmer", "edge_ngram"],
+				"tokenizer": "standard"
 			  },
-			  "search_analyzer": {
-				"type": "custom",
-				"tokenizer": "standard",
-				"filter": ["lowercase", "ru_stop", "trim"]
-			  }
-			},
-			"tokenizer": {
-			  "ngram-tokenizer": {
-				"type": "ngram",
-				"min_gram": 2,
-				"max_gram": 20
+			  "keyword_analyzer": {
+				"filter": ["lowercase", "russian_stemmer"],
+				"tokenizer": "standard"
 			  }
 			}
 		  }
@@ -83,8 +76,8 @@ const (
 		  },
 		  "house_full_num": {
 			"type": "text",
-			"analyzer": "index_analyzer",
-			"search_analyzer": "search_analyzer",
+			"analyzer": "edge_ngram_analyzer",
+			"search_analyzer": "keyword_analyzer",
 			"fields": {
 			  "keyword": {
 				"type": "keyword"

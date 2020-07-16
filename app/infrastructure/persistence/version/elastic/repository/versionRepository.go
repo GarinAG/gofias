@@ -35,7 +35,7 @@ const (
 		"dynamic": false,
 		"properties": {
 		  "version_id": {
-			"type": "keyword"
+			"type": "integer"
 		  },
 		  "fias_version": {
 			"type": "keyword"
@@ -129,4 +129,8 @@ func (v *ElasticVersionRepository) convertToDto(item entity.Version) *dto.JsonVe
 		RecUpdateAddress: item.RecUpdateAddress,
 		RecUpdateHouses:  item.RecUpdateHouses,
 	}
+}
+
+func (v *ElasticVersionRepository) Clear() error {
+	return v.elasticClient.DropIndex(v.indexName)
 }

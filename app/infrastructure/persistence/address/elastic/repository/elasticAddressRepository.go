@@ -22,247 +22,174 @@ import (
 const (
 	addrIndexSettings = `
 	{
-	  "settings": {
-		"index": {
-		  "number_of_shards": 1,
-		  "number_of_replicas": "0",
-		  "refresh_interval": "-1",
-          "max_ngram_diff": "18",
-		  "requests": {
-			"cache": {
-			  "enable": "true"
-			}
-		  },
-		  "blocks": {
-			"read_only_allow_delete": "false"
-		  },
-		  "analysis": {
-			"filter": {
-			  "ru_stop": {
-				"type": "stop",
-				"stopwords": "_russian_"
-			  },
-			  "autocomplete_filter": {
-				"type": "edge_ngram",
-				"min_gram": 2,
-				"max_gram": 20
-			  },
-			  "fias_word_delimiter": {
-				"type": "word_delimiter",
-				"preserve_original": "true",
-				"generate_word_parts": "false"
-			  }
-			},
-			"analyzer": {
-			  "autocomplete": {
-				"type": "custom",
-				"tokenizer": "standard",
-				"filter": ["autocomplete_filter"]
-			  },
-			  "stop_analyzer": {
-				"type": "custom",
-				"tokenizer": "whitespace",
-				"filter": ["lowercase", "fias_word_delimiter"]
-			  },
-			  "index_analyzer": {
-				"type": "custom",
-				"tokenizer": "ngram-tokenizer",
-				"filter": ["lowercase", "ru_stop", "trim"]
-			  },
-			  "search_analyzer": {
-				"type": "custom",
-				"tokenizer": "standard",
-				"filter": ["lowercase", "ru_stop", "trim"]
-			  }
-			},
-			"tokenizer": {
-			  "ngram-tokenizer": {
-				"type": "ngram",
-				"min_gram": 2,
-				"max_gram": 20,
-                "token_chars": [
-                  "letter",
-                  "digit",
-                  "punctuation",
-                  "symbol"
-                ]
-			  }
-			}
-		  }
-		}
-	  },
-	  "mappings": {
-		"dynamic": false,
-		"properties": {
-		  "address_suggest": {
-			"type": "completion",
-			"analyzer": "autocomplete",
-			"search_analyzer": "stop_analyzer"
-		  },
-		  "full_address": {
-			"type": "text",
-			"analyzer": "index_analyzer",
-			"search_analyzer": "search_analyzer",
-			"fields": {
+      "settings": {
+        "index": {
+          "number_of_shards": 1,
+          "number_of_replicas": "0",
+          "refresh_interval": "-1",
+          "requests": {
+            "cache": {
+              "enable": "true"
+            }
+          },
+          "blocks": {
+            "read_only_allow_delete": "false"
+          },
+          "analysis": {
+            "filter": {
+              "russian_stemmer": {
+                "type": "stemmer",
+                "name": "russian"
+              },
+              "edge_ngram": {
+                "type": "edge_ngram",
+                "min_gram": "2",
+                "max_gram": "25",
+                "token_chars": ["letter", "digit"]
+              }
+            },
+            "analyzer": {
+              "edge_ngram_analyzer": {
+                "filter": ["lowercase", "russian_stemmer", "edge_ngram"],
+                "tokenizer": "standard"
+              },
+              "keyword_analyzer": {
+                "filter": ["lowercase", "russian_stemmer"],
+                "tokenizer": "standard"
+              }
+            }
+          }
+        }
+      },
+      "mappings": {
+        "dynamic": false,
+        "properties": {
+          "address_suggest": {
+            "type": "text",
+            "analyzer": "edge_ngram_analyzer",
+            "search_analyzer": "keyword_analyzer"
+          },
+          "full_address": {
+            "type": "keyword"
+          },
+          "formal_name": {
+            "type": "keyword"
+          },
+          "full_name": {
+            "type": "text",
+            "analyzer": "edge_ngram_analyzer",
+            "search_analyzer": "keyword_analyzer",
+            "fields": {
 			  "keyword": {
 				"type": "keyword"
 			  }
 			}
-		  },
-		  "formal_name": {
-			"type": "text",
-			"analyzer": "index_analyzer",
-			"search_analyzer": "search_analyzer",
-			"fields": {
-			  "keyword": {
-				"type": "keyword"
-			  }
-			}
-		  },
-		  "full_name": {
-			"type": "keyword"
-		  },
-		  "ao_id": {
-			"type": "keyword"
-		  },
-		  "ao_guid": {
-			"type": "keyword"
-		  },
-		  "parent_guid": {
-			"type": "keyword"
-		  },
-		  "ao_level": {
-			"type": "integer"
-		  },
-		  "code": {
-			"type": "keyword"
-		  },
-		  "short_name": {
-			"type": "keyword"
-		  },
-		  "off_name": {
-			"type": "keyword"
-		  },
-		  "curr_status": {
-			"type": "integer"
-		  },
-		  "act_status": {
-			"type": "integer"
-		  },
-		  "live_status": {
-			"type": "integer"
-		  },
-		  "postal_code": {
-			"type": "keyword"
-		  },
-		  "region_code": {
-			"type": "keyword"
-		  },
-		  "district": {
-			"type": "keyword"
-		  },
-		  "district_type": {
-			"type": "keyword"
-		  },
-		  "district_full": {
-			"type": "keyword"
-		  },
-		  "settlement": {
-			"type": "keyword"
-		  },
-		  "settlement_type": {
-			"type": "keyword"
-		  },
-		  "settlement_full": {
-			"type": "keyword"
-		  },
-		  "street": {
-			"type": "keyword"
-		  },
-		  "street_type": {
-			"type": "keyword"
-		  },
-		  "street_full": {
-			"type": "keyword"
-		  },
-		  "okato": {
-			"type": "keyword"
-		  },
-		  "oktmo": {
-			"type": "keyword"
-		  },
-		  "start_date": {
-			"type": "date"
-		  },
-		  "end_date": {
-			"type": "date"
-		  },
-		  "bazis_update_date": {
-			"type": "date"
-		  },
-		  "update_date": {
-			"type": "date"
-		  },
-		  "location": {
-			"type": "geo_point"
-		  },
-		  "houses": {
-			"type": "nested",
-			"properties": {
-			  "house_id": {
-				"type": "keyword"
-			  },
-			  "house_guid": {
-				"type": "keyword"
-			  },
-			  "build_num": {
-				"type": "keyword"
-			  },
-			  "house_num": {
-				"type": "text",
-				"analyzer": "index_analyzer",
-				"search_analyzer": "search_analyzer",
-				"fields": {
-				  "keyword": {
-					"type": "keyword"
-				  }
-				}
-			  },
-			  "str_num": {
-				"type": "keyword"
-			  },
-			  "postal_code": {
-				"type": "keyword"
-			  },
-			  "counter": {
-				"type": "keyword"
-			  },
-			  "end_date": {
-				"type": "date"
-			  },
-			  "start_date": {
-				"type": "date"
-			  },
-			  "update_date": {
-				"type": "date"
-			  },
-			  "cad_num": {
-				"type": "keyword"
-			  },
-			  "okato": {
-				"type": "keyword"
-			  },
-			  "oktmo": {
-				"type": "keyword"
-			  },
-			  "location": {
-				"type": "geo_point"
-			  }
-			}
-		  }
-		}
-	  }
-	}
+          },
+          "ao_id": {
+            "type": "keyword"
+          },
+          "ao_guid": {
+            "type": "keyword"
+          },
+          "parent_guid": {
+            "type": "keyword"
+          },
+          "ao_level": {
+            "type": "integer"
+          },
+          "code": {
+            "type": "keyword"
+          },
+          "short_name": {
+            "type": "keyword"
+          },
+          "off_name": {
+            "type": "keyword"
+          },
+          "curr_status": {
+            "type": "integer"
+          },
+          "act_status": {
+            "type": "integer"
+          },
+          "live_status": {
+            "type": "integer"
+          },
+          "postal_code": {
+            "type": "keyword"
+          },
+          "region_code": {
+            "type": "keyword"
+          },
+          "district": {
+            "type": "keyword"
+          },
+          "district_type": {
+            "type": "keyword"
+          },
+          "district_full": {
+            "type": "keyword"
+          },
+          "settlement": {
+            "type": "keyword"
+          },
+          "settlement_type": {
+            "type": "keyword"
+          },
+          "settlement_full": {
+            "type": "keyword"
+          },
+          "street": {
+            "type": "keyword"
+          },
+          "street_type": {
+            "type": "keyword"
+          },
+          "street_full": {
+            "type": "keyword"
+          },
+          "okato": {
+            "type": "keyword"
+          },
+          "oktmo": {
+            "type": "keyword"
+          },
+          "start_date": {
+            "type": "date"
+          },
+          "end_date": {
+            "type": "date"
+          },
+          "bazis_update_date": {
+            "type": "date"
+          },
+          "update_date": {
+            "type": "date"
+          },
+          "location": {
+            "type": "geo_point"
+          },
+          "houses": {
+            "type": "nested",
+            "properties": {
+              "house_id": {
+                "type": "keyword"
+              },
+              "house_full_num": {
+                "type": "text",
+                "analyzer": "edge_ngram_analyzer",
+                "search_analyzer": "keyword_analyzer",
+                "fields": {
+                  "keyword": {
+                    "type": "keyword"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
     `
 	addrPipelineId   = "addr_drop_pipeline"
 	addrDropPipeline = `
@@ -567,10 +494,14 @@ func (a *ElasticAddressRepository) Index(isFull bool, start time.Time, housesCou
 }
 
 func (a *ElasticAddressRepository) allocate(query elastic.Query) {
+	batch := a.batchSize
+	if batch > 10000 {
+		batch = 10000
+	}
 	scrollService := a.elasticClient.Client.Scroll(a.GetIndexName()).
 		Query(query).
 		Sort("ao_level", true).
-		Size(a.batchSize)
+		Size(batch)
 
 	ctx := context.Background()
 	scrollService.Scroll("1h")
@@ -623,7 +554,7 @@ func (a *ElasticAddressRepository) createWorkerPool(noOfWorkers int, GetHousesBy
 
 func (a *ElasticAddressRepository) searchAddressWorker(wg *sync.WaitGroup, GetHousesByGuid repository.GetHousesByGuid) {
 	for address := range a.jobs {
-		var houseList []dto.JsonHouseDto
+		var houseList []dto.JsonAddressHouseDto
 		dtoItem := dto.JsonAddressDto{}
 		city := dto.JsonAddressDto{}
 		district := dto.JsonAddressDto{}
@@ -687,7 +618,10 @@ func (a *ElasticAddressRepository) searchAddressWorker(wg *sync.WaitGroup, GetHo
 			for _, houseData := range searchHouses {
 				houseItem := dto.JsonHouseDto{}
 				houseItem.GetFromEntity(*houseData)
-				houseList = append(houseList, houseItem)
+				houseList = append(houseList, dto.JsonAddressHouseDto{
+					ID:           houseItem.ID,
+					HouseFullNum: houseItem.HouseFullNum,
+				})
 				address.Houses = houseList
 			}
 		}

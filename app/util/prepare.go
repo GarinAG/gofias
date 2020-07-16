@@ -163,10 +163,18 @@ var shortNameList = map[string]addrShortName{
 func PrepareFullName(shortName, offName string) string {
 	fullName := ""
 	name, exist := shortNameList[shortName]
+	skip := false
 	if exist && name.short != "" {
-		fullName += name.short + " "
+		if name.short == "км" {
+			fullName += offName + " " + name.short
+			skip = true
+		} else {
+			fullName += name.short + " "
+		}
 	}
-	fullName += offName
+	if !skip {
+		fullName += offName
+	}
 
 	return fullName
 }
