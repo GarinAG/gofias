@@ -8,6 +8,7 @@ import (
 	"github.com/GarinAG/gofias/infrastructure/registry"
 	"github.com/GarinAG/gofias/interfaces"
 	"github.com/GarinAG/gofias/server/cli"
+	"github.com/GarinAG/gofias/util"
 	"runtime"
 )
 
@@ -17,6 +18,8 @@ func main() {
 	if err != nil {
 		panic(fmt.Sprintf("Failed to init container: %v", err))
 	}
+
+	util.CanPrintProcess = ctn.Resolve("config").(interfaces.ConfigInterface).GetBool("process.print")
 	app := cli.NewApp(ctn)
 
 	addressCli.RegisterImportCliEndpoint(app)

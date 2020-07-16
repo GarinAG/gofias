@@ -7,7 +7,12 @@ import (
 	"time"
 )
 
+var CanPrintProcess = true
+
 func PrintProcess(begin time.Time, current uint64, size uint64, unit string) {
+	if !CanPrintProcess {
+		return
+	}
 	// Simple progress
 	dur := time.Since(begin).Seconds()
 	sec := int(dur)
