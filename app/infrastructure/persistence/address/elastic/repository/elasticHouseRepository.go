@@ -208,7 +208,7 @@ Loop:
 				break Loop
 			}
 			total++
-			util.PrintProcess(begin, total, 0, "house")
+			//util.PrintProcess(begin, total, 0, "house")
 			saveItem := dto.JsonHouseDto{}
 			saveItem.GetFromEntity(d.(entity.HouseObject))
 			bulk.Add(elastic.NewBulkIndexRequest().Id(saveItem.ID).Doc(saveItem))
@@ -220,7 +220,7 @@ Loop:
 				if res.Errors {
 					a.logger.WithFields(interfaces.LoggerFields{"error": a.elasticClient.GetBulkError(res)}).Fatal("Add houses bulk commit failed")
 				}
-				if total%uint64(a.batchSize*10) == 0 {
+				if total%uint64(100000) == 0 {
 					a.logger.WithFields(interfaces.LoggerFields{"step": step, "count": total}).Info("Add houses to index")
 					step++
 				}
