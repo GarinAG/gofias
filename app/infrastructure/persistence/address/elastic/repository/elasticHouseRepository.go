@@ -208,7 +208,6 @@ Loop:
 				break Loop
 			}
 			total++
-			//util.PrintProcess(begin, total, 0, "house")
 			saveItem := dto.JsonHouseDto{}
 			saveItem.GetFromEntity(d.(entity.HouseObject))
 			bulk.Add(elastic.NewBulkIndexRequest().Id(saveItem.ID).Doc(saveItem))
@@ -220,7 +219,7 @@ Loop:
 				if res.Errors {
 					a.logger.WithFields(interfaces.LoggerFields{"error": a.elasticClient.GetBulkError(res)}).Fatal("Add houses bulk commit failed")
 				}
-				if total%uint64(100000) == 0 {
+				if total%uint64(100000) == 0 && !util.CanPrintProcess {
 					a.logger.WithFields(interfaces.LoggerFields{"step": step, "count": total}).Info("Add houses to index")
 					step++
 				}
@@ -239,10 +238,11 @@ Loop:
 		if res.Errors {
 			a.logger.WithFields(interfaces.LoggerFields{"error": a.elasticClient.GetBulkError(res)}).Fatal("Add houses bulk commit failed")
 		}
-		util.PrintProcess(begin, total, 0, "house")
 	}
-	a.logger.WithFields(interfaces.LoggerFields{"step": step, "count": total}).Info("Add houses to index")
-	a.logger.WithFields(interfaces.LoggerFields{"execTime": humanize.RelTime(begin, time.Now(), "", "")}).Info("House import execution time")
+	if !util.CanPrintProcess {
+		a.logger.WithFields(interfaces.LoggerFields{"step": step, "count": total}).Info("Add houses to index")
+	}
+	a.logger.WithFields(interfaces.LoggerFields{"count": total, "execTime": humanize.RelTime(begin, time.Now(), "", "")}).Info("House import execution time")
 	a.Refresh()
 	count <- int(total)
 }

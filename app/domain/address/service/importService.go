@@ -71,6 +71,9 @@ func (is *ImportService) CheckUpdates(api *fiasApiService.FiasApiService, versio
 
 func (is *ImportService) StartFullImport(api *fiasApiService.FiasApiService, versionService *versionService.VersionService) {
 	is.IsFull = true
+	is.addressImportService.IsFull = true
+	is.houseImportService.IsFull = true
+
 	fileResult := api.GetLastDownloadFileInfo()
 	if len(fileResult.FiasCompleteXmlUrl) > 0 {
 		is.clearDirectory(false)

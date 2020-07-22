@@ -8,10 +8,12 @@ import (
 	xmlparser "github.com/tamerh/xml-stream-parser"
 	"os"
 	"sync"
+	"time"
 )
 
 type HouseImportService struct {
 	HouseRepo repository.HouseRepositoryInterface
+	IsFull    bool `default:"false"`
 	logger    interfaces.LoggerInterface
 }
 
@@ -36,11 +38,20 @@ func (h *HouseImportService) Import(filePath string, wg *sync.WaitGroup, cnt cha
 	defer wg.Done()
 	addressChannel := make(chan interface{})
 	done := make(chan bool)
-	go util.ParseFile(filePath, done, addressChannel, h.logger, h.ParseElement, "House")
+	go util.ParseFile(filePath, done, addressChannel, h.logger, h.ParseElement, "House", 175000000)
 	go h.HouseRepo.InsertUpdateCollection(addressChannel, done, cnt)
 }
 
 func (h *HouseImportService) ParseElement(element *xmlparser.XMLElement) (interface{}, error) {
+	if h.IsFull {
+		current := time.Now()
+		end, err := time.Parse("2006-01-02", element.Attrs["ENDDATE"])
+
+		if err != nil || end.Before(current) {
+			return nil, nil
+		}
+	}
+
 	result := entity.HouseObject{
 		ID:         element.Attrs["HOUSEID"],
 		AoGuid:     element.Attrs["AOGUID"],

@@ -14,6 +14,7 @@ import (
 
 type AddressImportService struct {
 	AddressRepo repository.AddressRepositoryInterface
+	IsFull      bool `default:"false"`
 	logger      interfaces.LoggerInterface
 }
 
@@ -34,7 +35,7 @@ func (a *AddressImportService) Import(filePath string, wg *sync.WaitGroup, cnt c
 	defer wg.Done()
 	addressChannel := make(chan interface{})
 	done := make(chan bool)
-	go util.ParseFile(filePath, done, addressChannel, a.logger, a.ParseElement, "Object")
+	go util.ParseFile(filePath, done, addressChannel, a.logger, a.ParseElement, "Object", 4500000)
 	go a.AddressRepo.InsertUpdateCollection(addressChannel, done, cnt)
 }
 
@@ -46,6 +47,14 @@ func (a *AddressImportService) Index(isFull bool, start time.Time, housesCount i
 }
 
 func (a *AddressImportService) ParseElement(element *xmlparser.XMLElement) (interface{}, error) {
+	if a.IsFull {
+		if element.Attrs["CURRSTATUS"] != "0" ||
+			element.Attrs["ACTSTATUS"] != "1" ||
+			element.Attrs["LIVESTATUS"] != "1" {
+
+			return nil, nil
+		}
+	}
 	level, _ := strconv.Atoi(element.Attrs["AOLEVEL"])
 
 	result := entity.AddressObject{

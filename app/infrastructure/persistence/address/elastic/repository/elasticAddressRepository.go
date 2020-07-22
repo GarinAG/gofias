@@ -3,7 +3,6 @@ package repository
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"github.com/GarinAG/gofias/domain/address/entity"
 	"github.com/GarinAG/gofias/domain/address/repository"
 	"github.com/GarinAG/gofias/infrastructure/persistence/address/elastic/dto"
@@ -407,7 +406,6 @@ Loop:
 			total++
 			saveItem := dto.JsonAddressDto{}
 			saveItem.GetFromEntity(d.(entity.AddressObject))
-			util.PrintProcess(begin, total, 0, "address")
 			// Enqueue the document
 			bulk.Add(elastic.NewBulkIndexRequest().Id(saveItem.ID).Doc(saveItem))
 			if bulk.NumberOfActions() >= a.batchSize {
@@ -419,7 +417,7 @@ Loop:
 				if res.Errors {
 					a.logger.WithFields(interfaces.LoggerFields{"error": a.elasticClient.GetBulkError(res)}).Fatal("Add addresses bulk commit failed")
 				}
-				if total%uint64(100000) == 0 {
+				if total%uint64(100000) == 0 && !util.CanPrintProcess {
 					a.logger.WithFields(interfaces.LoggerFields{"step": step, "count": total}).Info("Add addresses to index")
 					step++
 				}
@@ -432,7 +430,6 @@ Loop:
 	// Commit the final batch before exiting
 	if bulk.NumberOfActions() > 0 {
 		res, err := bulk.Do(ctx)
-		util.PrintProcess(begin, total, 0, "address")
 		if err != nil {
 			a.logger.WithFields(interfaces.LoggerFields{"error": err}).Fatal("Add addresses bulk commit failed")
 		}
@@ -440,8 +437,10 @@ Loop:
 			a.logger.WithFields(interfaces.LoggerFields{"error": a.elasticClient.GetBulkError(res)}).Fatal("Add addresses bulk commit failed")
 		}
 	}
-	a.logger.WithFields(interfaces.LoggerFields{"step": step, "count": total}).Info("Add addresses to index")
-	a.logger.WithFields(interfaces.LoggerFields{"execTime": humanize.RelTime(begin, time.Now(), "", "")}).Info("Address index execution time")
+	if !util.CanPrintProcess {
+		a.logger.WithFields(interfaces.LoggerFields{"step": step, "count": total}).Info("Add addresses to index")
+	}
+	a.logger.WithFields(interfaces.LoggerFields{"count": total, "execTime": humanize.RelTime(begin, time.Now(), "", "")}).Info("Address index execution time")
 	a.Refresh()
 
 	count <- int(total)
@@ -637,12 +636,13 @@ func (a *ElasticAddressRepository) searchAddressWorker(wg *sync.WaitGroup, GetHo
 func (a *ElasticAddressRepository) result(done chan bool, begin time.Time, total uint64) {
 	bulk := a.GetBulkService()
 	ctx := context.Background()
+	bar := util.StartNewProgress(1500000)
 
 	for d := range a.results {
 		total++
-		util.PrintProcess(begin, total, 0, "address")
 		// Enqueue the document
 		bulk.Add(elastic.NewBulkIndexRequest().Id(d.ID).Doc(d))
+		bar.Increment()
 		if bulk.NumberOfActions() >= a.batchSize {
 			// Commit
 			res, err := bulk.Do(ctx)
@@ -668,11 +668,9 @@ func (a *ElasticAddressRepository) result(done chan bool, begin time.Time, total
 			a.logger.WithFields(interfaces.LoggerFields{"error": a.elasticClient.GetBulkError(res)}).Fatal("Index bulk commit failed")
 			os.Exit(1)
 		}
-		util.PrintProcess(begin, total, 0, "address")
 	}
-	fmt.Println("")
+	bar.Finish()
 	a.logger.WithFields(interfaces.LoggerFields{"count": total}).Info("Number of indexed addresses")
 	a.logger.WithFields(interfaces.LoggerFields{"execTime": humanize.RelTime(begin, time.Now(), "", "")}).Info("Address index execution time")
-
 	done <- true
 }

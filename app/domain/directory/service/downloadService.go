@@ -2,7 +2,6 @@ package service
 
 import (
 	"archive/zip"
-	"fmt"
 	fileEntity "github.com/GarinAG/gofias/domain/directory/entity"
 	"github.com/GarinAG/gofias/interfaces"
 	"github.com/GarinAG/gofias/util"
@@ -13,27 +12,22 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 )
 
 type WriteCounter struct {
-	Total           uint64
-	Size            uint64
-	Begin           time.Time
-	CanPrintProcess bool `default:"false"`
+	Total    uint64
+	Progress *util.Progress
 }
 
 func (wc *WriteCounter) Write(p []byte) (int, error) {
 	n := len(p)
 	wc.Total += uint64(n)
-	if wc.CanPrintProcess {
-		wc.PrintProgress()
-	}
+	wc.PrintProgress()
 	return n, nil
 }
 
 func (wc WriteCounter) PrintProgress() {
-	util.PrintProcess(wc.Begin, wc.Total, wc.Size, "bytes")
+	wc.Progress.Add(int64(wc.Total))
 }
 
 type DownloadService struct {
@@ -109,10 +103,9 @@ func (d *DownloadService) DownloadFile(url string, fileName string) (*fileEntity
 
 		// Create our progress reporter and pass it to be used alongside our writer
 		counter := &WriteCounter{
-			Size:            d.GetDownloadSize(url),
-			Begin:           time.Now(),
-			CanPrintProcess: d.config.GetBool("process.print"),
+			Progress: util.StartNewProgress(int(d.GetDownloadSize(url))),
 		}
+		counter.Progress.SetBytes()
 
 		// Get the data
 		resp, err := http.Get(url)
@@ -125,14 +118,11 @@ func (d *DownloadService) DownloadFile(url string, fileName string) (*fileEntity
 			return nil, err
 		}
 
-		if counter.CanPrintProcess {
-			fmt.Print("\n")
-		}
-
 		if err = os.Rename(filePathLocal+".tmp", filePathLocal); err != nil {
 			return nil, err
 		}
 
+		counter.Progress.Finish()
 		d.logger.Info("Download Finished")
 	}
 
