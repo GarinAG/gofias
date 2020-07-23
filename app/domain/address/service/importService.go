@@ -39,6 +39,15 @@ func NewImportService(logger interfaces.LoggerInterface, ds *service.DirectorySe
 	}
 }
 
+func (is *ImportService) getParts() []string {
+	parts := []string{addressEntity.AddressObject{}.GetXmlFile()}
+	if !is.SkipHouses {
+		parts = append(parts, addressEntity.HouseObject{}.GetXmlFile())
+	}
+
+	return parts
+}
+
 func (is *ImportService) CheckUpdates(api *fiasApiService.FiasApiService, versionService *versionService.VersionService, version *versionEntity.Version) {
 	result := api.GetAllDownloadFileInfo()
 	var needVersionList []entity.DownloadFileInfo
@@ -48,10 +57,7 @@ func (is *ImportService) CheckUpdates(api *fiasApiService.FiasApiService, versio
 		}
 		needVersionList = append(needVersionList, file)
 	}
-	parts := []string{addressEntity.HouseObject{}.GetXmlFile()}
-	if !is.SkipHouses {
-		parts = append(parts, addressEntity.HouseObject{}.GetXmlFile())
-	}
+	parts := is.getParts()
 
 	is.clearDirectory(false)
 	if len(needVersionList) == 0 {
@@ -77,10 +83,7 @@ func (is *ImportService) StartFullImport(api *fiasApiService.FiasApiService, ver
 	fileResult := api.GetLastDownloadFileInfo()
 	if len(fileResult.FiasCompleteXmlUrl) > 0 {
 		is.clearDirectory(false)
-		parts := []string{addressEntity.AddressObject{}.GetXmlFile()}
-		if !is.SkipHouses {
-			parts = append(parts, addressEntity.HouseObject{}.GetXmlFile())
-		}
+		parts := is.getParts()
 		xmlFiles := is.directoryService.DownloadAndExtractFile(fileResult.FiasCompleteXmlUrl, "fias_xml.zip", parts...)
 		cntAddr, cntHouses := is.ParseFiles(xmlFiles)
 		versionService.UpdateVersion(is.convertDownloadInfoToVersion(fileResult, cntAddr, cntHouses))

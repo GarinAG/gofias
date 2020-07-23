@@ -37,6 +37,10 @@ func (p *Progress) Add(value int64) {
 	}
 }
 
+func (p *Progress) SetCurrent(value int64) {
+	p.bar.SetCurrent(value)
+}
+
 func (p *Progress) Finish() {
 	if CanPrintProcess {
 		p.bar.Finish()
@@ -44,6 +48,7 @@ func (p *Progress) Finish() {
 }
 
 func (p *Progress) SetBytes() {
+	p.bar.Set(pb.Bytes, true)
 	p.bar.Set(pb.SIBytesPrefix, true)
 }
 

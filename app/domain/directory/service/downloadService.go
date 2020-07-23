@@ -27,7 +27,7 @@ func (wc *WriteCounter) Write(p []byte) (int, error) {
 }
 
 func (wc WriteCounter) PrintProgress() {
-	wc.Progress.Add(int64(wc.Total))
+	wc.Progress.SetCurrent(int64(wc.Total))
 }
 
 type DownloadService struct {
