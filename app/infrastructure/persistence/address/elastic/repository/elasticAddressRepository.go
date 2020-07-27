@@ -24,8 +24,8 @@ const (
       "settings": {
         "index": {
           "number_of_shards": 1,
-          "number_of_replicas": "0",
-          "refresh_interval": "-1",
+          "number_of_replicas": 0,
+		  "refresh_interval": "5s",
           "requests": {
             "cache": {
               "enable": "true"
@@ -389,8 +389,12 @@ func (a *ElasticAddressRepository) GetBulkService() *elastic.BulkService {
 	return a.elasticClient.Client.Bulk().Index(a.GetIndexName()).Pipeline(addrPipelineId)
 }
 
-func (a *ElasticAddressRepository) InsertUpdateCollection(channel <-chan interface{}, done <-chan bool, count chan<- int) {
-	bulk := a.elasticClient.Client.Bulk().Index(a.indexName).Pipeline(addrPipelineId)
+func (a *ElasticAddressRepository) InsertUpdateCollection(channel <-chan interface{}, done <-chan bool, count chan<- int, isFull bool) {
+	bulk := a.elasticClient.Client.Bulk().Index(a.indexName)
+	if !isFull {
+		bulk.Pipeline(addrPipelineId)
+	}
+
 	ctx := context.Background()
 	begin := time.Now()
 	var total uint64

@@ -35,8 +35,12 @@ func (a *AddressImportService) Import(filePath string, wg *sync.WaitGroup, cnt c
 	defer wg.Done()
 	addressChannel := make(chan interface{})
 	done := make(chan bool)
-	go util.ParseFile(filePath, done, addressChannel, a.logger, a.ParseElement, "Object", 4500000)
-	go a.AddressRepo.InsertUpdateCollection(addressChannel, done, cnt)
+	total := 0
+	if a.IsFull {
+		total = 4500000
+	}
+	go util.ParseFile(filePath, done, addressChannel, a.logger, a.ParseElement, "Object", total)
+	go a.AddressRepo.InsertUpdateCollection(addressChannel, done, cnt, a.IsFull)
 }
 
 func (a *AddressImportService) Index(isFull bool, start time.Time, housesCount int64, GetHousesByGuid repository.GetHousesByGuid) {

@@ -20,8 +20,8 @@ const (
 	  "settings": {
 		"index": {
 		  "number_of_shards": 1,
-		  "number_of_replicas": "0",
-		  "refresh_interval": "-1",
+		  "number_of_replicas": 0,
+		  "refresh_interval": "5s",
 		  "requests": {
 			"cache": {
 			  "enable": "true"
@@ -193,8 +193,12 @@ func (a *ElasticHouseRepository) GetByAddressGuid(guid string) ([]*entity.HouseO
 	return items, nil
 }
 
-func (a *ElasticHouseRepository) InsertUpdateCollection(channel <-chan interface{}, done <-chan bool, count chan<- int) {
-	bulk := a.elasticClient.Client.Bulk().Index(a.indexName).Pipeline(housesPipelineId)
+func (a *ElasticHouseRepository) InsertUpdateCollection(channel <-chan interface{}, done <-chan bool, count chan<- int, isFull bool) {
+	bulk := a.elasticClient.Client.Bulk().Index(a.indexName)
+	if !isFull {
+		bulk.Pipeline(housesPipelineId)
+	}
+
 	ctx := context.Background()
 	var total uint64
 	begin := time.Now()

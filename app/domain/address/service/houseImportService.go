@@ -12,9 +12,10 @@ import (
 )
 
 type HouseImportService struct {
-	HouseRepo repository.HouseRepositoryInterface
-	IsFull    bool `default:"false"`
-	logger    interfaces.LoggerInterface
+	HouseRepo   repository.HouseRepositoryInterface
+	IsFull      bool `default:"false"`
+	logger      interfaces.LoggerInterface
+	currentTime int64
 }
 
 func NewHouseService(houseRepo repository.HouseRepositoryInterface, logger interfaces.LoggerInterface) *HouseImportService {
@@ -25,8 +26,9 @@ func NewHouseService(houseRepo repository.HouseRepositoryInterface, logger inter
 	}
 
 	return &HouseImportService{
-		HouseRepo: houseRepo,
-		logger:    logger,
+		HouseRepo:   houseRepo,
+		logger:      logger,
+		currentTime: time.Now().Unix(),
 	}
 }
 
@@ -38,16 +40,19 @@ func (h *HouseImportService) Import(filePath string, wg *sync.WaitGroup, cnt cha
 	defer wg.Done()
 	addressChannel := make(chan interface{})
 	done := make(chan bool)
-	go util.ParseFile(filePath, done, addressChannel, h.logger, h.ParseElement, "House", 175000000)
-	go h.HouseRepo.InsertUpdateCollection(addressChannel, done, cnt)
+	total := 0
+	if h.IsFull {
+		total = 75000000
+	}
+	go util.ParseFile(filePath, done, addressChannel, h.logger, h.ParseElement, "House", total)
+	go h.HouseRepo.InsertUpdateCollection(addressChannel, done, cnt, h.IsFull)
 }
 
 func (h *HouseImportService) ParseElement(element *xmlparser.XMLElement) (interface{}, error) {
 	if h.IsFull {
-		current := time.Now()
 		end, err := time.Parse("2006-01-02", element.Attrs["ENDDATE"])
 
-		if err != nil || end.Before(current) {
+		if err != nil || end.Unix() <= h.currentTime {
 			return nil, nil
 		}
 	}
