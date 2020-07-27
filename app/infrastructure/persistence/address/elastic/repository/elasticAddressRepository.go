@@ -386,7 +386,7 @@ func (a *ElasticAddressRepository) GetDataByQuery(query elastic.Query) ([]elasti
 }
 
 func (a *ElasticAddressRepository) GetBulkService() *elastic.BulkService {
-	return a.elasticClient.Client.Bulk().Index(a.GetIndexName()).Pipeline(addrPipelineId)
+	return a.elasticClient.Client.Bulk().Index(a.GetIndexName())
 }
 
 func (a *ElasticAddressRepository) InsertUpdateCollection(channel <-chan interface{}, done <-chan bool, count chan<- int, isFull bool) {
@@ -480,14 +480,18 @@ func (a *ElasticAddressRepository) Index(isFull bool, start time.Time, housesCou
 	if err != nil {
 		a.logger.Error(err.Error())
 	}
+	queryCount, err := a.elasticClient.Client.Count(a.GetIndexName()).Query(query).Do(context.Background())
+	if err != nil {
+		a.logger.Error(err.Error())
+	}
 
 	a.logger.WithFields(interfaces.LoggerFields{"count": addTotalCount}).Info("Total address count")
 	a.logger.WithFields(interfaces.LoggerFields{"count": housesCount}).Info("Total houses count")
+	a.logger.WithFields(interfaces.LoggerFields{"count": queryCount}).Info("Number of indexed addresses")
 
 	go a.allocate(query)
 	done := make(chan bool)
-	var total uint64
-	go a.result(done, time.Now(), total)
+	go a.result(done, time.Now(), queryCount)
 	a.createWorkerPool(noOfWorkers, GetHousesByGuid)
 	<-done
 	a.Refresh()
@@ -637,13 +641,12 @@ func (a *ElasticAddressRepository) searchAddressWorker(wg *sync.WaitGroup, GetHo
 	wg.Done()
 }
 
-func (a *ElasticAddressRepository) result(done chan bool, begin time.Time, total uint64) {
+func (a *ElasticAddressRepository) result(done chan bool, begin time.Time, total int64) {
 	bulk := a.GetBulkService()
 	ctx := context.Background()
-	bar := util.StartNewProgress(1500000)
+	bar := util.StartNewProgress(int(total))
 
 	for d := range a.results {
-		total++
 		// Enqueue the document
 		bulk.Add(elastic.NewBulkIndexRequest().Id(d.ID).Doc(d))
 		bar.Increment()
@@ -674,7 +677,6 @@ func (a *ElasticAddressRepository) result(done chan bool, begin time.Time, total
 		}
 	}
 	bar.Finish()
-	a.logger.WithFields(interfaces.LoggerFields{"count": total}).Info("Number of indexed addresses")
 	a.logger.WithFields(interfaces.LoggerFields{"execTime": humanize.RelTime(begin, time.Now(), "", "")}).Info("Address index execution time")
 	done <- true
 }
