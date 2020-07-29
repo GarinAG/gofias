@@ -415,3 +415,32 @@ Contains information about FIAS versions
 
 </p>
 </details>
+
+
+## Protobuf
+
+#### Install
+
+```shell script
+mkdir tmp
+cd tmp
+git clone https://github.com/google/protobuf
+cd protobuf
+./autogen.sh
+./configure
+make
+make check
+sudo make install
+
+cd $GOROOT/src/
+go get -u github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway
+go get -u github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger
+go get -u github.com/golang/protobuf/protoc-gen-go
+```
+
+#### Generate proto
+```shell script
+protoc -I. -I$GOPATH/src -I$GOPATH/pkg/mod/github.com/grpc-ecosystem/grpc-gateway@v1.14.6/third_party/googleapis --go_out=plugins=grpc:. app/interfaces/grpc/proto/v1/address/address.proto && 
+protoc -I/usr/local/include -I. -I$GOPATH/src -I$GOPATH/pkg/mod/github.com/grpc-ecosystem/grpc-gateway@v1.14.6/third_party/googleapis --grpc-gateway_out=logtostderr=true:.  app/interfaces/grpc/proto/v1/address/address.proto && 
+protoc -I/usr/local/include -I. -I$GOPATH/src -I$GOPATH/pkg/mod/github.com/grpc-ecosystem/grpc-gateway@v1.14.6/third_party/googleapis --swagger_out=logtostderr=true:.  app/interfaces/grpc/proto/v1/address/address.proto
+```

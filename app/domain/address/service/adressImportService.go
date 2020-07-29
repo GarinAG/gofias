@@ -18,7 +18,7 @@ type AddressImportService struct {
 	logger      interfaces.LoggerInterface
 }
 
-func NewAddressService(addressRepo repository.AddressRepositoryInterface, logger interfaces.LoggerInterface) *AddressImportService {
+func NewAddressImportService(addressRepo repository.AddressRepositoryInterface, logger interfaces.LoggerInterface) *AddressImportService {
 	err := addressRepo.Init()
 	if err != nil {
 		logger.Panic(err.Error())

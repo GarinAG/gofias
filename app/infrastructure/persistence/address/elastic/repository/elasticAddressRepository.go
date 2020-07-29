@@ -355,10 +355,10 @@ func (a *ElasticAddressRepository) GetCitiesByTerm(term string, count int64) ([]
 	res, err := a.elasticClient.Client.
 		Search(a.indexName).
 		Query(elastic.NewBoolQuery().Filter(
-			elastic.NewTermQuery("short_name", "г"),
-			elastic.NewTermQuery("formal_name", term),
+			elastic.NewTermQuery("address_suggest", term),
 			elastic.NewTermsQuery("ao_level", 1, 4))).
 		Sort("ao_level", true).
+		Sort("full_address", true).
 		Size(int(count)).
 		Do(context.Background())
 

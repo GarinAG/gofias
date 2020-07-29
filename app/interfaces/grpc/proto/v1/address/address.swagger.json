@@ -1,0 +1,242 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "app/interfaces/grpc/proto/v1/address/address.proto",
+    "version": "version not set"
+  },
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/api/v1/address/{guid}": {
+      "get": {
+        "operationId": "AddressHandler_GetByGuid",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/address_v1Address"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "guid",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "AddressHandler"
+        ]
+      }
+    },
+    "/api/v1/cities": {
+      "get": {
+        "operationId": "AddressHandler_GetAllCities",
+        "responses": {
+          "200": {
+            "description": "A successful response.(streaming responses)",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "result": {
+                  "$ref": "#/definitions/address_v1Address"
+                },
+                "error": {
+                  "$ref": "#/definitions/runtimeStreamError"
+                }
+              },
+              "title": "Stream result of address_v1Address"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "tags": [
+          "AddressHandler"
+        ]
+      }
+    },
+    "/api/v1/citybyterm/{term}": {
+      "get": {
+        "operationId": "AddressHandler_GetCitiesByTerm",
+        "responses": {
+          "200": {
+            "description": "A successful response.(streaming responses)",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "result": {
+                  "$ref": "#/definitions/address_v1Address"
+                },
+                "error": {
+                  "$ref": "#/definitions/runtimeStreamError"
+                }
+              },
+              "title": "Stream result of address_v1Address"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "term",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "count",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
+          }
+        ],
+        "tags": [
+          "AddressHandler"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "address_v1Address": {
+      "type": "object",
+      "properties": {
+        "ID": {
+          "type": "string",
+          "format": "int64"
+        },
+        "AoGuid": {
+          "type": "string"
+        },
+        "AoLevel": {
+          "type": "string"
+        },
+        "ParentGuid": {
+          "type": "string"
+        },
+        "ShortName": {
+          "type": "string"
+        },
+        "FormalName": {
+          "type": "string"
+        },
+        "PostalCode": {
+          "type": "string"
+        },
+        "FullName": {
+          "type": "string"
+        },
+        "FullAddress": {
+          "type": "string"
+        },
+        "District": {
+          "type": "string"
+        },
+        "DistrictType": {
+          "type": "string"
+        },
+        "DistrictFull": {
+          "type": "string"
+        },
+        "Settlement": {
+          "type": "string"
+        },
+        "SettlementType": {
+          "type": "string"
+        },
+        "SettlementFull": {
+          "type": "string"
+        },
+        "Street": {
+          "type": "string"
+        },
+        "StreetType": {
+          "type": "string"
+        },
+        "StreetFull": {
+          "type": "string"
+        }
+      }
+    },
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "type_url": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string",
+          "format": "byte"
+        }
+      }
+    },
+    "runtimeError": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "string"
+        },
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    },
+    "runtimeStreamError": {
+      "type": "object",
+      "properties": {
+        "grpc_code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "http_code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "http_status": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    }
+  }
+}

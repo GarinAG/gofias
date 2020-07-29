@@ -1,0 +1,56 @@
+syntax = "proto3";
+
+package address_v1;
+
+option go_package = "app/interfaces/grpc/proto/v1/address";
+
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+
+service AddressHandler {
+  rpc GetByGuid (GuidRequest) returns (Address) {
+    option (google.api.http) = {
+      get: "/api/v1/address/{guid}"
+    };
+  };
+  rpc GetAllCities (google.protobuf.Empty) returns (stream Address) {
+    option (google.api.http) = {
+      get: "/api/v1/cities"
+    };
+  }
+  rpc GetCitiesByTerm (TermRequest) returns (stream Address) {
+    option (google.api.http) = {
+      get: "/api/v1/citybyterm/{term}"
+    };
+  }
+}
+
+message GuidRequest{
+  string guid = 1;
+}
+
+message TermRequest{
+  string term = 1;
+  int64 count = 2;
+}
+
+message Address {
+  int64 ID = 1;
+  string AoGuid = 2;
+  string AoLevel = 3 ;
+  string ParentGuid = 4;
+  string ShortName = 5;
+  string FormalName = 6;
+  string PostalCode = 7;
+  string FullName = 8;
+  string FullAddress = 9;
+  string District = 10;
+  string DistrictType = 11;
+  string DistrictFull = 12;
+  string Settlement = 13;
+  string SettlementType = 14;
+  string SettlementFull = 15;
+  string Street = 16;
+  string StreetType = 17;
+  string StreetFull = 18;
+}

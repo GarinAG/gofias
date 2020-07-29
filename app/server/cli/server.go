@@ -42,7 +42,7 @@ func NewApp(ctn *registry.Container) *App {
 		Logger:           logger,
 		DirectoryService: ctn.Resolve("directoryService").(*directoryService.DirectoryService),
 		ImportService:    ctn.Resolve("importService").(*service.ImportService),
-		AddressService:   ctn.Resolve("addressService").(*service.AddressImportService),
+		AddressService:   ctn.Resolve("addressImportService").(*service.AddressImportService),
 		HouseService:     ctn.Resolve("houseService").(*service.HouseImportService),
 		VersionService:   ctn.Resolve("versionService").(*versionService.VersionService),
 		FiasApiService:   ctn.Resolve("fiasApiService").(*fiasApiService.FiasApiService),

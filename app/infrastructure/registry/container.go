@@ -69,7 +69,7 @@ func NewContainer() (*Container, error) {
 			},
 		},
 		{
-			Name: "addressService",
+			Name: "addressImportService",
 			Build: func(ctn di.Container) (interface{}, error) {
 				appConfig := ctn.Get("config").(interfaces.ConfigInterface)
 				repo := elasticRepository.NewElasticAddressRepository(
@@ -77,7 +77,7 @@ func NewContainer() (*Container, error) {
 					ctn.Get("logger").(interfaces.LoggerInterface),
 					appConfig.GetInt("batch.size"),
 					appConfig.GetString("project.prefix"))
-				return service.NewAddressService(repo, ctn.Get("logger").(interfaces.LoggerInterface)), nil
+				return service.NewAddressImportService(repo, ctn.Get("logger").(interfaces.LoggerInterface)), nil
 			},
 		},
 		{
@@ -113,9 +113,22 @@ func NewContainer() (*Container, error) {
 				return service.NewImportService(
 					ctn.Get("logger").(interfaces.LoggerInterface),
 					ctn.Get("directoryService").(*directoryService.DirectoryService),
-					ctn.Get("addressService").(*service.AddressImportService),
+					ctn.Get("addressImportService").(*service.AddressImportService),
 					ctn.Get("houseService").(*service.HouseImportService),
 					ctn.Get("config").(interfaces.ConfigInterface)), nil
+			},
+		},
+		{
+			Name: "addressService",
+			Build: func(ctn di.Container) (interface{}, error) {
+				appConfig := ctn.Get("config").(interfaces.ConfigInterface)
+				repo := elasticRepository.NewElasticAddressRepository(
+					ctn.Get("elasticClient").(*elasticHelper.Client),
+					ctn.Get("logger").(interfaces.LoggerInterface),
+					appConfig.GetInt("batch.size"),
+					appConfig.GetString("project.prefix"))
+
+				return service.NewAddressService(repo, ctn.Get("logger").(interfaces.LoggerInterface)), nil
 			},
 		},
 	}...); err != nil {

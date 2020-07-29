@@ -44,24 +44,34 @@ type JsonAddressDto struct {
 
 func (item *JsonAddressDto) ToEntity() *entity.AddressObject {
 	return &entity.AddressObject{
-		ID:         item.ID,
-		AoGuid:     item.AoGuid,
-		ParentGuid: item.ParentGuid,
-		FormalName: item.FormalName,
-		ShortName:  item.ShortName,
-		AoLevel:    item.AoLevel,
-		OffName:    item.OffName,
-		Code:       item.Code,
-		RegionCode: item.RegionCode,
-		PostalCode: item.PostalCode,
-		Okato:      item.Okato,
-		Oktmo:      item.Oktmo,
-		ActStatus:  item.ActStatus,
-		LiveStatus: item.LiveStatus,
-		CurrStatus: item.CurrStatus,
-		StartDate:  item.StartDate,
-		EndDate:    item.EndDate,
-		UpdateDate: item.UpdateDate,
+		ID:             item.ID,
+		AoGuid:         item.AoGuid,
+		ParentGuid:     item.ParentGuid,
+		FormalName:     item.FormalName,
+		ShortName:      item.ShortName,
+		AoLevel:        item.AoLevel,
+		OffName:        item.OffName,
+		Code:           item.Code,
+		RegionCode:     item.RegionCode,
+		PostalCode:     item.PostalCode,
+		Okato:          item.Okato,
+		Oktmo:          item.Oktmo,
+		ActStatus:      item.ActStatus,
+		LiveStatus:     item.LiveStatus,
+		CurrStatus:     item.CurrStatus,
+		StartDate:      item.StartDate,
+		EndDate:        item.EndDate,
+		FullName:       item.FullName,
+		FullAddress:    item.FullAddress,
+		District:       item.District,
+		DistrictType:   item.DistrictType,
+		DistrictFull:   item.DistrictFull,
+		Settlement:     item.Settlement,
+		SettlementType: item.SettlementType,
+		SettlementFull: item.SettlementFull,
+		Street:         item.Street,
+		StreetType:     item.StreetType,
+		StreetFull:     item.StreetFull,
 	}
 }
 
@@ -87,5 +97,16 @@ func (item *JsonAddressDto) GetFromEntity(entity entity.AddressObject) {
 	item.StartDate = entity.StartDate
 	item.EndDate = entity.EndDate
 	item.UpdateDate = entity.UpdateDate
+	item.FullName = entity.FullName
+	item.FullAddress = entity.FullAddress
+	item.District = entity.District
+	item.DistrictType = entity.DistrictType
+	item.DistrictFull = entity.DistrictFull
+	item.Settlement = entity.Settlement
+	item.SettlementType = entity.SettlementType
+	item.SettlementFull = entity.SettlementFull
+	item.Street = entity.Street
+	item.StreetType = entity.StreetType
+	item.StreetFull = entity.StreetFull
 	item.BazisUpdateDate = time.Now().Format("2006-01-02") + "T00:00:00Z"
 }
