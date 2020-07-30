@@ -54,6 +54,18 @@ func initCli() *cli.App {
 		Name:    "fiascli",
 		Usage:   "Cli fias program",
 		Version: "0.1.0",
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:  "config-path",
+				Value: "./",
+				Usage: "Config path",
+			},
+			&cli.StringFlag{
+				Name:  "config-type",
+				Value: "yaml",
+				Usage: "Config type",
+			},
+		},
 	}
 
 	return &app

@@ -56,7 +56,7 @@ func NewZapLogger(config interfaces.LoggerConfiguration) interfaces.LoggerInterf
 	}
 
 	if config.EnableFile {
-		filePath := filepath.Dir(config.FileLocation) + "/log-" + time.Now().Format("2006-01-02") + ".log"
+		filePath := filepath.Dir(config.FileLocation) + "/" + config.FileLocationPrefix + "/log-" + time.Now().Format("2006-01-02") + ".log"
 		level := getZapLevel(config.FileLevel)
 		writer := zapcore.AddSync(&lumberjack.Logger{
 			Filename: filePath,

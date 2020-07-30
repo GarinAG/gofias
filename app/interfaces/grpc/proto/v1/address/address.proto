@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package address_v1;
 
-option go_package = "app/interfaces/grpc/proto/v1/address";
+option go_package = "app/infrastructure/persistence/grpc/dto/v1/address";
 
 import "google/api/annotations.proto";
 import "google/protobuf/empty.proto";
@@ -13,6 +13,11 @@ service AddressHandler {
       get: "/api/v1/address/{guid}"
     };
   };
+  rpc GetAddressByTerm (TermRequest) returns (stream Address) {
+    option (google.api.http) = {
+      get: "/api/v1/address/term/{term}"
+    };
+  }
   rpc GetAllCities (google.protobuf.Empty) returns (stream Address) {
     option (google.api.http) = {
       get: "/api/v1/cities"
@@ -20,7 +25,7 @@ service AddressHandler {
   }
   rpc GetCitiesByTerm (TermRequest) returns (stream Address) {
     option (google.api.http) = {
-      get: "/api/v1/citybyterm/{term}"
+      get: "/api/v1/cities/term/{term}"
     };
   }
 }
@@ -32,6 +37,8 @@ message GuidRequest{
 message TermRequest{
   string term = 1;
   int64 count = 2;
+  int64 size = 3;
+  int64 from = 4;
 }
 
 message Address {

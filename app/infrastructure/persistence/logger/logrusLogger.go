@@ -40,7 +40,7 @@ func NewLogrusLogger(config interfaces.LoggerConfiguration) interfaces.LoggerInt
 		panic(err)
 	}
 	stdOutHandler := os.Stdout
-	filePath := filepath.Dir(config.FileLocation) + "/log-" + time.Now().Format("2006-01-02") + ".log"
+	filePath := filepath.Dir(config.FileLocation) + "/" + config.FileLocationPrefix + "/log-" + time.Now().Format("2006-01-02") + ".log"
 	fileHandler := &lumberjack.Logger{
 		Filename: filePath,
 		MaxSize:  100,

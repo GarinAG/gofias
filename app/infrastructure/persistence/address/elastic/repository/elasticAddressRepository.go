@@ -299,7 +299,7 @@ func (a ElasticAddressRepository) GetCityByFormalName(term string) (*entity.Addr
 		Query(elastic.NewBoolQuery().Filter(
 			elastic.NewTermQuery("short_name", "г"),
 			elastic.NewTermsQuery("ao_level", 1, 4)).
-			Must(elastic.NewMatchQuery("formal_name", term))).
+			Must(elastic.NewMatchQuery("full_name", term))).
 		Sort("ao_level", true).
 		Size(1).
 		Do(context.Background())
@@ -351,12 +351,52 @@ func (a *ElasticAddressRepository) GetCities() ([]*entity.AddressObject, error) 
 	return items, nil
 }
 
-func (a *ElasticAddressRepository) GetCitiesByTerm(term string, count int64) ([]*entity.AddressObject, error) {
+func (a *ElasticAddressRepository) GetCitiesByTerm(term string, count int64, size int64, from int64) ([]*entity.AddressObject, error) {
+	if size == 0 {
+		size = 100
+	}
+
 	res, err := a.elasticClient.Client.
 		Search(a.indexName).
 		Query(elastic.NewBoolQuery().Filter(
-			elastic.NewTermQuery("address_suggest", term),
-			elastic.NewTermsQuery("ao_level", 1, 4))).
+			elastic.NewTermQuery("address_suggest", term)).
+			MustNot(elastic.NewTermsQuery("ao_level", 7, 65))).
+		From(int(from)).
+		Size(int(size)).
+		Sort("ao_level", true).
+		Sort("full_address", true).
+		Size(int(count)).
+		Do(context.Background())
+
+	if err != nil {
+		return nil, err
+	}
+
+	var items []*entity.AddressObject
+	var item *dto.JsonAddressDto
+	if len(res.Hits.Hits) > 0 {
+		for _, el := range res.Hits.Hits {
+			if err := json.Unmarshal(el.Source, &item); err != nil {
+				return nil, err
+			}
+		}
+		items = append(items, item.ToEntity())
+	}
+
+	return items, nil
+}
+
+func (a *ElasticAddressRepository) GetAddressByTerm(term string, count int64, size int64, from int64) ([]*entity.AddressObject, error) {
+	if size == 0 {
+		size = 100
+	}
+
+	res, err := a.elasticClient.Client.
+		Search(a.indexName).
+		Query(elastic.NewBoolQuery().Filter(
+			elastic.NewTermQuery("address_suggest", term))).
+		From(int(from)).
+		Size(int(size)).
 		Sort("ao_level", true).
 		Sort("full_address", true).
 		Size(int(count)).

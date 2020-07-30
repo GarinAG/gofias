@@ -1,11 +1,11 @@
 package cli
 
 import (
-	server "github.com/GarinAG/gofias/server/cli"
+	cli2 "github.com/GarinAG/gofias/infrastructure/persistence/cli"
 	"github.com/urfave/cli/v2"
 )
 
-func RegisterIndexCliEndpoint(app *server.App) {
+func RegisterIndexCliEndpoint(app *cli2.App) {
 	h := NewHandler(app.ImportService, app.Logger)
 	app.Server.Commands = append(app.Server.Commands, &cli.Command{
 		Name:  "index",

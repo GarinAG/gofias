@@ -32,11 +32,12 @@ type LoggerInterface interface {
 }
 
 type LoggerConfiguration struct {
-	EnableConsole     bool
-	ConsoleJSONFormat bool
-	ConsoleLevel      string
-	EnableFile        bool
-	FileJSONFormat    bool
-	FileLevel         string
-	FileLocation      string
+	EnableConsole      bool
+	ConsoleJSONFormat  bool
+	ConsoleLevel       string
+	EnableFile         bool
+	FileJSONFormat     bool
+	FileLevel          string
+	FileLocation       string
+	FileLocationPrefix string
 }

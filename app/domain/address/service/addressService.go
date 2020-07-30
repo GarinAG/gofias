@@ -36,8 +36,17 @@ func (a *AddressService) GetCities() []*entity.AddressObject {
 	return cities
 }
 
-func (a *AddressService) GetCitiesByTerm(term string, count int64) []*entity.AddressObject {
-	cities, err := a.addressRepo.GetCitiesByTerm(term, count)
+func (a *AddressService) GetCitiesByTerm(term string, count int64, size int64, from int64) []*entity.AddressObject {
+	cities, err := a.addressRepo.GetCitiesByTerm(term, count, size, from)
+	if err != nil {
+		a.logger.Error(err.Error())
+	}
+
+	return cities
+}
+
+func (a *AddressService) GetAddressByTerm(term string, count int64, size int64, from int64) []*entity.AddressObject {
+	cities, err := a.addressRepo.GetAddressByTerm(term, count, size, from)
 	if err != nil {
 		a.logger.Error(err.Error())
 	}

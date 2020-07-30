@@ -85,49 +85,6 @@ func (a *AddressImportService) ParseElement(element *xmlparser.XMLElement) (inte
 	return result, nil
 }
 
-func (a *AddressImportService) GetByFormalName(term string) *entity.AddressObject {
-	res, err := a.AddressRepo.GetByFormalName(term)
-	if err != nil {
-		a.logger.Error(err.Error())
-	}
-
-	return res
-}
-func (a *AddressImportService) GetByGuid(guid string) *entity.AddressObject {
-	res, err := a.AddressRepo.GetByGuid(guid)
-	if err != nil {
-		a.logger.Error(err.Error())
-	}
-
-	return res
-}
-func (a *AddressImportService) GetCities() []*entity.AddressObject {
-	res, err := a.AddressRepo.GetCities()
-	if err != nil {
-		a.logger.Error(err.Error())
-	}
-
-	return res
-}
-
-func (a *AddressImportService) GetCitiesByTerm(term string, count int64) []*entity.AddressObject {
-	res, err := a.AddressRepo.GetCitiesByTerm(term, count)
-	if err != nil {
-		a.logger.Error(err.Error())
-	}
-
-	return res
-}
-
-func (a *AddressImportService) GetCityByFormalName(term string) *entity.AddressObject {
-	res, err := a.AddressRepo.GetCityByFormalName(term)
-	if err != nil {
-		a.logger.Error(err.Error())
-	}
-
-	return res
-}
-
 func (a *AddressImportService) CountAllData() int64 {
 	res, err := a.AddressRepo.CountAllData()
 	if err != nil {

@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"flag"
 	"github.com/GarinAG/gofias/domain/address/service"
 	directoryService "github.com/GarinAG/gofias/domain/directory/service"
 	fiasApiService "github.com/GarinAG/gofias/domain/fiasApi/service"
@@ -15,11 +16,16 @@ import (
 	"github.com/sarulabs/di"
 )
 
+var (
+	ConfigPath = flag.String("config-path", "./", "Config path")
+	ConfigType = flag.String("config-type", "yaml", "Config type")
+)
+
 type Container struct {
 	ctn di.Container
 }
 
-func NewContainer() (*Container, error) {
+func NewContainer(loggerPrefix string) (*Container, error) {
 	builder, err := di.NewBuilder()
 	if err != nil {
 		return nil, err
@@ -29,7 +35,7 @@ func NewContainer() (*Container, error) {
 		{
 			Name: "config",
 			Build: func(ctn di.Container) (interface{}, error) {
-				appConfig := config.ViperConfig{ConfigPath: "./", ConfigType: "yaml"}
+				appConfig := config.ViperConfig{ConfigPath: *ConfigPath, ConfigType: *ConfigType}
 				err := appConfig.Init()
 
 				return &appConfig, err
@@ -40,13 +46,14 @@ func NewContainer() (*Container, error) {
 			Build: func(ctn di.Container) (interface{}, error) {
 				appConfig := ctn.Get("config").(interfaces.ConfigInterface)
 				loggerConfig := interfaces.LoggerConfiguration{
-					EnableConsole:     appConfig.GetBool("logger.console.enable"),
-					ConsoleLevel:      appConfig.GetString("logger.console.level"),
-					ConsoleJSONFormat: appConfig.GetBool("logger.console.json"),
-					EnableFile:        appConfig.GetBool("logger.file.enable"),
-					FileLevel:         appConfig.GetString("logger.file.level"),
-					FileJSONFormat:    appConfig.GetBool("logger.file.json"),
-					FileLocation:      appConfig.GetString("logger.file.path"),
+					EnableConsole:      appConfig.GetBool("logger.console.enable"),
+					ConsoleLevel:       appConfig.GetString("logger.console.level"),
+					ConsoleJSONFormat:  appConfig.GetBool("logger.console.json"),
+					EnableFile:         appConfig.GetBool("logger.file.enable"),
+					FileLevel:          appConfig.GetString("logger.file.level"),
+					FileJSONFormat:     appConfig.GetBool("logger.file.json"),
+					FileLocation:       appConfig.GetString("logger.file.path"),
+					FileLocationPrefix: loggerPrefix,
 				}
 				logger := log.NewZapLogger(loggerConfig)
 

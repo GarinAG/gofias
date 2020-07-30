@@ -24,4 +24,10 @@ logger:
     enable: true
     level: info
     json: true
-    path: ./log.log
+    path: ./
+grpc:
+  network: tcp
+  address: localhost:50051
+  gateway:
+    enable: true
+    address: localhost:8081
