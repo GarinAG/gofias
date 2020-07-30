@@ -16,18 +16,9 @@
         "operationId": "AddressHandler_GetAddressByTerm",
         "responses": {
           "200": {
-            "description": "A successful response.(streaming responses)",
+            "description": "A successful response.",
             "schema": {
-              "type": "object",
-              "properties": {
-                "result": {
-                  "$ref": "#/definitions/address_v1Address"
-                },
-                "error": {
-                  "$ref": "#/definitions/runtimeStreamError"
-                }
-              },
-              "title": "Stream result of address_v1Address"
+              "$ref": "#/definitions/address_v1AddressListResponse"
             }
           },
           "default": {
@@ -43,13 +34,6 @@
             "in": "path",
             "required": true,
             "type": "string"
-          },
-          {
-            "name": "count",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "format": "int64"
           },
           {
             "name": "size",
@@ -106,18 +90,9 @@
         "operationId": "AddressHandler_GetAllCities",
         "responses": {
           "200": {
-            "description": "A successful response.(streaming responses)",
+            "description": "A successful response.",
             "schema": {
-              "type": "object",
-              "properties": {
-                "result": {
-                  "$ref": "#/definitions/address_v1Address"
-                },
-                "error": {
-                  "$ref": "#/definitions/runtimeStreamError"
-                }
-              },
-              "title": "Stream result of address_v1Address"
+              "$ref": "#/definitions/address_v1AddressListResponse"
             }
           },
           "default": {
@@ -137,18 +112,9 @@
         "operationId": "AddressHandler_GetCitiesByTerm",
         "responses": {
           "200": {
-            "description": "A successful response.(streaming responses)",
+            "description": "A successful response.",
             "schema": {
-              "type": "object",
-              "properties": {
-                "result": {
-                  "$ref": "#/definitions/address_v1Address"
-                },
-                "error": {
-                  "$ref": "#/definitions/runtimeStreamError"
-                }
-              },
-              "title": "Stream result of address_v1Address"
+              "$ref": "#/definitions/address_v1AddressListResponse"
             }
           },
           "default": {
@@ -164,13 +130,6 @@
             "in": "path",
             "required": true,
             "type": "string"
-          },
-          {
-            "name": "count",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "format": "int64"
           },
           {
             "name": "size",
@@ -254,6 +213,17 @@
         }
       }
     },
+    "address_v1AddressListResponse": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/address_v1Address"
+          }
+        }
+      }
+    },
     "protobufAny": {
       "type": "object",
       "properties": {
@@ -277,31 +247,6 @@
           "format": "int32"
         },
         "message": {
-          "type": "string"
-        },
-        "details": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/protobufAny"
-          }
-        }
-      }
-    },
-    "runtimeStreamError": {
-      "type": "object",
-      "properties": {
-        "grpc_code": {
-          "type": "integer",
-          "format": "int32"
-        },
-        "http_code": {
-          "type": "integer",
-          "format": "int32"
-        },
-        "message": {
-          "type": "string"
-        },
-        "http_status": {
           "type": "string"
         },
         "details": {

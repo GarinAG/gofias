@@ -13,17 +13,17 @@ service AddressHandler {
       get: "/api/v1/address/{guid}"
     };
   };
-  rpc GetAddressByTerm (TermRequest) returns (stream Address) {
+  rpc GetAddressByTerm (TermRequest) returns (AddressListResponse) {
     option (google.api.http) = {
       get: "/api/v1/address/term/{term}"
     };
   }
-  rpc GetAllCities (google.protobuf.Empty) returns (stream Address) {
+  rpc GetAllCities (google.protobuf.Empty) returns (AddressListResponse) {
     option (google.api.http) = {
       get: "/api/v1/cities"
     };
   }
-  rpc GetCitiesByTerm (TermRequest) returns (stream Address) {
+  rpc GetCitiesByTerm (TermRequest) returns (AddressListResponse) {
     option (google.api.http) = {
       get: "/api/v1/cities/term/{term}"
     };
@@ -36,9 +36,12 @@ message GuidRequest{
 
 message TermRequest{
   string term = 1;
-  int64 count = 2;
-  int64 size = 3;
-  int64 from = 4;
+  int64 size = 2;
+  int64 from = 3;
+}
+
+message AddressListResponse {
+  repeated Address items = 1;
 }
 
 message Address {

@@ -7,6 +7,8 @@ import (
 	addressV1 "github.com/GarinAG/gofias/infrastructure/persistence/grpc/dto/v1/address"
 	"github.com/golang/protobuf/ptypes/empty"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"net"
 	"strconv"
 )
@@ -24,49 +26,28 @@ func NewAddressHandler(a *service.AddressService) *AddressHandler {
 	return handler
 }
 
-func (h *AddressHandler) GetCitiesByTerm(request *addressV1.TermRequest, stream addressV1.AddressHandler_GetCitiesByTermServer) error {
-	if request.Count == 0 {
-		request.Count = 10
-	}
-
-	cities := h.addressService.GetCitiesByTerm(request.Term, request.Count, request.Size, request.From)
-
-	for _, city := range cities {
-		stream.Send(h.convertToAddress(city))
-	}
-
-	return nil
+func (h *AddressHandler) GetCitiesByTerm(ctx context.Context, request *addressV1.TermRequest) (*addressV1.AddressListResponse, error) {
+	cities := h.addressService.GetCitiesByTerm(request.Term, request.Size, request.From)
+	return h.prepareList(cities)
 }
 
-func (h *AddressHandler) GetAddressByTerm(request *addressV1.TermRequest, stream addressV1.AddressHandler_GetAddressByTermServer) error {
-	if request.Count == 0 {
-		request.Count = 10
-	}
-
-	cities := h.addressService.GetAddressByTerm(request.Term, request.Count, request.Size, request.From)
-
-	for _, city := range cities {
-		stream.Send(h.convertToAddress(city))
-	}
-
-	return nil
+func (h *AddressHandler) GetAddressByTerm(ctx context.Context, request *addressV1.TermRequest) (*addressV1.AddressListResponse, error) {
+	cities := h.addressService.GetAddressByTerm(request.Term, request.Size, request.From)
+	return h.prepareList(cities)
 }
 
-func (h *AddressHandler) GetAllCities(empty *empty.Empty, stream addressV1.AddressHandler_GetAllCitiesServer) error {
+func (h *AddressHandler) GetAllCities(ctx context.Context, empty *empty.Empty) (*addressV1.AddressListResponse, error) {
 	cities := h.addressService.GetCities()
-
-	for _, city := range cities {
-		stream.Send(h.convertToAddress(city))
-	}
-
-	return nil
+	return h.prepareList(cities)
 }
 
 func (h *AddressHandler) GetByGuid(ctx context.Context, guid *addressV1.GuidRequest) (*addressV1.Address, error) {
 	addr := h.addressService.GetByGuid(guid.Guid)
-	result := h.convertToAddress(addr)
+	if addr != nil {
+		return h.convertToAddress(addr), nil
+	}
 
-	return result, nil
+	return nil, status.Error(codes.NotFound, "address not found")
 }
 
 func (h *AddressHandler) Serve() error {
@@ -78,12 +59,22 @@ func (h *AddressHandler) Serve() error {
 	return h.Server.Serve(listener)
 }
 
+func (h *AddressHandler) prepareList(cities []*entity.AddressObject) (*addressV1.AddressListResponse, error) {
+	list := addressV1.AddressListResponse{}
+
+	for _, city := range cities {
+		list.Items = append(list.Items, h.convertToAddress(city))
+	}
+
+	return &list, nil
+}
+
 func (h *AddressHandler) convertToAddress(addr *entity.AddressObject) *addressV1.Address {
 	if addr == nil {
 		return nil
 	}
 
-	result := addressV1.Address{
+	return &addressV1.Address{
 		AoGuid:         addr.AoGuid,
 		AoLevel:        strconv.Itoa(addr.AoLevel),
 		FormalName:     addr.FormalName,
@@ -102,6 +93,4 @@ func (h *AddressHandler) convertToAddress(addr *entity.AddressObject) *addressV1
 		StreetType:     addr.StreetType,
 		StreetFull:     addr.StreetFull,
 	}
-
-	return &result
 }

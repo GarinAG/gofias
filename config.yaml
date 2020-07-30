@@ -24,7 +24,7 @@ logger:
     enable: true
     level: info
     json: true
-    path: ./
+    path: ./logs/
 grpc:
   network: tcp
   address: localhost:50051
