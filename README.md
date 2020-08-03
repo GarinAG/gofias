@@ -440,7 +440,14 @@ go get -u github.com/golang/protobuf/protoc-gen-go
 
 #### Generate proto
 ```shell script
-protoc -I. -I$GOPATH/src -I$GOPATH/pkg/mod/github.com/grpc-ecosystem/grpc-gateway@v1.14.6/third_party/googleapis --go_out=plugins=grpc:. app/interfaces/grpc/proto/v1/address/address.proto && 
-protoc -I/usr/local/include -I. -I$GOPATH/src -I$GOPATH/pkg/mod/github.com/grpc-ecosystem/grpc-gateway@v1.14.6/third_party/googleapis --grpc-gateway_out=logtostderr=true:.  app/interfaces/grpc/proto/v1/address/address.proto && 
-protoc -I/usr/local/include -I. -I$GOPATH/src -I$GOPATH/pkg/mod/github.com/grpc-ecosystem/grpc-gateway@v1.14.6/third_party/googleapis --swagger_out=logtostderr=true:.  app/interfaces/grpc/proto/v1/address/address.proto
+export GOOGLEAPIS=$GOPATH/pkg/mod/github.com/grpc-ecosystem/grpc-gateway@v1.14.6/third_party/googleapis;\
+protoc -I. -I$GOPATH/src -I$GOOGLEAPIS --go_out=plugins=grpc:. app/interfaces/grpc/proto/version/*.proto && \
+protoc -I/usr/local/include -I. -I$GOOGLEAPIS --grpc-gateway_out=logtostderr=true:.  app/interfaces/grpc/proto/version/*.proto && \
+protoc -I/usr/local/include -I. -I$GOOGLEAPIS --swagger_out=logtostderr=true:.  app/interfaces/grpc/proto/version/*.proto;\
+protoc -I. -I$GOPATH/src -I$GOOGLEAPIS --go_out=plugins=grpc:. app/interfaces/grpc/proto/v1/address/*.proto && \
+protoc -I/usr/local/include -I. -I$GOOGLEAPIS --grpc-gateway_out=logtostderr=true:.  app/interfaces/grpc/proto/v1/address/*.proto && \
+protoc -I/usr/local/include -I. -I$GOOGLEAPIS --swagger_out=logtostderr=true:.  app/interfaces/grpc/proto/v1/address/*.proto;\
+protoc -I. -I$GOPATH/src -I$GOOGLEAPIS --go_out=plugins=grpc:. app/interfaces/grpc/proto/v1/health/*.proto && \
+protoc -I/usr/local/include -I. -I$GOOGLEAPIS --grpc-gateway_out=logtostderr=true:.  app/interfaces/grpc/proto/v1/health/*.proto && \
+protoc -I/usr/local/include -I. -I$GOOGLEAPIS --swagger_out=logtostderr=true:.  app/interfaces/grpc/proto/v1/health/*.proto;
 ```

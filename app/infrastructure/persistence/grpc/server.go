@@ -5,7 +5,9 @@ import (
 	"github.com/GarinAG/gofias/domain/address/service"
 	versionService "github.com/GarinAG/gofias/domain/version/service"
 	grpcHandlerAddressV1 "github.com/GarinAG/gofias/infrastructure/persistence/grpc/dto/v1/address"
-	addressHandler "github.com/GarinAG/gofias/infrastructure/persistence/grpc/handler"
+	grpcHandlerHealthV1 "github.com/GarinAG/gofias/infrastructure/persistence/grpc/dto/v1/health"
+	grpcHandlerVersion "github.com/GarinAG/gofias/infrastructure/persistence/grpc/dto/version"
+	handlers "github.com/GarinAG/gofias/infrastructure/persistence/grpc/handler"
 	"github.com/GarinAG/gofias/infrastructure/registry"
 	"github.com/GarinAG/gofias/interfaces"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
@@ -19,6 +21,8 @@ import (
 	"sync"
 	"time"
 )
+
+var Version = "2.0.0"
 
 type GrpcServer struct {
 	Server         *grpc.Server
@@ -42,7 +46,10 @@ func NewGrpcServer(ctn *registry.Container) *GrpcServer {
 		}
 	}()
 	server := grpc.NewServer(grpc.UnaryInterceptor(serverInterceptor))
-	grpcHandlerAddressV1.RegisterAddressHandlerServer(server, addressHandler.NewAddressHandler(ctn.Resolve("addressService").(*service.AddressService)))
+	grpcHandlerAddressV1.RegisterAddressHandlerServer(server, handlers.NewAddressHandler(ctn.Resolve("addressService").(*service.AddressService)))
+	grpcHandlerHealthV1.RegisterHealthHandlerServer(server, handlers.NewHealthHandler())
+	grpcHandlerVersion.RegisterVersionHandlerServer(server, handlers.NewVersionHandler(ctn.Resolve("versionService").(*versionService.VersionService), Version))
+
 	reflection.Register(server)
 
 	return &GrpcServer{
@@ -86,7 +93,8 @@ func (g *GrpcServer) grpcService(wg *sync.WaitGroup) {
 }
 
 func (g *GrpcServer) Serve() error {
-	listener, err := net.Listen(g.Config.GetString("grpc.network"), g.Config.GetString("grpc.address"))
+	address := g.Config.GetString("grpc.address") + ":" + g.Config.GetString("grpc.port")
+	listener, err := net.Listen(g.Config.GetString("grpc.network"), address)
 	if err != nil {
 		return err
 	}
@@ -103,16 +111,32 @@ func (g *GrpcServer) proxyService(wg *sync.WaitGroup) {
 
 	// Register gRPC server endpoint
 	// Note: Make sure the gRPC server is running properly and accessible
-	mux := runtime.NewServeMux()
+	customMarshaller := &runtime.JSONPb{
+		OrigName:     true,
+		EmitDefaults: true, // disable 'omitempty'
+	}
+	muxOpt := runtime.WithMarshalerOption(runtime.MIMEWildcard, customMarshaller)
+	mux := runtime.NewServeMux(muxOpt)
+
 	opts := []grpc.DialOption{grpc.WithInsecure()}
-	err := grpcHandlerAddressV1.RegisterAddressHandlerHandlerFromEndpoint(ctx, mux, g.Config.GetString("grpc.address"), opts)
+	grpcAddress := g.Config.GetString("grpc.address") + ":" + g.Config.GetString("grpc.port")
+	err := grpcHandlerAddressV1.RegisterAddressHandlerHandlerFromEndpoint(ctx, mux, grpcAddress, opts)
 	if err != nil {
-		g.Logger.Fatal("error reg endpoint", err)
+		g.Logger.Fatal("error reg address endpoint", err)
+	}
+	err = grpcHandlerVersion.RegisterVersionHandlerHandlerFromEndpoint(ctx, mux, grpcAddress, opts)
+	if err != nil {
+		g.Logger.Fatal("error reg version endpoint", err)
+	}
+	err = grpcHandlerHealthV1.RegisterHealthHandlerHandlerFromEndpoint(ctx, mux, grpcAddress, opts)
+	if err != nil {
+		g.Logger.Fatal("error reg health endpoint", err)
 	}
 
 	// Start HTTP server (and proxy calls to gRPC server endpoint)
-	g.Logger.Info("Start Http server on: " + g.Config.GetString("grpc.gateway.address"))
-	g.Logger.Fatal(http.ListenAndServe(g.Config.GetString("grpc.gateway.address"), mux).Error())
+	gatewayAddress := g.Config.GetString("grpc.gateway.address") + ":" + g.Config.GetString("grpc.gateway.port")
+	g.Logger.Info("Start Http server on: " + gatewayAddress)
+	g.Logger.Fatal(http.ListenAndServe(gatewayAddress, mux).Error())
 }
 
 func serverInterceptor(ctx context.Context,

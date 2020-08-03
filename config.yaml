@@ -27,7 +27,9 @@ logger:
     path: ./logs/
 grpc:
   network: tcp
-  address: localhost:50051
+  address: localhost
+  port: 50051
   gateway:
     enable: true
-    address: localhost:8081
+    address: localhost
+    port: 8081

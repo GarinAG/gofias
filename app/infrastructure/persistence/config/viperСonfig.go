@@ -15,9 +15,13 @@ func (config *ViperConfig) Init() error {
 	viper.SetConfigType(config.ConfigType)
 	if config.isEnv() {
 		viper.SetConfigFile(".env")
-	}
+		viper.AutomaticEnv()
+		_ = viper.ReadInConfig()
 
-	return viper.ReadInConfig()
+		return nil
+	} else {
+		return viper.ReadInConfig()
+	}
 }
 
 func (config *ViperConfig) GetString(key string) string {

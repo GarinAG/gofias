@@ -157,8 +157,7 @@
       "type": "object",
       "properties": {
         "ID": {
-          "type": "string",
-          "format": "int64"
+          "type": "string"
         },
         "AoGuid": {
           "type": "string"

@@ -1,0 +1,86 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "app/interfaces/grpc/proto/version/version.proto",
+    "version": "version not set"
+  },
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/*": {
+      "get": {
+        "operationId": "VersionHandler_GetVersion",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/versionVersion"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "tags": [
+          "VersionHandler"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "type_url": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string",
+          "format": "byte"
+        }
+      }
+    },
+    "runtimeError": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "string"
+        },
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    },
+    "versionVersion": {
+      "type": "object",
+      "properties": {
+        "ServerVersion": {
+          "type": "string"
+        },
+        "GrpcVersion": {
+          "type": "string"
+        },
+        "FiasVersion": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

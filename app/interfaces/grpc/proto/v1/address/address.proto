@@ -45,9 +45,9 @@ message AddressListResponse {
 }
 
 message Address {
-  int64 ID = 1;
+  string ID = 1;
   string AoGuid = 2;
-  string AoLevel = 3 ;
+  string AoLevel = 3;
   string ParentGuid = 4;
   string ShortName = 5;
   string FormalName = 6;

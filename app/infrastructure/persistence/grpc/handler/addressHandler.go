@@ -9,7 +9,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"net"
 	"strconv"
 )
 
@@ -50,15 +49,6 @@ func (h *AddressHandler) GetByGuid(ctx context.Context, guid *addressV1.GuidRequ
 	return nil, status.Error(codes.NotFound, "address not found")
 }
 
-func (h *AddressHandler) Serve() error {
-	listener, err := net.Listen("tcp", ":50051")
-	if err != nil {
-		return err
-	}
-
-	return h.Server.Serve(listener)
-}
-
 func (h *AddressHandler) prepareList(cities []*entity.AddressObject) (*addressV1.AddressListResponse, error) {
 	list := addressV1.AddressListResponse{}
 
@@ -75,6 +65,7 @@ func (h *AddressHandler) convertToAddress(addr *entity.AddressObject) *addressV1
 	}
 
 	return &addressV1.Address{
+		ID:             addr.ID,
 		AoGuid:         addr.AoGuid,
 		AoLevel:        strconv.Itoa(addr.AoLevel),
 		FormalName:     addr.FormalName,
