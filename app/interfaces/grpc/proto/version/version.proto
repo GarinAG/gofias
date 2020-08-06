@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package version;
+
+option go_package = "app/infrastructure/persistence/grpc/dto/version";
+
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+
+service VersionHandler {
+  rpc GetVersion (google.protobuf.Empty) returns (Version) {
+    option (google.api.http) = {
+      get: "/*"
+    };
+  };
+}
+
+message Version {
+  string ServerVersion = 1;
+  string GrpcVersion = 2;
+  string FiasVersion = 3;
+}

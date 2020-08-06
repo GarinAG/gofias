@@ -4,9 +4,9 @@
 *.dll
 *.so
 *.dylib
-*.sum
 .idea
-/gofias
+.docker/data/
+.docker/logs/
 
 # Test binary, built with `go test -c`
 *.test

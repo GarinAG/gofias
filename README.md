@@ -5,27 +5,18 @@ gofias is a [Go](http://www.golang.org/) (golang) library that import [fias](htt
 ## Usage
 
 ```shell script
+cd GOROOT/src
 git clone https://github.com/GarinAG/gofias.git
-cd gofias
-go build ./src/gofias/
-./gofias --host=localhost:9200 --bulk-size=5000 --status --skip-houses --skip-snapshot --skip-clear
+cd gofias/app/
+go build -o ./fias ./application/cli/
+cd ..
+./fias update --skip-houses --skip-clear
 ```
 
 ## CLI props
 
-* `bulk-size (int)` - Number of documents to collect before committing (default `1000`)
-* `cpu (int)` - Count of CPU usage (default `0`)
-* `force (bool)` - Force full download (default `false`)
-* `force-index (bool)` - Start force index without import (default `false`)
-* `host (string)` - Elasticsearch host (default `"localhost:9200"`)
-* `logs (string)` - Logs dir path (default `"./logs"`)
-* `prefix (string)` - Prefix for elasticsearch indexes (default `"fias_"`)
 * `skip-clear (bool)` - Skip clear tmp directory on start (default `false`)
 * `skip-houses (bool)` - Skip houses index (default `false`)
-* `skip-snapshot (bool)` - Skip create ElasticSearch snapshot (default `false`)
-* `status (bool)` - Show import status (default `false`)
-* `storage (string)` - Snapshots storage path (default `"/usr/share/elasticsearch/snapshots"`)
-* `tmp (string)` - Tmp folder relative path in user home dir (default `"/tmp/fias/"`)
 
 
 ## ElasticSearch indexes info
@@ -54,27 +45,25 @@ Contains information about FIAS addresses
       },
       "analysis": {
         "filter": {
-          "autocomplete_filter": {
-            "type": "edge_ngram",
-            "min_gram": 2,
-            "max_gram": 20
+          "russian_stemmer": {
+            "type": "stemmer",
+            "name": "russian"
           },
-          "fias_word_delimiter": {
-            "type": "word_delimiter",
-            "preserve_original": "true",
-            "generate_word_parts": "false"
+          "edge_ngram": {
+            "type": "edge_ngram",
+            "min_gram": "2",
+            "max_gram": "25",
+            "token_chars": ["letter", "digit"]
           }
         },
         "analyzer": {
-          "autocomplete": {
-            "type": "custom",
-            "tokenizer": "standard",
-            "filter": ["autocomplete_filter"]
+          "edge_ngram_analyzer": {
+            "filter": ["lowercase", "russian_stemmer", "edge_ngram"],
+            "tokenizer": "standard"
           },
-          "stop_analyzer": {
-            "type": "custom",
-            "tokenizer": "whitespace",
-            "filter": ["lowercase", "fias_word_delimiter"]
+          "keyword_analyzer": {
+            "filter": ["lowercase", "russian_stemmer"],
+            "tokenizer": "standard"
           }
         }
       }
@@ -83,24 +72,40 @@ Contains information about FIAS addresses
   "mappings": {
     "dynamic": false,
     "properties": {
-      "street_address_suggest": {
+      "address_suggest": {
         "type": "text",
-        "analyzer": "autocomplete",
-        "search_analyzer": "stop_analyzer"
+        "analyzer": "edge_ngram_analyzer",
+        "search_analyzer": "keyword_analyzer"
       },
       "full_address": {
         "type": "keyword"
       },
-      "district_full": {
-        "type": "keyword"
-      },
-      "settlement_full": {
-        "type": "keyword"
-      },
-      "street_full": {
-        "type": "keyword"
-      },
       "formal_name": {
+        "type": "keyword"
+      },
+      "full_name": {
+        "type": "text",
+        "analyzer": "edge_ngram_analyzer",
+        "search_analyzer": "keyword_analyzer",
+        "fields": {
+          "keyword": {
+            "type": "keyword"
+          }
+        }
+      },
+      "ao_id": {
+        "type": "keyword"
+      },
+      "ao_guid": {
+        "type": "keyword"
+      },
+      "parent_guid": {
+        "type": "keyword"
+      },
+      "ao_level": {
+        "type": "integer"
+      },
+      "code": {
         "type": "keyword"
       },
       "short_name": {
@@ -112,67 +117,16 @@ Contains information about FIAS addresses
       "curr_status": {
         "type": "integer"
       },
-      "oper_status": {
-        "type": "integer"
-      },
       "act_status": {
         "type": "integer"
       },
       "live_status": {
         "type": "integer"
       },
-      "cent_status": {
-        "type": "integer"
-      },
-      "ao_guid": {
-        "type": "keyword"
-      },
-      "parent_guid": {
-        "type": "keyword"
-      },
-      "ao_level": {
-        "type": "keyword"
-      },
-      "area_code": {
-        "type": "keyword"
-      },
-      "auto_code": {
-        "type": "keyword"
-      },
-      "city_ar_code": {
-        "type": "keyword"
-      },
-      "city_code": {
-        "type": "keyword"
-      },
-      "street_code": {
-        "type": "keyword"
-      },
-      "extr_code": {
-        "type": "keyword"
-      },
-      "sub_ext_code": {
-        "type": "keyword"
-      },
-      "place_code": {
-        "type": "keyword"
-      },
-      "plan_code": {
-        "type": "keyword"
-      },
-      "plain_code": {
-        "type": "keyword"
-      },
-      "code": {
-        "type": "keyword"
-      },
       "postal_code": {
         "type": "keyword"
       },
       "region_code": {
-        "type": "keyword"
-      },
-      "street": {
         "type": "keyword"
       },
       "district": {
@@ -181,7 +135,7 @@ Contains information about FIAS addresses
       "district_type": {
         "type": "keyword"
       },
-      "street_type": {
+      "district_full": {
         "type": "keyword"
       },
       "settlement": {
@@ -190,37 +144,28 @@ Contains information about FIAS addresses
       "settlement_type": {
         "type": "keyword"
       },
+      "settlement_full": {
+        "type": "keyword"
+      },
+      "street": {
+        "type": "keyword"
+      },
+      "street_type": {
+        "type": "keyword"
+      },
+      "street_full": {
+        "type": "keyword"
+      },
       "okato": {
         "type": "keyword"
       },
       "oktmo": {
         "type": "keyword"
       },
-      "ifns_fl": {
-        "type": "keyword"
-      },
-      "ifns_ul": {
-        "type": "keyword"
-      },
-      "terr_ifns_fl": {
-        "type": "keyword"
-      },
-      "terr_ifns_ul": {
-        "type": "keyword"
-      },
-      "norm_doc": {
-        "type": "keyword"
-      },
       "start_date": {
         "type": "date"
       },
       "end_date": {
-        "type": "date"
-      },
-      "bazis_finish_date": {
-        "type": "date"
-      },
-      "bazis_create_date": {
         "type": "date"
       },
       "bazis_update_date": {
@@ -235,56 +180,18 @@ Contains information about FIAS addresses
       "houses": {
         "type": "nested",
         "properties": {
-          "houseId": {
+          "house_id": {
             "type": "keyword"
           },
-          "build_num": {
-            "type": "keyword"
-          },
-          "house_num": {
-            "type": "keyword"
-          },
-          "str_num": {
-            "type": "keyword"
-          },
-          "ifns_fl": {
-            "type": "keyword"
-          },
-          "ifns_ul": {
-            "type": "keyword"
-          },
-          "postal_code": {
-            "type": "keyword"
-          },
-          "counter": {
-            "type": "keyword"
-          },
-          "end_date": {
-            "type": "date"
-          },
-          "start_date": {
-            "type": "date"
-          },
-          "update_date": {
-            "type": "date"
-          },
-          "cad_num": {
-            "type": "keyword"
-          },
-          "terr_ifns_fl": {
-            "type": "keyword"
-          },
-          "terr_ifns_ul": {
-            "type": "keyword"
-          },
-          "okato": {
-            "type": "keyword"
-          },
-          "oktmo": {
-            "type": "keyword"
-          },
-          "location": {
-            "type": "geo_point"
+          "house_full_num": {
+            "type": "text",
+            "analyzer": "edge_ngram_analyzer",
+            "search_analyzer": "keyword_analyzer",
+            "fields": {
+              "keyword": {
+                "type": "keyword"
+              }
+            }
           }
         }
       }
@@ -343,12 +250,42 @@ Contains information about FIAS houses
       },
       "blocks": {
         "read_only_allow_delete": "false"
+      },
+      "analysis": {
+        "filter": {
+          "russian_stemmer": {
+            "type": "stemmer",
+            "name": "russian"
+          },
+          "edge_ngram": {
+            "type": "edge_ngram",
+            "min_gram": "2",
+            "max_gram": "25",
+            "token_chars": ["letter", "digit"]
+          }
+        },
+        "analyzer": {
+          "edge_ngram_analyzer": {
+            "filter": ["lowercase", "russian_stemmer", "edge_ngram"],
+            "tokenizer": "standard"
+          },
+          "keyword_analyzer": {
+            "filter": ["lowercase", "russian_stemmer"],
+            "tokenizer": "standard"
+          }
+        }
       }
     }
   },
   "mappings": {
     "dynamic": false,
     "properties": {
+      "house_id": {
+        "type": "keyword"
+      },
+      "house_guid": {
+        "type": "keyword"
+      },
       "ao_guid": {
         "type": "keyword"
       },
@@ -358,13 +295,17 @@ Contains information about FIAS houses
       "house_num": {
         "type": "keyword"
       },
+      "house_full_num": {
+        "type": "text",
+        "analyzer": "edge_ngram_analyzer",
+        "search_analyzer": "keyword_analyzer",
+        "fields": {
+          "keyword": {
+            "type": "keyword"
+          }
+        }
+      },
       "str_num": {
-        "type": "keyword"
-      },
-      "ifns_fl": {
-        "type": "keyword"
-      },
-      "ifns_ul": {
         "type": "keyword"
       },
       "postal_code": {
@@ -379,12 +320,6 @@ Contains information about FIAS houses
       "start_date": {
         "type": "date"
       },
-      "bazis_finish_date": {
-        "type": "date"
-      },
-      "bazis_create_date": {
-        "type": "date"
-      },
       "bazis_update_date": {
         "type": "date"
       },
@@ -392,12 +327,6 @@ Contains information about FIAS houses
         "type": "date"
       },
       "cad_num": {
-        "type": "keyword"
-      },
-      "terr_ifns_fl": {
-        "type": "keyword"
-      },
-      "terr_ifns_ul": {
         "type": "keyword"
       },
       "okato": {
@@ -411,7 +340,7 @@ Contains information about FIAS houses
       }
     }
   }
-}
+}	  
 ```
 
 </p>
@@ -465,7 +394,7 @@ Contains information about FIAS versions
     "dynamic": false,
     "properties": {
       "version_id": {
-        "type": "keyword"
+        "type": "integer"
       },
       "fias_version": {
         "type": "keyword"
@@ -486,3 +415,39 @@ Contains information about FIAS versions
 
 </p>
 </details>
+
+
+## Protobuf
+
+#### Install
+
+```shell script
+mkdir tmp
+cd tmp
+git clone https://github.com/google/protobuf
+cd protobuf
+./autogen.sh
+./configure
+make
+make check
+sudo make install
+
+cd $GOROOT/src/
+go get -u github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway
+go get -u github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger
+go get -u github.com/golang/protobuf/protoc-gen-go
+```
+
+#### Generate proto
+```shell script
+export GOOGLEAPIS=$GOPATH/pkg/mod/github.com/grpc-ecosystem/grpc-gateway@v1.14.6/third_party/googleapis;\
+protoc -I. -I$GOPATH/src -I$GOOGLEAPIS --go_out=plugins=grpc:. app/interfaces/grpc/proto/version/*.proto && \
+protoc -I/usr/local/include -I. -I$GOOGLEAPIS --grpc-gateway_out=logtostderr=true:.  app/interfaces/grpc/proto/version/*.proto && \
+protoc -I/usr/local/include -I. -I$GOOGLEAPIS --swagger_out=logtostderr=true:.  app/interfaces/grpc/proto/version/*.proto;\
+protoc -I. -I$GOPATH/src -I$GOOGLEAPIS --go_out=plugins=grpc:. app/interfaces/grpc/proto/v1/address/*.proto && \
+protoc -I/usr/local/include -I. -I$GOOGLEAPIS --grpc-gateway_out=logtostderr=true:.  app/interfaces/grpc/proto/v1/address/*.proto && \
+protoc -I/usr/local/include -I. -I$GOOGLEAPIS --swagger_out=logtostderr=true:.  app/interfaces/grpc/proto/v1/address/*.proto;\
+protoc -I. -I$GOPATH/src -I$GOOGLEAPIS --go_out=plugins=grpc:. app/interfaces/grpc/proto/v1/health/*.proto && \
+protoc -I/usr/local/include -I. -I$GOOGLEAPIS --grpc-gateway_out=logtostderr=true:.  app/interfaces/grpc/proto/v1/health/*.proto && \
+protoc -I/usr/local/include -I. -I$GOOGLEAPIS --swagger_out=logtostderr=true:.  app/interfaces/grpc/proto/v1/health/*.proto;
+```

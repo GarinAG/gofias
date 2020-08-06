@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package health;
+
+option go_package = "app/infrastructure/persistence/grpc/dto/health";
+
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+
+service HealthHandler {
+  rpc CheckHealth (google.protobuf.Empty) returns (Health) {
+    option (google.api.http) = {
+      get: "/health"
+    };
+  };
+}
+
+message Health {
+  int64 Uptime = 1;
+  float AllocatedMemory = 2;
+  float TotalAllocatedMemory = 3;
+  int32 Goroutines = 4;
+  uint32 GCCycles = 5;
+  int32 NumberOfCPUs = 6;
+  float HeapSys = 7;
+  float HeapAllocated = 8;
+  uint64 ObjectsInUse = 9;
+  float OSMemoryObtained = 10;
+}

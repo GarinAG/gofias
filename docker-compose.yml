@@ -1,0 +1,38 @@
+version: '3.2'
+services:
+  fias:
+    container_name: ${PROJECT_PREFIX}app
+    volumes:
+      - ./app/:/app
+    build:
+      context: .
+      dockerfile: ./.docker/dev/Dockerfile
+    ports:
+      - ${DOCKER_INTERFACE}:${DOCKER_GRPC_PORT}:${GRPC_PORT}
+      - ${DOCKER_INTERFACE}:${DOCKER_GRPC_GATEWAY_PORT}:${GRPC_GATEWAY_PORT}
+    environment:
+      - PROJECT_PREFIX=${PROJECT_PREFIX}
+      - ELASTIC_SCHEME=${ELASTIC_SCHEME}
+      - ELASTIC_HOST=${ELASTIC_HOST}
+      - ELASTIC_SNIFF=${ELASTIC_SNIFF}
+      - ELASTIC_GZIP=${ELASTIC_GZIP}
+      - ELASTIC_USERNAME=${ELASTIC_USERNAME}
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+      - LOGGER_CONSOLE_ENABLE=${LOGGER_CONSOLE_ENABLE}
+      - LOGGER_CONSOLE_LEVEL=${LOGGER_CONSOLE_LEVEL}
+      - LOGGER_CONSOLE_JSON=${LOGGER_CONSOLE_JSON}
+      - LOGGER_FILE_ENABLE=${LOGGER_FILE_ENABLE}
+      - LOGGER_FILE_LEVEL=${LOGGER_FILE_LEVEL}
+      - LOGGER_FILE_JSON=${LOGGER_FILE_JSON}
+      - LOGGER_FILE_PATH=${LOGGER_FILE_PATH}
+      - GRPC_NETWORK=${GRPC_NETWORK}
+      - GRPC_ADDRESS=${GRPC_ADDRESS}
+      - GRPC_PORT=${GRPC_PORT}
+      - GRPC_GATEWAY_ENABLE=${GRPC_GATEWAY_ENABLE}
+      - GRPC_GATEWAY_ADDRESS=${GRPC_GATEWAY_ADDRESS}
+      - GRPC_GATEWAY_PORT=${GRPC_GATEWAY_PORT}
+    networks:
+      - backend
+networks:
+  backend:
+    driver: bridge
