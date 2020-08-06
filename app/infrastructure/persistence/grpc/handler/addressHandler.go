@@ -26,12 +26,26 @@ func NewAddressHandler(a *service.AddressService) *AddressHandler {
 }
 
 func (h *AddressHandler) GetCitiesByTerm(ctx context.Context, request *addressV1.TermRequest) (*addressV1.AddressListResponse, error) {
+	if request.Term == "" {
+		return nil, status.Error(codes.InvalidArgument, "term is required")
+	}
 	cities := h.addressService.GetCitiesByTerm(request.Term, request.Size, request.From)
 	return h.prepareList(cities)
 }
 
 func (h *AddressHandler) GetAddressByTerm(ctx context.Context, request *addressV1.TermRequest) (*addressV1.AddressListResponse, error) {
+	if request.Term == "" {
+		return nil, status.Error(codes.InvalidArgument, "term is required")
+	}
 	cities := h.addressService.GetAddressByTerm(request.Term, request.Size, request.From)
+	return h.prepareList(cities)
+}
+
+func (h *AddressHandler) GetAddressByPostal(ctx context.Context, request *addressV1.TermRequest) (*addressV1.AddressListResponse, error) {
+	if request.Term == "" {
+		return nil, status.Error(codes.InvalidArgument, "term is required")
+	}
+	cities := h.addressService.GetAddressByPostal(request.Term, request.Size, request.From)
 	return h.prepareList(cities)
 }
 
@@ -41,6 +55,9 @@ func (h *AddressHandler) GetAllCities(ctx context.Context, empty *empty.Empty) (
 }
 
 func (h *AddressHandler) GetByGuid(ctx context.Context, guid *addressV1.GuidRequest) (*addressV1.Address, error) {
+	if guid.Guid == "" {
+		return nil, status.Error(codes.InvalidArgument, "guid is required")
+	}
 	addr := h.addressService.GetByGuid(guid.Guid)
 	if addr != nil {
 		return h.convertToAddress(addr), nil

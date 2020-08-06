@@ -122,8 +122,12 @@ func (e *Client) ScrollData(scrollService *elastic.ScrollService) ([]elastic.Sea
 	return totals, nil
 }
 
-func (e *Client) CountAllData(index string) (int64, error) {
-	res, err := e.Client.Count(index).Do(context.Background())
+func (e *Client) CountAllData(index string, query elastic.Query) (int64, error) {
+	cnt := e.Client.Count(index)
+	if query != nil {
+		cnt.Query(query)
+	}
+	res, err := cnt.Do(context.Background())
 	if err != nil {
 		return 0, err
 	}

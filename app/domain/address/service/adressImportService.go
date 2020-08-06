@@ -86,7 +86,7 @@ func (a *AddressImportService) ParseElement(element *xmlparser.XMLElement) (inte
 }
 
 func (a *AddressImportService) CountAllData() int64 {
-	res, err := a.AddressRepo.CountAllData()
+	res, err := a.AddressRepo.CountAllData(nil)
 	if err != nil {
 		a.logger.Error(err.Error())
 	}

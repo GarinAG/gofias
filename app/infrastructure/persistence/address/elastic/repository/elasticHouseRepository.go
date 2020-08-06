@@ -251,8 +251,8 @@ Loop:
 	count <- int(total)
 }
 
-func (a *ElasticHouseRepository) CountAllData() (int64, error) {
-	return a.elasticClient.CountAllData(a.GetIndexName())
+func (a *ElasticHouseRepository) CountAllData(query interface{}) (int64, error) {
+	return a.elasticClient.CountAllData(a.GetIndexName(), query.(elastic.Query))
 }
 
 func (a *ElasticHouseRepository) Refresh() {

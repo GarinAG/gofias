@@ -320,8 +320,8 @@ func (a ElasticAddressRepository) GetCityByFormalName(term string) (*entity.Addr
 	return nil, nil
 }
 
-func (a *ElasticAddressRepository) CountAllData() (int64, error) {
-	return a.elasticClient.CountAllData(a.GetIndexName())
+func (a *ElasticAddressRepository) CountAllData(query interface{}) (int64, error) {
+	return a.elasticClient.CountAllData(a.GetIndexName(), query.(elastic.Query))
 }
 
 func (a *ElasticAddressRepository) GetCities() ([]*entity.AddressObject, error) {
@@ -394,6 +394,38 @@ func (a *ElasticAddressRepository) GetAddressByTerm(term string, size int64, fro
 		Search(a.indexName).
 		Query(elastic.NewBoolQuery().Must(
 			elastic.NewMultiMatchQuery(term, "address_suggest"))).
+		From(int(from)).
+		Size(int(size)).
+		Sort("ao_level", true).
+		Sort("full_address", true).
+		Do(context.Background())
+
+	if err != nil {
+		return nil, err
+	}
+
+	var items []*entity.AddressObject
+	var item *dto.JsonAddressDto
+	if len(res.Hits.Hits) > 0 {
+		for _, el := range res.Hits.Hits {
+			if err := json.Unmarshal(el.Source, &item); err != nil {
+				return nil, err
+			}
+			items = append(items, item.ToEntity())
+		}
+	}
+
+	return items, nil
+}
+
+func (a *ElasticAddressRepository) GetAddressByPostal(term string, size int64, from int64) ([]*entity.AddressObject, error) {
+	if size == 0 {
+		size = 100
+	}
+	res, err := a.elasticClient.Client.
+		Search(a.indexName).
+		Query(elastic.NewBoolQuery().Filter(
+			elastic.NewTermQuery("postal_code", term))).
 		From(int(from)).
 		Size(int(size)).
 		Sort("ao_level", true).
@@ -514,11 +546,11 @@ func (a *ElasticAddressRepository) Index(isFull bool, start time.Time, housesCou
 	}
 	query := elastic.NewBoolQuery().Must(queries...)
 
-	addTotalCount, err := a.CountAllData()
+	addTotalCount, err := a.CountAllData(nil)
 	if err != nil {
 		a.logger.Error(err.Error())
 	}
-	queryCount, err := a.elasticClient.Client.Count(a.GetIndexName()).Query(query).Do(context.Background())
+	queryCount, err := a.CountAllData(query)
 	if err != nil {
 		a.logger.Error(err.Error())
 	}

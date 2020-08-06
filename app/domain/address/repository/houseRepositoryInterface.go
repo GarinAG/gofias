@@ -10,5 +10,5 @@ type HouseRepositoryInterface interface {
 	GetByAddressGuid(guid string) ([]*entity.HouseObject, error)
 	InsertUpdateCollection(channel <-chan interface{}, done <-chan bool, count chan<- int, isFull bool)
 	GetIndexName() string
-	CountAllData() (int64, error)
+	CountAllData(query interface{}) (int64, error)
 }

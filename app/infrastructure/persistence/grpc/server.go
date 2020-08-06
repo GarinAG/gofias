@@ -4,8 +4,8 @@ import (
 	"context"
 	"github.com/GarinAG/gofias/domain/address/service"
 	versionService "github.com/GarinAG/gofias/domain/version/service"
+	grpcHandlerHealth "github.com/GarinAG/gofias/infrastructure/persistence/grpc/dto/health"
 	grpcHandlerAddressV1 "github.com/GarinAG/gofias/infrastructure/persistence/grpc/dto/v1/address"
-	grpcHandlerHealthV1 "github.com/GarinAG/gofias/infrastructure/persistence/grpc/dto/v1/health"
 	grpcHandlerVersion "github.com/GarinAG/gofias/infrastructure/persistence/grpc/dto/version"
 	handlers "github.com/GarinAG/gofias/infrastructure/persistence/grpc/handler"
 	"github.com/GarinAG/gofias/infrastructure/registry"
@@ -47,7 +47,7 @@ func NewGrpcServer(ctn *registry.Container) *GrpcServer {
 	}()
 	server := grpc.NewServer(grpc.UnaryInterceptor(serverInterceptor))
 	grpcHandlerAddressV1.RegisterAddressHandlerServer(server, handlers.NewAddressHandler(ctn.Resolve("addressService").(*service.AddressService)))
-	grpcHandlerHealthV1.RegisterHealthHandlerServer(server, handlers.NewHealthHandler())
+	grpcHandlerHealth.RegisterHealthHandlerServer(server, handlers.NewHealthHandler())
 	grpcHandlerVersion.RegisterVersionHandlerServer(server, handlers.NewVersionHandler(ctn.Resolve("versionService").(*versionService.VersionService), Version))
 
 	reflection.Register(server)
@@ -124,13 +124,13 @@ func (g *GrpcServer) proxyService(wg *sync.WaitGroup) {
 	if err != nil {
 		g.Logger.Fatal("error reg address endpoint", err)
 	}
+	err = grpcHandlerHealth.RegisterHealthHandlerHandlerFromEndpoint(ctx, mux, grpcAddress, opts)
+	if err != nil {
+		g.Logger.Fatal("error reg health endpoint", err)
+	}
 	err = grpcHandlerVersion.RegisterVersionHandlerHandlerFromEndpoint(ctx, mux, grpcAddress, opts)
 	if err != nil {
 		g.Logger.Fatal("error reg version endpoint", err)
-	}
-	err = grpcHandlerHealthV1.RegisterHealthHandlerHandlerFromEndpoint(ctx, mux, grpcAddress, opts)
-	if err != nil {
-		g.Logger.Fatal("error reg health endpoint", err)
 	}
 
 	// Start HTTP server (and proxy calls to gRPC server endpoint)

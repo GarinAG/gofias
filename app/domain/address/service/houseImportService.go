@@ -86,7 +86,7 @@ func (h *HouseImportService) GetByAddressGuid(giud string) []*entity.HouseObject
 }
 
 func (h *HouseImportService) CountAllData() int64 {
-	res, err := h.HouseRepo.CountAllData()
+	res, err := h.HouseRepo.CountAllData(nil)
 	if err != nil {
 		h.logger.Error(err.Error())
 	}

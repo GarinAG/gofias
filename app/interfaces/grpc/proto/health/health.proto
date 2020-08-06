@@ -1,8 +1,8 @@
 syntax = "proto3";
 
-package health_v1;
+package health;
 
-option go_package = "app/infrastructure/persistence/grpc/dto/v1/health";
+option go_package = "app/infrastructure/persistence/grpc/dto/health";
 
 import "google/api/annotations.proto";
 import "google/protobuf/empty.proto";
@@ -10,7 +10,7 @@ import "google/protobuf/empty.proto";
 service HealthHandler {
   rpc CheckHealth (google.protobuf.Empty) returns (Health) {
     option (google.api.http) = {
-      get: "/api/v1/health"
+      get: "/health"
     };
   };
 }

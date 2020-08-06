@@ -11,9 +11,9 @@
     "application/json"
   ],
   "paths": {
-    "/api/v1/address/term/{term}": {
+    "/api/v1/address/postal/{term}": {
       "get": {
-        "operationId": "AddressHandler_GetAddressByTerm",
+        "operationId": "AddressHandler_GetAddressByPostal",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -33,6 +33,50 @@
             "name": "term",
             "in": "path",
             "required": true,
+            "type": "string"
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
+          }
+        ],
+        "tags": [
+          "AddressHandler"
+        ]
+      }
+    },
+    "/api/v1/address/term": {
+      "get": {
+        "operationId": "AddressHandler_GetAddressByTerm",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/address_v1AddressListResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "term",
+            "in": "query",
+            "required": false,
             "type": "string"
           },
           {
@@ -107,7 +151,7 @@
         ]
       }
     },
-    "/api/v1/cities/term/{term}": {
+    "/api/v1/cities/term": {
       "get": {
         "operationId": "AddressHandler_GetCitiesByTerm",
         "responses": {
@@ -127,8 +171,8 @@
         "parameters": [
           {
             "name": "term",
-            "in": "path",
-            "required": true,
+            "in": "query",
+            "required": false,
             "type": "string"
           },
           {

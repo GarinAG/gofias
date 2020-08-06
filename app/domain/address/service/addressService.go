@@ -53,3 +53,12 @@ func (a *AddressService) GetAddressByTerm(term string, size int64, from int64) [
 
 	return cities
 }
+
+func (a *AddressService) GetAddressByPostal(term string, size int64, from int64) []*entity.AddressObject {
+	cities, err := a.addressRepo.GetAddressByPostal(term, size, from)
+	if err != nil {
+		a.logger.Error(err.Error())
+	}
+
+	return cities
+}

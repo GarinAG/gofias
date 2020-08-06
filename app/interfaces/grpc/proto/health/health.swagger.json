@@ -1,7 +1,7 @@
 {
   "swagger": "2.0",
   "info": {
-    "title": "app/interfaces/grpc/proto/v1/health/health.proto",
+    "title": "app/interfaces/grpc/proto/health/health.proto",
     "version": "version not set"
   },
   "consumes": [
@@ -11,14 +11,14 @@
     "application/json"
   ],
   "paths": {
-    "/api/v1/health": {
+    "/health": {
       "get": {
         "operationId": "HealthHandler_CheckHealth",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/health_v1Health"
+              "$ref": "#/definitions/healthHealth"
             }
           },
           "default": {
@@ -35,7 +35,7 @@
     }
   },
   "definitions": {
-    "health_v1Health": {
+    "healthHealth": {
       "type": "object",
       "properties": {
         "Uptime": {

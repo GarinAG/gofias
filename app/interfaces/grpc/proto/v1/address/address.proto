@@ -8,16 +8,21 @@ import "google/api/annotations.proto";
 import "google/protobuf/empty.proto";
 
 service AddressHandler {
+  rpc GetAddressByTerm (TermRequest) returns (AddressListResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/address/term"
+    };
+  }
+  rpc GetAddressByPostal (TermRequest) returns (AddressListResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/address/postal/{term}"
+    };
+  }
   rpc GetByGuid (GuidRequest) returns (Address) {
     option (google.api.http) = {
       get: "/api/v1/address/{guid}"
     };
   };
-  rpc GetAddressByTerm (TermRequest) returns (AddressListResponse) {
-    option (google.api.http) = {
-      get: "/api/v1/address/term/{term}"
-    };
-  }
   rpc GetAllCities (google.protobuf.Empty) returns (AddressListResponse) {
     option (google.api.http) = {
       get: "/api/v1/cities"
@@ -25,7 +30,7 @@ service AddressHandler {
   }
   rpc GetCitiesByTerm (TermRequest) returns (AddressListResponse) {
     option (google.api.http) = {
-      get: "/api/v1/cities/term/{term}"
+      get: "/api/v1/cities/term"
     };
   }
 }

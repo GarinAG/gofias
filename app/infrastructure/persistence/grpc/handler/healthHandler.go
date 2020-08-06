@@ -2,7 +2,7 @@ package handler
 
 import (
 	"context"
-	"github.com/GarinAG/gofias/infrastructure/persistence/grpc/dto/v1/health"
+	"github.com/GarinAG/gofias/infrastructure/persistence/grpc/dto/health"
 	"github.com/golang/protobuf/ptypes/empty"
 	"google.golang.org/grpc"
 	"math"
