@@ -66,8 +66,17 @@ func (is *ImportService) CheckUpdates(api *fiasApiService.FiasApiService, versio
 	}
 	for i := len(needVersionList) - 1; i >= 0; i-- {
 		uploadedVersion := needVersionList[i]
-		xmlFiles := is.directoryService.DownloadAndExtractFile(uploadedVersion.FiasDeltaXmlUrl, "fias_delta_xml.zip", parts...)
-		cntAddr, cntHouses := is.ParseFiles(xmlFiles)
+		cntAddr := 0
+		cntHouses := 0
+
+		is.logger.WithFields(interfaces.LoggerFields{
+			"version": uploadedVersion,
+		}).Debug("Uploaded version info")
+
+		if uploadedVersion.FiasDeltaXmlUrl != "" {
+			xmlFiles := is.directoryService.DownloadAndExtractFile(uploadedVersion.FiasDeltaXmlUrl, "fias_delta_xml.zip", parts...)
+			cntAddr, cntHouses = is.ParseFiles(xmlFiles)
+		}
 		is.clearDirectory(true)
 		versionService.UpdateVersion(is.convertDownloadInfoToVersion(uploadedVersion, cntAddr, cntHouses))
 	}
