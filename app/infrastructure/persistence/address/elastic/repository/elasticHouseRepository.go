@@ -252,6 +252,9 @@ Loop:
 }
 
 func (a *ElasticHouseRepository) CountAllData(query interface{}) (int64, error) {
+	if query == nil {
+		query = elastic.NewBoolQuery()
+	}
 	return a.elasticClient.CountAllData(a.GetIndexName(), query.(elastic.Query))
 }
 
