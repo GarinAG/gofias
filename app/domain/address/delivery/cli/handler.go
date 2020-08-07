@@ -21,6 +21,9 @@ func NewHandler(s *service2.ImportService, logger interfaces.LoggerInterface) *H
 
 func (h *Handler) CheckUpdates(fiasApi *fiasApiService.FiasApiService, versionService *versionService.VersionService) {
 	v := versionService.GetLastVersionInfo()
+	h.logger.WithFields(interfaces.LoggerFields{
+		"version": v,
+	}).Debug("Last version info")
 
 	if v != nil {
 		h.importService.CheckUpdates(fiasApi, versionService, v)
