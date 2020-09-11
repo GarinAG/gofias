@@ -9,3 +9,26 @@ func ContainsString(arr []string, str string) bool {
 
 	return false
 }
+
+func UniqueStringSlice(slice []string) []string {
+	keys := make(map[string]bool)
+	var list []string
+
+	for _, entry := range slice {
+		if _, value := keys[entry]; !value {
+			keys[entry] = true
+			list = append(list, entry)
+		}
+	}
+
+	return list
+}
+
+func ConvertStringSliceToInterface(slice []string) []interface{} {
+	newSlice := make([]interface{}, len(slice))
+	for i := range slice {
+		newSlice[i] = slice[i]
+	}
+
+	return newSlice
+}

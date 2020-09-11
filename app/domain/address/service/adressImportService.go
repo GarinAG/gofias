@@ -43,8 +43,8 @@ func (a *AddressImportService) Import(filePath string, wg *sync.WaitGroup, cnt c
 	go a.AddressRepo.InsertUpdateCollection(addressChannel, done, cnt, a.IsFull)
 }
 
-func (a *AddressImportService) Index(isFull bool, start time.Time, housesCount int64, GetHousesByGuid repository.GetHousesByGuid) {
-	err := a.AddressRepo.Index(isFull, start, housesCount, GetHousesByGuid)
+func (a *AddressImportService) Index(isFull bool, start time.Time, housesCount int64, GetHousesByGuid repository.GetHousesByGuid, GetLastUpdatedGuids repository.GetLastUpdatedGuids) {
+	err := a.AddressRepo.Index(isFull, start, housesCount, GetHousesByGuid, GetLastUpdatedGuids)
 	if err != nil {
 		a.logger.Error(err.Error())
 	}

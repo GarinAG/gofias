@@ -197,15 +197,15 @@ const (
 	  "drop not actual addresses",
 	  "processors": [{
 		"drop": {
-		  "if": "ctx.curr_status  != '0' "
+		  "if": "ctx.curr_status != 0"
 		}
 	  }, {
 		"drop": {
-		  "if": "ctx.act_status  != '1'"
+		  "if": "ctx.act_status != 1"
 		}
 	  }, {
 		"drop": {
-		  "if": "ctx.live_status  != '1'"
+		  "if": "ctx.live_status != 1"
 		}
 	  }]
 	}
@@ -464,10 +464,6 @@ func (a *ElasticAddressRepository) GetBulkService() *elastic.BulkService {
 
 func (a *ElasticAddressRepository) InsertUpdateCollection(channel <-chan interface{}, done <-chan bool, count chan<- int, isFull bool) {
 	bulk := a.elasticClient.Client.Bulk().Index(a.indexName)
-	if !isFull {
-		bulk.Pipeline(addrPipelineId)
-	}
-
 	ctx := context.Background()
 	begin := time.Now()
 	var total uint64
@@ -484,7 +480,12 @@ Loop:
 			saveItem := dto.JsonAddressDto{}
 			saveItem.GetFromEntity(d.(entity.AddressObject))
 			// Enqueue the document
-			bulk.Add(elastic.NewBulkIndexRequest().Id(saveItem.ID).Doc(saveItem))
+			if saveItem.IsActive() {
+				bulk.Add(elastic.NewBulkIndexRequest().Id(saveItem.ID).Doc(saveItem))
+			} else {
+				bulk.Add(elastic.NewBulkDeleteRequest().Id(saveItem.ID))
+			}
+
 			if bulk.NumberOfActions() >= a.batchSize {
 				// Commit
 				res, err := bulk.Do(ctx)
@@ -532,7 +533,7 @@ func (a *ElasticAddressRepository) ReopenIndex() {
 	a.elasticClient.Client.OpenIndex(a.GetIndexName())
 }
 
-func (a *ElasticAddressRepository) Index(isFull bool, start time.Time, housesCount int64, GetHousesByGuid repository.GetHousesByGuid) error {
+func (a *ElasticAddressRepository) Index(isFull bool, start time.Time, housesCount int64, GetHousesByGuid repository.GetHousesByGuid, GetLastUpdatedGuids repository.GetLastUpdatedGuids) error {
 	noOfWorkers := 10
 	a.jobs = make(chan dto.JsonAddressDto, noOfWorkers)
 	a.results = make(chan dto.JsonAddressDto, noOfWorkers)
@@ -540,14 +541,22 @@ func (a *ElasticAddressRepository) Index(isFull bool, start time.Time, housesCou
 	a.Refresh()
 	a.ReopenIndex()
 
+	var query elastic.Query
 	queries := []elastic.Query{elastic.NewRangeQuery("ao_level").Gt(1)}
 	if !isFull {
 		a.logger.Info("Indexing...")
-		queries = append(queries, elastic.NewRangeQuery("bazis_update_date").Gte(start))
+		queries = append(queries, elastic.NewRangeQuery("bazis_update_date").Gte(start.Format("2006-01-02")+"T00:00:00Z"))
+		guids := GetLastUpdatedGuids(start)
+		if len(guids) > 0 {
+			guidsInterface := util.ConvertStringSliceToInterface(guids)
+			query = elastic.NewBoolQuery().Should(elastic.NewBoolQuery().Must(queries...), elastic.NewBoolQuery().Must(elastic.NewTermsQuery("ao_guid", guidsInterface...)))
+		} else {
+			query = elastic.NewBoolQuery().Must(queries...)
+		}
 	} else {
 		a.logger.Info("Full indexing...")
+		query = elastic.NewBoolQuery().Must(queries...)
 	}
-	query := elastic.NewBoolQuery().Must(queries...)
 
 	addTotalCount, err := a.CountAllData(nil)
 	if err != nil {
@@ -639,17 +648,17 @@ func (a *ElasticAddressRepository) searchAddressWorker(wg *sync.WaitGroup, GetHo
 		city := dto.JsonAddressDto{}
 		district := dto.JsonAddressDto{}
 		guid := address.ParentGuid
-		address.FullName = util.PrepareFullName(address.ShortName, address.OffName)
+		address.FullName = util.PrepareFullName(address.ShortName, address.FormalName)
 		address.FullAddress = address.FullName
-		address.AddressSuggest = strings.TrimSpace(address.OffName)
+		address.AddressSuggest = strings.TrimSpace(address.FormalName)
 
 		for guid != "" {
 			search, _ := a.GetByGuid(guid)
 			if search != nil {
 				dtoItem.GetFromEntity(*search)
 				guid = dtoItem.ParentGuid
-				address.FullAddress = util.PrepareFullName(dtoItem.ShortName, dtoItem.OffName) + ", " + address.FullAddress
-				address.AddressSuggest = strings.TrimSpace(dtoItem.OffName) + " " + address.AddressSuggest
+				address.FullAddress = util.PrepareFullName(dtoItem.ShortName, dtoItem.FormalName) + ", " + address.FullAddress
+				address.AddressSuggest = strings.TrimSpace(dtoItem.FormalName) + " " + address.AddressSuggest
 
 				if dtoItem.AoLevel >= 4 {
 					city = dtoItem
@@ -666,9 +675,9 @@ func (a *ElasticAddressRepository) searchAddressWorker(wg *sync.WaitGroup, GetHo
 			district = city
 		}
 
-		address.District = strings.TrimSpace(district.OffName)
+		address.District = strings.TrimSpace(district.FormalName)
 		address.DistrictType = strings.TrimSpace(district.ShortName)
-		address.Settlement = strings.TrimSpace(city.OffName)
+		address.Settlement = strings.TrimSpace(city.FormalName)
 		address.SettlementType = strings.TrimSpace(city.ShortName)
 
 		if address.District != "" {
@@ -684,7 +693,7 @@ func (a *ElasticAddressRepository) searchAddressWorker(wg *sync.WaitGroup, GetHo
 		switch address.AoLevel {
 		case 7:
 			address.StreetType = strings.TrimSpace(address.ShortName)
-			address.Street = strings.TrimSpace(address.OffName)
+			address.Street = strings.TrimSpace(address.FormalName)
 			searchHouses := GetHousesByGuid(address.AoGuid)
 			if address.SettlementFull != "" {
 				address.StreetFull = address.SettlementFull + ", "
@@ -702,8 +711,8 @@ func (a *ElasticAddressRepository) searchAddressWorker(wg *sync.WaitGroup, GetHo
 					ID:           houseItem.ID,
 					HouseFullNum: houseItem.HouseFullNum,
 				})
-				address.Houses = houseList
 			}
+			address.Houses = houseList
 		}
 
 		address.AddressSuggest = strings.ToLower(address.AddressSuggest)

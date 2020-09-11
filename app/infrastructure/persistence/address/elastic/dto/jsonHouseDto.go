@@ -72,3 +72,12 @@ func (item *JsonHouseDto) GetFromEntity(entity entity.HouseObject) {
 	item.CadNum = entity.CadNum
 	item.BazisUpdateDate = time.Now().Format("2006-01-02") + "T00:00:00Z"
 }
+
+func (item *JsonHouseDto) IsActive() bool {
+	end, err := time.Parse("2006-01-02", item.EndDate)
+	if err != nil || end.Unix() <= time.Now().Unix() {
+		return false
+	}
+
+	return true
+}
