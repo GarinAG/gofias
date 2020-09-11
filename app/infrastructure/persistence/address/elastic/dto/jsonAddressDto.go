@@ -83,9 +83,16 @@ func (item *JsonAddressDto) GetFromEntity(entity entity.AddressObject) {
 	item.FormalName = strings.Trim(entity.FormalName, " -.,")
 	item.ShortName = strings.Trim(entity.ShortName, " -.,")
 	item.OffName = strings.Trim(entity.OffName, " -.,")
-	item.FullName = util.PrepareFullName(item.ShortName, item.OffName)
-	item.FullAddress = item.FullName
-	item.AddressSuggest = strings.ToLower(strings.TrimSpace(item.OffName))
+	item.AddressSuggest = strings.ToLower(strings.TrimSpace(item.FormalName))
+	item.FullName = entity.FullName
+	item.FullAddress = entity.FullAddress
+	if item.FullName == "" {
+		item.FullName = util.PrepareFullName(item.ShortName, item.FormalName)
+	}
+	if item.FullAddress == "" {
+		item.FullAddress = item.FullName
+	}
+
 	item.Code = entity.Code
 	item.RegionCode = entity.RegionCode
 	item.PostalCode = entity.PostalCode
@@ -97,8 +104,6 @@ func (item *JsonAddressDto) GetFromEntity(entity entity.AddressObject) {
 	item.StartDate = entity.StartDate
 	item.EndDate = entity.EndDate
 	item.UpdateDate = entity.UpdateDate
-	item.FullName = entity.FullName
-	item.FullAddress = entity.FullAddress
 	item.District = entity.District
 	item.DistrictType = entity.DistrictType
 	item.DistrictFull = entity.DistrictFull
@@ -109,4 +114,15 @@ func (item *JsonAddressDto) GetFromEntity(entity entity.AddressObject) {
 	item.StreetType = entity.StreetType
 	item.StreetFull = entity.StreetFull
 	item.BazisUpdateDate = time.Now().Format("2006-01-02") + "T00:00:00Z"
+}
+
+func (item *JsonAddressDto) IsActive() bool {
+	if item.CurrStatus != "0" ||
+		item.ActStatus != "1" ||
+		item.LiveStatus != "1" {
+
+		return false
+	}
+
+	return true
 }

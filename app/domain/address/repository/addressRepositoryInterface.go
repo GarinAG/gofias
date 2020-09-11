@@ -6,6 +6,7 @@ import (
 )
 
 type GetHousesByGuid func(guid string) []*entity.HouseObject
+type GetLastUpdatedGuids func(start time.Time) []string
 
 type AddressRepositoryInterface interface {
 	Init() error
@@ -20,5 +21,5 @@ type AddressRepositoryInterface interface {
 	InsertUpdateCollection(channel <-chan interface{}, done <-chan bool, count chan<- int, isFull bool)
 	GetIndexName() string
 	CountAllData(query interface{}) (int64, error)
-	Index(isFull bool, start time.Time, housesCount int64, GetHousesByGuid GetHousesByGuid) error
+	Index(isFull bool, start time.Time, housesCount int64, GetHousesByGuid GetHousesByGuid, GetLastUpdatedGuids GetLastUpdatedGuids) error
 }

@@ -158,5 +158,10 @@ func (is *ImportService) ParseFiles(files *[]directoryEntity.File) (int, int) {
 }
 
 func (is *ImportService) Index() {
-	is.addressImportService.Index(is.IsFull, is.Begin, is.houseImportService.CountAllData(), is.houseImportService.GetByAddressGuid)
+	is.addressImportService.Index(
+		is.IsFull,
+		is.Begin,
+		is.houseImportService.CountAllData(),
+		is.houseImportService.GetByAddressGuid,
+		is.houseImportService.GetLastUpdatedGuids)
 }
