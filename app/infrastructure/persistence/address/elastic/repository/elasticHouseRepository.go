@@ -11,6 +11,7 @@ import (
 	"github.com/GarinAG/gofias/util"
 	"github.com/dustin/go-humanize"
 	"github.com/olivere/elastic/v7"
+	"io"
 	"time"
 )
 
@@ -39,8 +40,7 @@ const (
 			  "edge_ngram": {
 				"type": "edge_ngram",
 				"min_gram": "2",
-				"max_gram": "25",
-				"token_chars": ["letter", "digit"]
+				"max_gram": "25"
 			  }
 			},
 			"analyzer": {
@@ -169,36 +169,70 @@ func (a *ElasticHouseRepository) Clear() error {
 	return a.elasticClient.DropIndex(a.indexName)
 }
 
-func (a *ElasticHouseRepository) GetByAddressGuid(guid string) ([]*entity.HouseObject, error) {
-	res, err := a.elasticClient.Client.
-		Search(a.indexName).
-		Query(elastic.NewTermQuery("ao_guid", guid)).
-		Do(context.Background())
-
-	if err != nil {
-		return nil, err
-	}
-
+func (a *ElasticHouseRepository) scroll(scrollService *elastic.ScrollService) ([]*entity.HouseObject, error) {
 	var items []*entity.HouseObject
 	var item *dto.JsonHouseDto
-	if len(res.Hits.Hits) > 0 {
+
+	batch := a.batchSize
+	if batch > 10000 {
+		batch = 10000
+	}
+	scrollService.Size(batch)
+	ctx := context.Background()
+	scrollService.Scroll("1h")
+
+	for {
+		res, err := scrollService.Do(ctx)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			a.logger.Error(err.Error())
+			break
+		}
+		if res == nil || len(res.Hits.Hits) == 0 {
+			break
+		}
 		for _, el := range res.Hits.Hits {
 			if err := json.Unmarshal(el.Source, &item); err != nil {
 				return nil, err
 			}
+			items = append(items, item.ToEntity())
 		}
-		items = append(items, item.ToEntity())
 	}
 
 	return items, nil
 }
 
+func (a *ElasticHouseRepository) GetByAddressGuid(guid string) ([]*entity.HouseObject, error) {
+	scrollService := a.elasticClient.Client.Scroll(a.GetIndexName()).
+		Query(elastic.NewTermQuery("ao_guid", guid)).
+		Sort("house_full_num.keyword", true)
+
+	return a.scroll(scrollService)
+}
+
+func (a *ElasticHouseRepository) GetLastUpdatedGuids(start time.Time) ([]string, error) {
+	var guids []string
+
+	scrollService := a.elasticClient.Client.Scroll(a.GetIndexName()).
+		Query(elastic.NewRangeQuery("bazis_update_date").Gte(start.Format("2006-01-02") + "T00:00:00Z"))
+
+	items, err := a.scroll(scrollService)
+
+	if err != nil {
+		return nil, err
+	}
+	for _, item := range items {
+		guids = append(guids, item.AoGuid)
+	}
+	guids = util.UniqueStringSlice(guids)
+
+	return guids, nil
+}
+
 func (a *ElasticHouseRepository) InsertUpdateCollection(channel <-chan interface{}, done <-chan bool, count chan<- int, isFull bool) {
 	bulk := a.elasticClient.Client.Bulk().Index(a.indexName)
-	if !isFull {
-		bulk.Pipeline(housesPipelineId)
-	}
-
 	ctx := context.Background()
 	var total uint64
 	begin := time.Now()
@@ -214,7 +248,12 @@ Loop:
 			total++
 			saveItem := dto.JsonHouseDto{}
 			saveItem.GetFromEntity(d.(entity.HouseObject))
-			bulk.Add(elastic.NewBulkIndexRequest().Id(saveItem.ID).Doc(saveItem))
+			if saveItem.IsActive() {
+				bulk.Add(elastic.NewBulkIndexRequest().Id(saveItem.ID).Doc(saveItem))
+			} else {
+				bulk.Add(elastic.NewBulkDeleteRequest().Id(saveItem.ID))
+			}
+
 			if bulk.NumberOfActions() >= a.batchSize {
 				res, err := bulk.Do(ctx)
 				if err != nil {

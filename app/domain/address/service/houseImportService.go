@@ -85,6 +85,15 @@ func (h *HouseImportService) GetByAddressGuid(giud string) []*entity.HouseObject
 	return res
 }
 
+func (h *HouseImportService) GetLastUpdatedGuids(start time.Time) []string {
+	res, err := h.HouseRepo.GetLastUpdatedGuids(start)
+	if err != nil {
+		h.logger.Error(err.Error())
+	}
+
+	return res
+}
+
 func (h *HouseImportService) CountAllData() int64 {
 	res, err := h.HouseRepo.CountAllData(nil)
 	if err != nil {

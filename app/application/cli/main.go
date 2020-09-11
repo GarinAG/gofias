@@ -13,21 +13,28 @@ import (
 	"runtime"
 )
 
+// Основная функция запуска консольного приложения по обновлению данных
 func main() {
+	// Чтение переданных в консоль флагов и установка максимального количества процессов
 	flag.Parse()
 	runtime.GOMAXPROCS(runtime.NumCPU())
+
+	// Инициализация контейнера зависимостей
 	ctn, err := registry.NewContainer("cli")
 	if err != nil {
 		panic(fmt.Sprintf("Failed to init container: %v", err))
 	}
 
+	// Инициализация глобальной переменно вывода информации в консоль
 	util.CanPrintProcess = ctn.Resolve("config").(interfaces.ConfigInterface).GetBool("process.print")
-	app := cli2.NewApp(ctn)
 
+	// Инициализация приложения
+	app := cli2.NewApp(ctn)
 	addressCli.RegisterImportCliEndpoint(app)
 	indexCli.RegisterIndexCliEndpoint(app)
 	versionCli.RegisterVersionCliEndpoint(app)
 
+	// Запуск приложения
 	if err := app.Run(); err != nil {
 		app.Logger.WithFields(interfaces.LoggerFields{"error": err}).Fatal("Program fatal error")
 	}
