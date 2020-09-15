@@ -42,9 +42,8 @@ const (
               },
               "edge_ngram": {
                 "type": "edge_ngram",
-                "min_gram": "2",
-                "max_gram": "25",
-                "token_chars": ["letter", "digit"]
+                "min_gram": "1",
+                "max_gram": "40"
               }
             },
             "analyzer": {
@@ -69,7 +68,14 @@ const (
             "search_analyzer": "keyword_analyzer"
           },
           "full_address": {
-            "type": "keyword"
+            "type": "text",
+            "analyzer": "edge_ngram_analyzer",
+            "search_analyzer": "keyword_analyzer",
+            "fields": {
+			  "keyword": {
+				"type": "keyword"
+			  }
+			}
           },
           "formal_name": {
             "type": "keyword"
@@ -175,14 +181,7 @@ const (
                 "type": "keyword"
               },
               "house_full_num": {
-                "type": "text",
-                "analyzer": "edge_ngram_analyzer",
-                "search_analyzer": "keyword_analyzer",
-                "fields": {
-                  "keyword": {
-                    "type": "keyword"
-                  }
-                }
+                "type": "keyword"
               }
             }
           }
@@ -362,12 +361,12 @@ func (a *ElasticAddressRepository) GetCitiesByTerm(term string, size int64, from
 	res, err := a.elasticClient.Client.
 		Search(a.indexName).
 		Query(elastic.NewBoolQuery().Must(
-			elastic.NewMultiMatchQuery(term, "address_suggest")).
+			elastic.NewMultiMatchQuery(term, "full_address").Operator("and")).
 			Filter(elastic.NewTermsQuery("ao_level", 1, 4))).
 		From(int(from)).
 		Size(int(size)).
 		Sort("ao_level", true).
-		Sort("full_address", true).
+		Sort("full_address.keyword", true).
 		Do(context.Background())
 
 	if err != nil {
@@ -396,11 +395,11 @@ func (a *ElasticAddressRepository) GetAddressByTerm(term string, size int64, fro
 	res, err := a.elasticClient.Client.
 		Search(a.indexName).
 		Query(elastic.NewBoolQuery().Must(
-			elastic.NewMultiMatchQuery(term, "address_suggest"))).
+			elastic.NewMultiMatchQuery(term, "full_address").Operator("and"))).
 		From(int(from)).
 		Size(int(size)).
 		Sort("ao_level", true).
-		Sort("full_address", true).
+		Sort("full_address.keyword", true).
 		Do(context.Background())
 
 	if err != nil {
@@ -432,7 +431,7 @@ func (a *ElasticAddressRepository) GetAddressByPostal(term string, size int64, f
 		From(int(from)).
 		Size(int(size)).
 		Sort("ao_level", true).
-		Sort("full_address", true).
+		Sort("full_address.keyword", true).
 		Do(context.Background())
 
 	if err != nil {
@@ -587,13 +586,14 @@ func (a *ElasticAddressRepository) allocate(query elastic.Query) {
 	if batch > 10000 {
 		batch = 10000
 	}
+
 	scrollService := a.elasticClient.Client.Scroll(a.GetIndexName()).
 		Query(query).
 		Sort("ao_level", true).
 		Size(batch)
 
 	ctx := context.Background()
-	scrollService.Scroll("1h")
+	scrollService.Scroll("1s")
 	count := 0
 	var wg sync.WaitGroup
 
@@ -612,6 +612,11 @@ func (a *ElasticAddressRepository) allocate(query elastic.Query) {
 		count += len(res.Hits.Hits)
 		wg.Add(1)
 		go a.addJobs(res.Hits.Hits, &wg)
+	}
+
+	err := scrollService.Clear(ctx)
+	if err != nil {
+		a.logger.Error(err.Error())
 	}
 
 	wg.Wait()
@@ -669,10 +674,6 @@ func (a *ElasticAddressRepository) searchAddressWorker(wg *sync.WaitGroup, GetHo
 			} else {
 				guid = ""
 			}
-		}
-
-		if district.ID == "" && city.ID != "" {
-			district = city
 		}
 
 		address.District = strings.TrimSpace(district.FormalName)

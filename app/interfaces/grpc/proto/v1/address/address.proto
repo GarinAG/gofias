@@ -33,6 +33,11 @@ service AddressHandler {
       get: "/api/v1/cities/term"
     };
   }
+  rpc GetSuggests (SimpleTerm) returns (AddressListResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/suggests"
+    };
+  }
 }
 
 message GuidRequest{
@@ -43,6 +48,11 @@ message TermRequest{
   string term = 1;
   int64 size = 2;
   int64 from = 3;
+}
+
+message SimpleTerm{
+  string term = 1;
+  int64 size = 2;
 }
 
 message AddressListResponse {

@@ -18,7 +18,7 @@ type HouseImportService struct {
 	currentTime int64
 }
 
-func NewHouseService(houseRepo repository.HouseRepositoryInterface, logger interfaces.LoggerInterface) *HouseImportService {
+func NewHouseImportService(houseRepo repository.HouseRepositoryInterface, logger interfaces.LoggerInterface) *HouseImportService {
 	err := houseRepo.Init()
 	if err != nil {
 		logger.Panic(err.Error())
