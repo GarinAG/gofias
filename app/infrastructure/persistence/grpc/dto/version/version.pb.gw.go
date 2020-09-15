@@ -140,7 +140,7 @@ func RegisterVersionHandlerHandlerClient(ctx context.Context, mux *runtime.Serve
 }
 
 var (
-	pattern_VersionHandler_GetVersion_0 = runtime.MustPattern(runtime.NewPattern(1, []int{1, 0}, []string(nil), "", runtime.AssumeColonVerbOpt(true)))
+	pattern_VersionHandler_GetVersion_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0}, []string{"info"}, "", runtime.AssumeColonVerbOpt(true)))
 )
 
 var (

@@ -11,7 +11,7 @@
     "application/json"
   ],
   "paths": {
-    "/*": {
+    "/info": {
       "get": {
         "operationId": "VersionHandler_GetVersion",
         "responses": {

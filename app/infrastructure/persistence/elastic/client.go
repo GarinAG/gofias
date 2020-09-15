@@ -11,7 +11,7 @@ type Client struct {
 	Client *elastic.Client
 }
 
-func NewElasticClient(configInterface interfaces.ConfigInterface) *Client {
+func NewElasticClient(configInterface interfaces.ConfigInterface, logger interfaces.LoggerInterface) *Client {
 	scheme := configInterface.GetString("elastic.scheme")
 	user := configInterface.GetString("elastic.username")
 	pass := configInterface.GetString("elastic.password")
@@ -23,6 +23,8 @@ func NewElasticClient(configInterface interfaces.ConfigInterface) *Client {
 		elastic.SetURL(scheme + "://" + configInterface.GetString("elastic.host")),
 		elastic.SetSniff(configInterface.GetBool("elastic.sniff")),
 		elastic.SetGzip(configInterface.GetBool("elastic.gzip")),
+		elastic.SetErrorLog(logger),
+		//elastic.SetTraceLog(logger),
 	}
 	if user != "" && pass != "" {
 		options = append(options, elastic.SetBasicAuth(user, pass))
@@ -100,7 +102,7 @@ func (e *Client) RefreshIndexes(indexes []string) {
 
 func (e *Client) ScrollData(scrollService *elastic.ScrollService) ([]elastic.SearchHit, error) {
 	ctx := context.Background()
-	scrollService.Scroll("1h")
+	scrollService.Scroll("1s")
 	var totals []elastic.SearchHit
 
 	for {
@@ -117,6 +119,11 @@ func (e *Client) ScrollData(scrollService *elastic.ScrollService) ([]elastic.Sea
 		for _, hit := range res.Hits.Hits {
 			totals = append(totals, *hit)
 		}
+	}
+
+	err := scrollService.Clear(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	return totals, nil

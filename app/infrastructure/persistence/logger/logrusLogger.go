@@ -92,6 +92,10 @@ func (l *logrusLogger) Panic(format string, args ...interface{}) {
 	l.logger.Fatalf(format, args...)
 }
 
+func (l *logrusLogger) Printf(format string, args ...interface{}) {
+	l.logger.Printf(format, args...)
+}
+
 func (l *logrusLogger) WithFields(fields interfaces.LoggerFields) interfaces.LoggerInterface {
 	return &logrusLogEntry{
 		entry: l.logger.WithFields(convertToLogrusFields(fields)),
@@ -120,6 +124,10 @@ func (l *logrusLogEntry) Fatal(format string, args ...interface{}) {
 
 func (l *logrusLogEntry) Panic(format string, args ...interface{}) {
 	l.entry.Fatalf(format, args...)
+}
+
+func (l *logrusLogEntry) Printf(format string, args ...interface{}) {
+	l.entry.Printf(format, args...)
 }
 
 func (l *logrusLogEntry) WithFields(fields interfaces.LoggerFields) interfaces.LoggerInterface {

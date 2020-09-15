@@ -37,13 +37,22 @@ const (
 				"type": "stemmer",
 				"name": "russian"
 			  },
+			  "ngram": {
+				"type": "ngram",
+				"min_gram": "1",
+				"max_gram": "15"
+			  },
 			  "edge_ngram": {
-				"type": "edge_ngram",
-				"min_gram": "2",
-				"max_gram": "25"
+                "type": "edge_ngram",
+                "min_gram": "1",
+                "max_gram": "50"
 			  }
 			},
 			"analyzer": {
+			  "ngram_analyzer": {
+				"filter": ["lowercase", "russian_stemmer", "ngram"],
+				"tokenizer": "standard"
+			  },
 			  "edge_ngram_analyzer": {
 				"filter": ["lowercase", "russian_stemmer", "edge_ngram"],
 				"tokenizer": "standard"
@@ -53,7 +62,8 @@ const (
 				"tokenizer": "standard"
 			  }
 			}
-		  }
+		  },
+          "max_ngram_diff": 14
 		}
 	  },
 	  "mappings": {
@@ -75,6 +85,16 @@ const (
 			"type": "keyword"
 		  },
 		  "house_full_num": {
+			"type": "text",
+			"analyzer": "ngram_analyzer",
+			"search_analyzer": "keyword_analyzer",
+			"fields": {
+			  "keyword": {
+				"type": "keyword"
+			  }
+			}
+		  },
+		  "full_address": {
 			"type": "text",
 			"analyzer": "edge_ngram_analyzer",
 			"search_analyzer": "keyword_analyzer",
@@ -179,7 +199,7 @@ func (a *ElasticHouseRepository) scroll(scrollService *elastic.ScrollService) ([
 	}
 	scrollService.Size(batch)
 	ctx := context.Background()
-	scrollService.Scroll("1h")
+	scrollService.Scroll("1s")
 
 	for {
 		res, err := scrollService.Do(ctx)
@@ -199,6 +219,11 @@ func (a *ElasticHouseRepository) scroll(scrollService *elastic.ScrollService) ([
 			}
 			items = append(items, item.ToEntity())
 		}
+	}
+
+	err := scrollService.Clear(ctx)
+	if err != nil {
+		a.logger.Error(err.Error())
 	}
 
 	return items, nil

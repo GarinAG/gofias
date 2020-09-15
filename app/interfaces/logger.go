@@ -29,6 +29,8 @@ type LoggerInterface interface {
 	Panic(format string, args ...interface{})
 
 	WithFields(keyValues LoggerFields) LoggerInterface
+
+	Printf(format string, args ...interface{})
 }
 
 type LoggerConfiguration struct {

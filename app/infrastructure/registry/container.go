@@ -70,7 +70,7 @@ func NewContainer(loggerPrefix string) (*Container, error) {
 		{
 			Name: "elasticClient",
 			Build: func(ctn di.Container) (interface{}, error) {
-				client := elasticHelper.NewElasticClient(ctn.Get("config").(interfaces.ConfigInterface))
+				client := elasticHelper.NewElasticClient(ctn.Get("config").(interfaces.ConfigInterface), ctn.Get("logger").(interfaces.LoggerInterface))
 
 				return client, nil
 			},
@@ -88,7 +88,7 @@ func NewContainer(loggerPrefix string) (*Container, error) {
 			},
 		},
 		{
-			Name: "houseService",
+			Name: "houseImportService",
 			Build: func(ctn di.Container) (interface{}, error) {
 				appConfig := ctn.Get("config").(interfaces.ConfigInterface)
 				repo := elasticRepository.NewElasticHouseRepository(
@@ -96,7 +96,7 @@ func NewContainer(loggerPrefix string) (*Container, error) {
 					ctn.Get("logger").(interfaces.LoggerInterface),
 					appConfig.GetInt("batch.size"),
 					appConfig.GetString("project.prefix"))
-				return service.NewHouseService(repo, ctn.Get("logger").(interfaces.LoggerInterface)), nil
+				return service.NewHouseImportService(repo, ctn.Get("logger").(interfaces.LoggerInterface)), nil
 			},
 		},
 		{
@@ -121,7 +121,7 @@ func NewContainer(loggerPrefix string) (*Container, error) {
 					ctn.Get("logger").(interfaces.LoggerInterface),
 					ctn.Get("directoryService").(*directoryService.DirectoryService),
 					ctn.Get("addressImportService").(*service.AddressImportService),
-					ctn.Get("houseService").(*service.HouseImportService),
+					ctn.Get("houseImportService").(*service.HouseImportService),
 					ctn.Get("config").(interfaces.ConfigInterface)), nil
 			},
 		},
@@ -136,6 +136,19 @@ func NewContainer(loggerPrefix string) (*Container, error) {
 					appConfig.GetString("project.prefix"))
 
 				return service.NewAddressService(repo, ctn.Get("logger").(interfaces.LoggerInterface)), nil
+			},
+		},
+		{
+			Name: "houseService",
+			Build: func(ctn di.Container) (interface{}, error) {
+				appConfig := ctn.Get("config").(interfaces.ConfigInterface)
+				repo := elasticRepository.NewElasticHouseRepository(
+					ctn.Get("elasticClient").(*elasticHelper.Client),
+					ctn.Get("logger").(interfaces.LoggerInterface),
+					appConfig.GetInt("batch.size"),
+					appConfig.GetString("project.prefix"))
+
+				return service.NewHouseService(repo, ctn.Get("logger").(interfaces.LoggerInterface)), nil
 			},
 		},
 	}...); err != nil {

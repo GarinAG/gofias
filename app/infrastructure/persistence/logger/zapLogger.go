@@ -106,6 +106,10 @@ func (l *zapLogger) Panic(format string, args ...interface{}) {
 	l.sugaredLogger.Fatalf(format, args...)
 }
 
+func (l *zapLogger) Printf(format string, args ...interface{}) {
+	l.sugaredLogger.Infof(format, args...)
+}
+
 func (l *zapLogger) WithFields(fields interfaces.LoggerFields) interfaces.LoggerInterface {
 	var f = make([]interface{}, 0)
 	for k, v := range fields {
