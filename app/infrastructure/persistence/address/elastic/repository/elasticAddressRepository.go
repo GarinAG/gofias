@@ -532,20 +532,33 @@ func (a *ElasticAddressRepository) ReopenIndex() {
 	a.elasticClient.Client.OpenIndex(a.GetIndexName())
 }
 
-func (a *ElasticAddressRepository) Index(isFull bool, start time.Time, housesCount int64, GetHousesByGuid repository.GetHousesByGuid, GetLastUpdatedGuids repository.GetLastUpdatedGuids) error {
+func (a *ElasticAddressRepository) Index(isFull bool, start time.Time, guids []string) error {
 	noOfWorkers := 10
 	a.jobs = make(chan dto.JsonAddressDto, noOfWorkers)
 	a.results = make(chan dto.JsonAddressDto, noOfWorkers)
-	time.Sleep(1 * time.Second)
 	a.Refresh()
 	a.ReopenIndex()
 
+	query := a.prepareIndexQuery(isFull, start, guids)
+	queryCount := a.calculateIndexCount(query)
+
+	go a.getIndexItems(query)
+	done := make(chan bool)
+	go a.saveIndexItems(done, time.Now(), queryCount)
+	a.createWorkerPool(noOfWorkers)
+	<-done
+	a.Refresh()
+	a.logger.Info("Index Finished")
+
+	return nil
+}
+
+func (a *ElasticAddressRepository) prepareIndexQuery(isFull bool, start time.Time, guids []string) elastic.Query {
 	var query elastic.Query
 	queries := []elastic.Query{elastic.NewRangeQuery("ao_level").Gt(1)}
 	if !isFull {
 		a.logger.Info("Indexing...")
 		queries = append(queries, elastic.NewRangeQuery("bazis_update_date").Gte(start.Format("2006-01-02")+"T00:00:00Z"))
-		guids := GetLastUpdatedGuids(start)
 		if len(guids) > 0 {
 			guidsInterface := util.ConvertStringSliceToInterface(guids)
 			query = elastic.NewBoolQuery().Should(elastic.NewBoolQuery().Must(queries...), elastic.NewBoolQuery().Must(elastic.NewTermsQuery("ao_guid", guidsInterface...)))
@@ -557,6 +570,10 @@ func (a *ElasticAddressRepository) Index(isFull bool, start time.Time, housesCou
 		query = elastic.NewBoolQuery().Must(queries...)
 	}
 
+	return query
+}
+
+func (a *ElasticAddressRepository) calculateIndexCount(query elastic.Query) int64 {
 	addTotalCount, err := a.CountAllData(nil)
 	if err != nil {
 		a.logger.Error(err.Error())
@@ -567,21 +584,12 @@ func (a *ElasticAddressRepository) Index(isFull bool, start time.Time, housesCou
 	}
 
 	a.logger.WithFields(interfaces.LoggerFields{"count": addTotalCount}).Info("Total address count")
-	a.logger.WithFields(interfaces.LoggerFields{"count": housesCount}).Info("Total houses count")
 	a.logger.WithFields(interfaces.LoggerFields{"count": queryCount}).Info("Number of indexed addresses")
 
-	go a.allocate(query)
-	done := make(chan bool)
-	go a.result(done, time.Now(), queryCount)
-	a.createWorkerPool(noOfWorkers, GetHousesByGuid)
-	<-done
-	a.Refresh()
-	a.logger.Info("Index Finished")
-
-	return nil
+	return queryCount
 }
 
-func (a *ElasticAddressRepository) allocate(query elastic.Query) {
+func (a *ElasticAddressRepository) getIndexItems(query elastic.Query) {
 	batch := a.batchSize
 	if batch > 10000 {
 		batch = 10000
@@ -636,19 +644,18 @@ func (a *ElasticAddressRepository) addJobs(hits []*elastic.SearchHit, wg *sync.W
 	}
 }
 
-func (a *ElasticAddressRepository) createWorkerPool(noOfWorkers int, GetHousesByGuid repository.GetHousesByGuid) {
+func (a *ElasticAddressRepository) createWorkerPool(noOfWorkers int) {
 	var wg sync.WaitGroup
 	for i := 0; i < noOfWorkers; i++ {
 		wg.Add(1)
-		go a.searchAddressWorker(&wg, GetHousesByGuid)
+		go a.prepareItemsBeforeSave(&wg)
 	}
 	wg.Wait()
 	close(a.results)
 }
 
-func (a *ElasticAddressRepository) searchAddressWorker(wg *sync.WaitGroup, GetHousesByGuid repository.GetHousesByGuid) {
+func (a *ElasticAddressRepository) prepareItemsBeforeSave(wg *sync.WaitGroup) {
 	for address := range a.jobs {
-		var houseList []dto.JsonAddressHouseDto
 		dtoItem := dto.JsonAddressDto{}
 		city := dto.JsonAddressDto{}
 		district := dto.JsonAddressDto{}
@@ -695,7 +702,6 @@ func (a *ElasticAddressRepository) searchAddressWorker(wg *sync.WaitGroup, GetHo
 		case 7:
 			address.StreetType = strings.TrimSpace(address.ShortName)
 			address.Street = strings.TrimSpace(address.FormalName)
-			searchHouses := GetHousesByGuid(address.AoGuid)
 			if address.SettlementFull != "" {
 				address.StreetFull = address.SettlementFull + ", "
 			} else {
@@ -704,16 +710,6 @@ func (a *ElasticAddressRepository) searchAddressWorker(wg *sync.WaitGroup, GetHo
 				}
 			}
 			address.StreetFull += util.PrepareFullName(address.StreetType, address.Street)
-
-			for _, houseData := range searchHouses {
-				houseItem := dto.JsonHouseDto{}
-				houseItem.GetFromEntity(*houseData)
-				houseList = append(houseList, dto.JsonAddressHouseDto{
-					ID:           houseItem.ID,
-					HouseFullNum: houseItem.HouseFullNum,
-				})
-			}
-			address.Houses = houseList
 		}
 
 		address.AddressSuggest = strings.ToLower(address.AddressSuggest)
@@ -724,7 +720,7 @@ func (a *ElasticAddressRepository) searchAddressWorker(wg *sync.WaitGroup, GetHo
 	wg.Done()
 }
 
-func (a *ElasticAddressRepository) result(done chan bool, begin time.Time, total int64) {
+func (a *ElasticAddressRepository) saveIndexItems(done chan bool, begin time.Time, total int64) {
 	bulk := a.GetBulkService()
 	ctx := context.Background()
 	bar := util.StartNewProgress(int(total))
