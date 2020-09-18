@@ -395,7 +395,7 @@ func (a *ElasticAddressRepository) GetAddressByTerm(term string, size int64, fro
 	res, err := a.elasticClient.Client.
 		Search(a.indexName).
 		Query(elastic.NewBoolQuery().Must(
-			elastic.NewMultiMatchQuery(term, "full_address").Operator("and"))).
+			elastic.NewMatchQuery("full_address", term).Operator("and"))).
 		From(int(from)).
 		Size(int(size)).
 		Sort("ao_level", true).
@@ -462,7 +462,7 @@ func (a *ElasticAddressRepository) GetBulkService() *elastic.BulkService {
 }
 
 func (a *ElasticAddressRepository) InsertUpdateCollection(channel <-chan interface{}, done <-chan bool, count chan<- int, isFull bool) {
-	bulk := a.elasticClient.Client.Bulk().Index(a.indexName)
+	bulk := a.GetBulkService()
 	ctx := context.Background()
 	begin := time.Now()
 	var total uint64
@@ -532,7 +532,7 @@ func (a *ElasticAddressRepository) ReopenIndex() {
 	a.elasticClient.Client.OpenIndex(a.GetIndexName())
 }
 
-func (a *ElasticAddressRepository) Index(isFull bool, start time.Time, guids []string) error {
+func (a *ElasticAddressRepository) Index(isFull bool, start time.Time, guids []string, indexChan chan<- entity.IndexObject) error {
 	noOfWorkers := 10
 	a.jobs = make(chan dto.JsonAddressDto, noOfWorkers)
 	a.results = make(chan dto.JsonAddressDto, noOfWorkers)
@@ -544,11 +544,10 @@ func (a *ElasticAddressRepository) Index(isFull bool, start time.Time, guids []s
 
 	go a.getIndexItems(query)
 	done := make(chan bool)
-	go a.saveIndexItems(done, time.Now(), queryCount)
+	go a.saveIndexItems(done, time.Now(), queryCount, indexChan)
 	a.createWorkerPool(noOfWorkers)
 	<-done
 	a.Refresh()
-	a.logger.Info("Index Finished")
 
 	return nil
 }
@@ -692,6 +691,7 @@ func (a *ElasticAddressRepository) prepareItemsBeforeSave(wg *sync.WaitGroup) {
 			address.DistrictFull = util.PrepareFullName(address.DistrictType, address.District)
 		}
 		if address.Settlement != "" {
+			address.SettlementFull = ""
 			if address.DistrictFull != "" {
 				address.SettlementFull = address.DistrictFull + ", "
 			}
@@ -702,6 +702,7 @@ func (a *ElasticAddressRepository) prepareItemsBeforeSave(wg *sync.WaitGroup) {
 		case 7:
 			address.StreetType = strings.TrimSpace(address.ShortName)
 			address.Street = strings.TrimSpace(address.FormalName)
+			address.StreetFull = ""
 			if address.SettlementFull != "" {
 				address.StreetFull = address.SettlementFull + ", "
 			} else {
@@ -720,7 +721,7 @@ func (a *ElasticAddressRepository) prepareItemsBeforeSave(wg *sync.WaitGroup) {
 	wg.Done()
 }
 
-func (a *ElasticAddressRepository) saveIndexItems(done chan bool, begin time.Time, total int64) {
+func (a *ElasticAddressRepository) saveIndexItems(done chan bool, begin time.Time, total int64, indexChan chan<- entity.IndexObject) {
 	bulk := a.GetBulkService()
 	ctx := context.Background()
 	bar := util.StartNewProgress(int(total))
@@ -728,16 +729,22 @@ func (a *ElasticAddressRepository) saveIndexItems(done chan bool, begin time.Tim
 	for d := range a.results {
 		// Enqueue the document
 		bulk.Add(elastic.NewBulkIndexRequest().Id(d.ID).Doc(d))
+		if d.AoLevel == 7 {
+			indexChan <- entity.IndexObject{
+				AoGuid:      d.AoGuid,
+				FullAddress: d.FullAddress,
+			}
+		}
 		bar.Increment()
 		if bulk.NumberOfActions() >= a.batchSize {
 			// Commit
 			res, err := bulk.Do(ctx)
 			if err != nil {
-				a.logger.WithFields(interfaces.LoggerFields{"error": err}).Fatal("Index bulk commit failed")
+				a.logger.WithFields(interfaces.LoggerFields{"error": err}).Fatal("Address index bulk commit failed")
 				os.Exit(1)
 			}
 			if res.Errors {
-				a.logger.WithFields(interfaces.LoggerFields{"error": a.elasticClient.GetBulkError(res)}).Fatal("Index bulk commit failed")
+				a.logger.WithFields(interfaces.LoggerFields{"error": a.elasticClient.GetBulkError(res)}).Fatal("Address index bulk commit failed")
 				os.Exit(1)
 			}
 		}
@@ -747,11 +754,11 @@ func (a *ElasticAddressRepository) saveIndexItems(done chan bool, begin time.Tim
 	if bulk.NumberOfActions() > 0 {
 		res, err := bulk.Do(ctx)
 		if err != nil {
-			a.logger.WithFields(interfaces.LoggerFields{"error": err}).Fatal("Index bulk commit failed")
+			a.logger.WithFields(interfaces.LoggerFields{"error": err}).Fatal("Address index bulk commit failed")
 			os.Exit(1)
 		}
 		if res.Errors {
-			a.logger.WithFields(interfaces.LoggerFields{"error": a.elasticClient.GetBulkError(res)}).Fatal("Index bulk commit failed")
+			a.logger.WithFields(interfaces.LoggerFields{"error": a.elasticClient.GetBulkError(res)}).Fatal("Address index bulk commit failed")
 			os.Exit(1)
 		}
 	}
