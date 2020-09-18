@@ -256,6 +256,38 @@ func (a *ElasticHouseRepository) GetLastUpdatedGuids(start time.Time) ([]string,
 	return guids, nil
 }
 
+func (a *ElasticHouseRepository) GetAddressByTerm(term string, size int64, from int64) ([]*entity.HouseObject, error) {
+	if size == 0 {
+		size = 100
+	}
+
+	res, err := a.elasticClient.Client.
+		Search(a.indexName).
+		Query(elastic.NewBoolQuery().Must(
+			elastic.NewMatchQuery("full_address", term).Operator("and"))).
+		From(int(from)).
+		Size(int(size)).
+		Sort("full_address.keyword", true).
+		Do(context.Background())
+
+	if err != nil {
+		return nil, err
+	}
+
+	var items []*entity.HouseObject
+	var item *dto.JsonHouseDto
+	if len(res.Hits.Hits) > 0 {
+		for _, el := range res.Hits.Hits {
+			if err := json.Unmarshal(el.Source, &item); err != nil {
+				return nil, err
+			}
+			items = append(items, item.ToEntity())
+		}
+	}
+
+	return items, nil
+}
+
 func (a *ElasticHouseRepository) InsertUpdateCollection(channel <-chan interface{}, done <-chan bool, count chan<- int, isFull bool) {
 	bulk := a.elasticClient.Client.Bulk().Index(a.indexName)
 	ctx := context.Background()
@@ -324,4 +356,63 @@ func (a *ElasticHouseRepository) CountAllData(query interface{}) (int64, error) 
 
 func (a *ElasticHouseRepository) Refresh() {
 	a.elasticClient.RefreshIndexes([]string{a.GetIndexName()})
+}
+
+func (a *ElasticHouseRepository) GetBulkService() *elastic.BulkService {
+	return a.elasticClient.Client.Bulk().Index(a.GetIndexName())
+}
+
+func (a *ElasticHouseRepository) Index(indexChan <-chan entity.IndexObject, done <-chan bool) error {
+	bulk := a.GetBulkService()
+	ctx := context.Background()
+	begin := time.Now()
+	var total uint64
+
+Loop:
+	for {
+		select {
+		case d := <-indexChan:
+			total++
+			houses, err := a.GetByAddressGuid(d.AoGuid)
+			if err != nil {
+				a.logger.WithFields(interfaces.LoggerFields{"error": err, "ao_guid": d.AoGuid}).Fatal("Get houses failed")
+				continue
+			}
+			for _, house := range houses {
+				saveItem := dto.JsonHouseDto{}
+				saveItem.GetFromEntity(*house)
+				saveItem.FullAddress = d.FullAddress + ", " + saveItem.HouseFullNum
+				bulk.Add(elastic.NewBulkIndexRequest().Id(saveItem.ID).Doc(saveItem))
+
+				if bulk.NumberOfActions() >= a.batchSize {
+					// Commit
+					res, err := bulk.Do(ctx)
+					if err != nil {
+						a.logger.WithFields(interfaces.LoggerFields{"error": err}).Fatal("House index bulk commit failed")
+					}
+					if res.Errors {
+						a.logger.WithFields(interfaces.LoggerFields{"error": a.elasticClient.GetBulkError(res)}).Fatal("House index bulk commit failed")
+					}
+				}
+			}
+
+		case <-done:
+			break Loop
+		}
+	}
+
+	// Commit the final batch before exiting
+	if bulk.NumberOfActions() > 0 {
+		res, err := bulk.Do(ctx)
+		if err != nil {
+			a.logger.WithFields(interfaces.LoggerFields{"error": err}).Fatal("House index bulk commit failed")
+		}
+		if res.Errors {
+			a.logger.WithFields(interfaces.LoggerFields{"error": a.elasticClient.GetBulkError(res)}).Fatal("House index bulk commit failed")
+		}
+	}
+	a.logger.WithFields(interfaces.LoggerFields{"execTime": humanize.RelTime(begin, time.Now(), "", ""), "total": total}).Info("House index execution time")
+	a.Refresh()
+
+	return nil
 }

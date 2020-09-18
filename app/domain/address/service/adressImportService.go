@@ -43,11 +43,13 @@ func (a *AddressImportService) Import(filePath string, wg *sync.WaitGroup, cnt c
 	go a.AddressRepo.InsertUpdateCollection(addressChannel, done, cnt, a.IsFull)
 }
 
-func (a *AddressImportService) Index(isFull bool, start time.Time, guids []string) {
-	err := a.AddressRepo.Index(isFull, start, guids)
+func (a *AddressImportService) Index(isFull bool, start time.Time, guids []string, wg *sync.WaitGroup, indexChan chan<- entity.IndexObject, done chan<- bool) {
+	defer wg.Done()
+	err := a.AddressRepo.Index(isFull, start, guids, indexChan)
 	if err != nil {
 		a.logger.Error(err.Error())
 	}
+	done <- true
 }
 
 func (a *AddressImportService) ParseElement(element *xmlparser.XMLElement) (interface{}, error) {

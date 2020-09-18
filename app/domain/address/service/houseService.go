@@ -37,3 +37,12 @@ func (h *HouseService) GetByAddressGuid(giud string) []*entity.HouseObject {
 
 	return res
 }
+
+func (h *HouseService) GetAddressByTerm(term string, size int64, from int64) []*entity.HouseObject {
+	houses, err := h.HouseRepo.GetAddressByTerm(term, size, from)
+	if err != nil {
+		h.logger.Error(err.Error())
+	}
+
+	return houses
+}

@@ -21,5 +21,5 @@ type AddressRepositoryInterface interface {
 	InsertUpdateCollection(channel <-chan interface{}, done <-chan bool, count chan<- int, isFull bool)
 	GetIndexName() string
 	CountAllData(query interface{}) (int64, error)
-	Index(isFull bool, start time.Time, guids []string) error
+	Index(isFull bool, start time.Time, guids []string, indexChan chan<- entity.IndexObject) error
 }
