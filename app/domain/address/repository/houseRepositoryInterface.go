@@ -14,5 +14,5 @@ type HouseRepositoryInterface interface {
 	InsertUpdateCollection(channel <-chan interface{}, done <-chan bool, count chan<- int, isFull bool)
 	GetIndexName() string
 	CountAllData(query interface{}) (int64, error)
-	Index(indexChan <-chan entity.IndexObject, done <-chan bool) error
+	Index(indexChan <-chan entity.IndexObject) error
 }
