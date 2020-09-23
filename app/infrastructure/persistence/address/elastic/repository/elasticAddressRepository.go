@@ -218,14 +218,18 @@ type ElasticAddressRepository struct {
 	indexName     string
 	jobs          chan dto.JsonAddressDto
 	results       chan dto.JsonAddressDto
+	noOfWorkers   int
+	indexCache    map[string]*entity.AddressObject
+	indexMutex    sync.RWMutex
 }
 
-func NewElasticAddressRepository(elasticClient *elasticHelper.Client, logger interfaces.LoggerInterface, batchSize int, prefix string) repository.AddressRepositoryInterface {
+func NewElasticAddressRepository(elasticClient *elasticHelper.Client, logger interfaces.LoggerInterface, batchSize int, prefix string, noOfWorkers int) repository.AddressRepositoryInterface {
 	return &ElasticAddressRepository{
 		logger:        logger,
 		elasticClient: elasticClient,
 		batchSize:     batchSize,
 		indexName:     prefix + entity.AddressObject{}.TableName(),
+		noOfWorkers:   noOfWorkers,
 	}
 }
 
@@ -533,9 +537,10 @@ func (a *ElasticAddressRepository) ReopenIndex() {
 }
 
 func (a *ElasticAddressRepository) Index(isFull bool, start time.Time, guids []string, indexChan chan<- entity.IndexObject) error {
-	noOfWorkers := 10
-	a.jobs = make(chan dto.JsonAddressDto, noOfWorkers)
-	a.results = make(chan dto.JsonAddressDto, noOfWorkers)
+	a.indexMutex = sync.RWMutex{}
+	a.indexCache = make(map[string]*entity.AddressObject)
+	a.jobs = make(chan dto.JsonAddressDto, a.noOfWorkers)
+	a.results = make(chan dto.JsonAddressDto, a.noOfWorkers)
 	a.Refresh()
 	a.ReopenIndex()
 
@@ -545,7 +550,7 @@ func (a *ElasticAddressRepository) Index(isFull bool, start time.Time, guids []s
 	go a.getIndexItems(query)
 	done := make(chan bool)
 	go a.saveIndexItems(done, time.Now(), queryCount, indexChan)
-	a.createWorkerPool(noOfWorkers)
+	a.createWorkerPool(a.noOfWorkers)
 	<-done
 	a.Refresh()
 
@@ -664,7 +669,13 @@ func (a *ElasticAddressRepository) prepareItemsBeforeSave(wg *sync.WaitGroup) {
 		address.AddressSuggest = strings.TrimSpace(address.FormalName)
 
 		for guid != "" {
-			search, _ := a.GetByGuid(guid)
+			a.indexMutex.RLock()
+			search, ok := a.indexCache[guid]
+			a.indexMutex.RUnlock()
+			if !ok {
+				search, _ = a.GetByGuid(guid)
+			}
+
 			if search != nil {
 				dtoItem.GetFromEntity(*search)
 				guid = dtoItem.ParentGuid
@@ -727,14 +738,19 @@ func (a *ElasticAddressRepository) saveIndexItems(done chan bool, begin time.Tim
 	bar := util.StartNewProgress(int(total))
 
 	for d := range a.results {
-		// Enqueue the document
-		bulk.Add(elastic.NewBulkIndexRequest().Id(d.ID).Doc(d))
 		if d.AoLevel == 7 {
 			indexChan <- entity.IndexObject{
 				AoGuid:      d.AoGuid,
 				FullAddress: d.FullAddress,
 			}
 		}
+
+		a.indexMutex.Lock()
+		a.indexCache[d.AoGuid] = d.ToEntity()
+		a.indexMutex.Unlock()
+
+		// Enqueue the document
+		bulk.Add(elastic.NewBulkIndexRequest().Id(d.ID).Doc(d))
 		bar.Increment()
 		if bulk.NumberOfActions() >= a.batchSize {
 			// Commit
@@ -765,4 +781,5 @@ func (a *ElasticAddressRepository) saveIndexItems(done chan bool, begin time.Tim
 	bar.Finish()
 	a.logger.WithFields(interfaces.LoggerFields{"execTime": humanize.RelTime(begin, time.Now(), "", "")}).Info("Address index execution time")
 	done <- true
+	close(indexChan)
 }

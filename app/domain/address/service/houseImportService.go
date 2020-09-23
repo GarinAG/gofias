@@ -104,9 +104,9 @@ func (h *HouseImportService) CountAllData() int64 {
 	return res
 }
 
-func (h *HouseImportService) Index(wg *sync.WaitGroup, indexChan <-chan entity.IndexObject, done <-chan bool) {
+func (h *HouseImportService) Index(wg *sync.WaitGroup, indexChan <-chan entity.IndexObject) {
 	defer wg.Done()
-	err := h.HouseRepo.Index(indexChan, done)
+	err := h.HouseRepo.Index(indexChan)
 	if err != nil {
 		h.logger.Error(err.Error())
 	}

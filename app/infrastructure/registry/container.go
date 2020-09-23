@@ -83,7 +83,8 @@ func NewContainer(loggerPrefix string) (*Container, error) {
 					ctn.Get("elasticClient").(*elasticHelper.Client),
 					ctn.Get("logger").(interfaces.LoggerInterface),
 					appConfig.GetInt("batch.size"),
-					appConfig.GetString("project.prefix"))
+					appConfig.GetString("project.prefix"),
+					appConfig.GetInt("workers.addresses"))
 				return service.NewAddressImportService(repo, ctn.Get("logger").(interfaces.LoggerInterface)), nil
 			},
 		},
@@ -95,7 +96,8 @@ func NewContainer(loggerPrefix string) (*Container, error) {
 					ctn.Get("elasticClient").(*elasticHelper.Client),
 					ctn.Get("logger").(interfaces.LoggerInterface),
 					appConfig.GetInt("batch.size"),
-					appConfig.GetString("project.prefix"))
+					appConfig.GetString("project.prefix"),
+					appConfig.GetInt("workers.houses"))
 				return service.NewHouseImportService(repo, ctn.Get("logger").(interfaces.LoggerInterface)), nil
 			},
 		},
@@ -133,7 +135,8 @@ func NewContainer(loggerPrefix string) (*Container, error) {
 					ctn.Get("elasticClient").(*elasticHelper.Client),
 					ctn.Get("logger").(interfaces.LoggerInterface),
 					appConfig.GetInt("batch.size"),
-					appConfig.GetString("project.prefix"))
+					appConfig.GetString("project.prefix"),
+					appConfig.GetInt("workers.addresses"))
 
 				return service.NewAddressService(repo, ctn.Get("logger").(interfaces.LoggerInterface)), nil
 			},
@@ -146,7 +149,8 @@ func NewContainer(loggerPrefix string) (*Container, error) {
 					ctn.Get("elasticClient").(*elasticHelper.Client),
 					ctn.Get("logger").(interfaces.LoggerInterface),
 					appConfig.GetInt("batch.size"),
-					appConfig.GetString("project.prefix"))
+					appConfig.GetString("project.prefix"),
+					appConfig.GetInt("workers.houses"))
 
 				return service.NewHouseService(repo, ctn.Get("logger").(interfaces.LoggerInterface)), nil
 			},

@@ -56,9 +56,6 @@ func (item *JsonHouseDto) GetFromEntity(entity entity.HouseObject) {
 	if entity.BuildNum != "" {
 		fullNum += ", кор. " + entity.BuildNum
 	}
-	if entity.FullAddress == "" {
-		entity.FullAddress = fullNum
-	}
 	if entity.HouseFullNum == "" {
 		entity.HouseFullNum = fullNum
 	}
