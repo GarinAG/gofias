@@ -10,7 +10,7 @@ import "google/protobuf/empty.proto";
 service VersionHandler {
   rpc GetVersion (google.protobuf.Empty) returns (Version) {
     option (google.api.http) = {
-      get: "/*"
+      get: "/info"
     };
   };
 }

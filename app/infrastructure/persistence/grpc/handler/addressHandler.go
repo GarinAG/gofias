@@ -15,11 +15,13 @@ import (
 type AddressHandler struct {
 	Server         *grpc.Server
 	addressService *service.AddressService
+	houseService   *service.HouseService
 }
 
-func NewAddressHandler(a *service.AddressService) *AddressHandler {
+func NewAddressHandler(a *service.AddressService, h *service.HouseService) *AddressHandler {
 	handler := &AddressHandler{
 		addressService: a,
+		houseService:   h,
 	}
 
 	return handler
@@ -64,6 +66,65 @@ func (h *AddressHandler) GetByGuid(ctx context.Context, guid *addressV1.GuidRequ
 	}
 
 	return nil, status.Error(codes.NotFound, "address not found")
+}
+
+func (h *AddressHandler) GetSuggests(ctx context.Context, request *addressV1.SimpleTerm) (*addressV1.AddressListResponse, error) {
+	var houseNum int64
+	size := request.Size
+	if size == 0 {
+		size = 100
+	}
+
+	suggests := h.addressService.GetAddressByTerm(request.Term, size, 0)
+	houseNum = size - int64(len(suggests))
+	if houseNum > 0 {
+		cities := make(map[string]*entity.AddressObject, houseNum)
+		houses := h.houseService.GetAddressByTerm(request.Term, houseNum, 0)
+		for _, house := range houses {
+			city, ok := cities[house.AoGuid]
+			if ok == false {
+				city = h.addressService.GetByGuid(house.AoGuid)
+				if city == nil {
+					continue
+				}
+				cities[house.AoGuid] = city
+			}
+
+			suggests = append(suggests, &entity.AddressObject{
+				ID:             house.ID,
+				AoGuid:         house.HouseGuid,
+				ParentGuid:     house.AoGuid,
+				FormalName:     house.HouseFullNum,
+				ShortName:      "",
+				AoLevel:        8,
+				OffName:        house.HouseFullNum,
+				Code:           city.Code,
+				RegionCode:     city.RegionCode,
+				PostalCode:     house.PostalCode,
+				Okato:          house.Okato,
+				Oktmo:          house.Oktmo,
+				ActStatus:      city.ActStatus,
+				LiveStatus:     city.LiveStatus,
+				CurrStatus:     city.CurrStatus,
+				StartDate:      house.StartDate,
+				EndDate:        house.EndDate,
+				UpdateDate:     house.UpdateDate,
+				FullName:       house.HouseFullNum,
+				FullAddress:    house.FullAddress,
+				District:       city.District,
+				DistrictType:   city.DistrictType,
+				DistrictFull:   city.DistrictFull,
+				Settlement:     city.Settlement,
+				SettlementType: city.SettlementType,
+				SettlementFull: city.SettlementFull,
+				Street:         city.Street,
+				StreetType:     city.StreetType,
+				StreetFull:     city.StreetFull,
+			})
+		}
+	}
+
+	return h.prepareList(suggests)
 }
 
 func (h *AddressHandler) prepareList(cities []*entity.AddressObject) (*addressV1.AddressListResponse, error) {

@@ -158,10 +158,16 @@ func (is *ImportService) ParseFiles(files *[]directoryEntity.File) (int, int) {
 }
 
 func (is *ImportService) Index() {
-	is.addressImportService.Index(
-		is.IsFull,
-		is.Begin,
-		is.houseImportService.CountAllData(),
-		is.houseImportService.GetByAddressGuid,
-		is.houseImportService.GetLastUpdatedGuids)
+	var wg sync.WaitGroup
+	var guids []string
+	indexChan := make(chan addressEntity.IndexObject, is.config.GetInt("workers.houses"))
+
+	if !is.IsFull {
+		guids = is.houseImportService.GetLastUpdatedGuids(is.Begin)
+	}
+
+	wg.Add(2)
+	go is.addressImportService.Index(is.IsFull, is.Begin, guids, &wg, indexChan)
+	go is.houseImportService.Index(&wg, indexChan)
+	wg.Wait()
 }

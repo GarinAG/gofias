@@ -46,7 +46,11 @@ func NewGrpcServer(ctn *registry.Container) *GrpcServer {
 		}
 	}()
 	server := grpc.NewServer(grpc.UnaryInterceptor(serverInterceptor))
-	grpcHandlerAddressV1.RegisterAddressHandlerServer(server, handlers.NewAddressHandler(ctn.Resolve("addressService").(*service.AddressService)))
+	grpcHandlerAddressV1.RegisterAddressHandlerServer(server,
+		handlers.NewAddressHandler(
+			ctn.Resolve("addressService").(*service.AddressService),
+			ctn.Resolve("houseService").(*service.HouseService),
+		))
 	grpcHandlerHealth.RegisterHealthHandlerServer(server, handlers.NewHealthHandler())
 	grpcHandlerVersion.RegisterVersionHandlerServer(server, handlers.NewVersionHandler(ctn.Resolve("versionService").(*versionService.VersionService), Version))
 
@@ -57,7 +61,7 @@ func NewGrpcServer(ctn *registry.Container) *GrpcServer {
 		Logger:         logger,
 		Config:         ctn.Resolve("config").(interfaces.ConfigInterface),
 		AddressService: ctn.Resolve("addressService").(*service.AddressService),
-		HouseService:   ctn.Resolve("houseService").(*service.HouseImportService),
+		HouseService:   ctn.Resolve("houseImportService").(*service.HouseImportService),
 		VersionService: ctn.Resolve("versionService").(*versionService.VersionService),
 	}
 }

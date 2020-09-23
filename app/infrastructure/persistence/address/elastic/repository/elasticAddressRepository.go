@@ -42,9 +42,8 @@ const (
               },
               "edge_ngram": {
                 "type": "edge_ngram",
-                "min_gram": "2",
-                "max_gram": "25",
-                "token_chars": ["letter", "digit"]
+                "min_gram": "1",
+                "max_gram": "40"
               }
             },
             "analyzer": {
@@ -69,7 +68,14 @@ const (
             "search_analyzer": "keyword_analyzer"
           },
           "full_address": {
-            "type": "keyword"
+            "type": "text",
+            "analyzer": "edge_ngram_analyzer",
+            "search_analyzer": "keyword_analyzer",
+            "fields": {
+			  "keyword": {
+				"type": "keyword"
+			  }
+			}
           },
           "formal_name": {
             "type": "keyword"
@@ -175,14 +181,7 @@ const (
                 "type": "keyword"
               },
               "house_full_num": {
-                "type": "text",
-                "analyzer": "edge_ngram_analyzer",
-                "search_analyzer": "keyword_analyzer",
-                "fields": {
-                  "keyword": {
-                    "type": "keyword"
-                  }
-                }
+                "type": "keyword"
               }
             }
           }
@@ -219,14 +218,18 @@ type ElasticAddressRepository struct {
 	indexName     string
 	jobs          chan dto.JsonAddressDto
 	results       chan dto.JsonAddressDto
+	noOfWorkers   int
+	indexCache    map[string]*entity.AddressObject
+	indexMutex    sync.RWMutex
 }
 
-func NewElasticAddressRepository(elasticClient *elasticHelper.Client, logger interfaces.LoggerInterface, batchSize int, prefix string) repository.AddressRepositoryInterface {
+func NewElasticAddressRepository(elasticClient *elasticHelper.Client, logger interfaces.LoggerInterface, batchSize int, prefix string, noOfWorkers int) repository.AddressRepositoryInterface {
 	return &ElasticAddressRepository{
 		logger:        logger,
 		elasticClient: elasticClient,
 		batchSize:     batchSize,
 		indexName:     prefix + entity.AddressObject{}.TableName(),
+		noOfWorkers:   noOfWorkers,
 	}
 }
 
@@ -362,12 +365,12 @@ func (a *ElasticAddressRepository) GetCitiesByTerm(term string, size int64, from
 	res, err := a.elasticClient.Client.
 		Search(a.indexName).
 		Query(elastic.NewBoolQuery().Must(
-			elastic.NewMultiMatchQuery(term, "address_suggest")).
+			elastic.NewMultiMatchQuery(term, "full_address").Operator("and")).
 			Filter(elastic.NewTermsQuery("ao_level", 1, 4))).
 		From(int(from)).
 		Size(int(size)).
 		Sort("ao_level", true).
-		Sort("full_address", true).
+		Sort("full_address.keyword", true).
 		Do(context.Background())
 
 	if err != nil {
@@ -396,11 +399,11 @@ func (a *ElasticAddressRepository) GetAddressByTerm(term string, size int64, fro
 	res, err := a.elasticClient.Client.
 		Search(a.indexName).
 		Query(elastic.NewBoolQuery().Must(
-			elastic.NewMultiMatchQuery(term, "address_suggest"))).
+			elastic.NewMatchQuery("full_address", term).Operator("and"))).
 		From(int(from)).
 		Size(int(size)).
 		Sort("ao_level", true).
-		Sort("full_address", true).
+		Sort("full_address.keyword", true).
 		Do(context.Background())
 
 	if err != nil {
@@ -432,7 +435,7 @@ func (a *ElasticAddressRepository) GetAddressByPostal(term string, size int64, f
 		From(int(from)).
 		Size(int(size)).
 		Sort("ao_level", true).
-		Sort("full_address", true).
+		Sort("full_address.keyword", true).
 		Do(context.Background())
 
 	if err != nil {
@@ -463,7 +466,7 @@ func (a *ElasticAddressRepository) GetBulkService() *elastic.BulkService {
 }
 
 func (a *ElasticAddressRepository) InsertUpdateCollection(channel <-chan interface{}, done <-chan bool, count chan<- int, isFull bool) {
-	bulk := a.elasticClient.Client.Bulk().Index(a.indexName)
+	bulk := a.GetBulkService()
 	ctx := context.Background()
 	begin := time.Now()
 	var total uint64
@@ -533,20 +536,33 @@ func (a *ElasticAddressRepository) ReopenIndex() {
 	a.elasticClient.Client.OpenIndex(a.GetIndexName())
 }
 
-func (a *ElasticAddressRepository) Index(isFull bool, start time.Time, housesCount int64, GetHousesByGuid repository.GetHousesByGuid, GetLastUpdatedGuids repository.GetLastUpdatedGuids) error {
-	noOfWorkers := 10
-	a.jobs = make(chan dto.JsonAddressDto, noOfWorkers)
-	a.results = make(chan dto.JsonAddressDto, noOfWorkers)
-	time.Sleep(1 * time.Second)
+func (a *ElasticAddressRepository) Index(isFull bool, start time.Time, guids []string, indexChan chan<- entity.IndexObject) error {
+	a.indexMutex = sync.RWMutex{}
+	a.indexCache = make(map[string]*entity.AddressObject)
+	a.jobs = make(chan dto.JsonAddressDto, a.noOfWorkers)
+	a.results = make(chan dto.JsonAddressDto, a.noOfWorkers)
 	a.Refresh()
 	a.ReopenIndex()
 
+	query := a.prepareIndexQuery(isFull, start, guids)
+	queryCount := a.calculateIndexCount(query)
+
+	go a.getIndexItems(query)
+	done := make(chan bool)
+	go a.saveIndexItems(done, time.Now(), queryCount, indexChan)
+	a.createWorkerPool(a.noOfWorkers)
+	<-done
+	a.Refresh()
+
+	return nil
+}
+
+func (a *ElasticAddressRepository) prepareIndexQuery(isFull bool, start time.Time, guids []string) elastic.Query {
 	var query elastic.Query
 	queries := []elastic.Query{elastic.NewRangeQuery("ao_level").Gt(1)}
 	if !isFull {
 		a.logger.Info("Indexing...")
 		queries = append(queries, elastic.NewRangeQuery("bazis_update_date").Gte(start.Format("2006-01-02")+"T00:00:00Z"))
-		guids := GetLastUpdatedGuids(start)
 		if len(guids) > 0 {
 			guidsInterface := util.ConvertStringSliceToInterface(guids)
 			query = elastic.NewBoolQuery().Should(elastic.NewBoolQuery().Must(queries...), elastic.NewBoolQuery().Must(elastic.NewTermsQuery("ao_guid", guidsInterface...)))
@@ -558,6 +574,10 @@ func (a *ElasticAddressRepository) Index(isFull bool, start time.Time, housesCou
 		query = elastic.NewBoolQuery().Must(queries...)
 	}
 
+	return query
+}
+
+func (a *ElasticAddressRepository) calculateIndexCount(query elastic.Query) int64 {
 	addTotalCount, err := a.CountAllData(nil)
 	if err != nil {
 		a.logger.Error(err.Error())
@@ -568,32 +588,24 @@ func (a *ElasticAddressRepository) Index(isFull bool, start time.Time, housesCou
 	}
 
 	a.logger.WithFields(interfaces.LoggerFields{"count": addTotalCount}).Info("Total address count")
-	a.logger.WithFields(interfaces.LoggerFields{"count": housesCount}).Info("Total houses count")
 	a.logger.WithFields(interfaces.LoggerFields{"count": queryCount}).Info("Number of indexed addresses")
 
-	go a.allocate(query)
-	done := make(chan bool)
-	go a.result(done, time.Now(), queryCount)
-	a.createWorkerPool(noOfWorkers, GetHousesByGuid)
-	<-done
-	a.Refresh()
-	a.logger.Info("Index Finished")
-
-	return nil
+	return queryCount
 }
 
-func (a *ElasticAddressRepository) allocate(query elastic.Query) {
+func (a *ElasticAddressRepository) getIndexItems(query elastic.Query) {
 	batch := a.batchSize
 	if batch > 10000 {
 		batch = 10000
 	}
+
 	scrollService := a.elasticClient.Client.Scroll(a.GetIndexName()).
 		Query(query).
 		Sort("ao_level", true).
 		Size(batch)
 
 	ctx := context.Background()
-	scrollService.Scroll("1h")
+	scrollService.Scroll("1s")
 	count := 0
 	var wg sync.WaitGroup
 
@@ -614,6 +626,11 @@ func (a *ElasticAddressRepository) allocate(query elastic.Query) {
 		go a.addJobs(res.Hits.Hits, &wg)
 	}
 
+	err := scrollService.Clear(ctx)
+	if err != nil {
+		a.logger.Error(err.Error())
+	}
+
 	wg.Wait()
 	a.logger.WithFields(interfaces.LoggerFields{"count": count}).Info("Address update count")
 
@@ -631,19 +648,18 @@ func (a *ElasticAddressRepository) addJobs(hits []*elastic.SearchHit, wg *sync.W
 	}
 }
 
-func (a *ElasticAddressRepository) createWorkerPool(noOfWorkers int, GetHousesByGuid repository.GetHousesByGuid) {
+func (a *ElasticAddressRepository) createWorkerPool(noOfWorkers int) {
 	var wg sync.WaitGroup
 	for i := 0; i < noOfWorkers; i++ {
 		wg.Add(1)
-		go a.searchAddressWorker(&wg, GetHousesByGuid)
+		go a.prepareItemsBeforeSave(&wg)
 	}
 	wg.Wait()
 	close(a.results)
 }
 
-func (a *ElasticAddressRepository) searchAddressWorker(wg *sync.WaitGroup, GetHousesByGuid repository.GetHousesByGuid) {
+func (a *ElasticAddressRepository) prepareItemsBeforeSave(wg *sync.WaitGroup) {
 	for address := range a.jobs {
-		var houseList []dto.JsonAddressHouseDto
 		dtoItem := dto.JsonAddressDto{}
 		city := dto.JsonAddressDto{}
 		district := dto.JsonAddressDto{}
@@ -653,7 +669,13 @@ func (a *ElasticAddressRepository) searchAddressWorker(wg *sync.WaitGroup, GetHo
 		address.AddressSuggest = strings.TrimSpace(address.FormalName)
 
 		for guid != "" {
-			search, _ := a.GetByGuid(guid)
+			a.indexMutex.RLock()
+			search, ok := a.indexCache[guid]
+			a.indexMutex.RUnlock()
+			if !ok {
+				search, _ = a.GetByGuid(guid)
+			}
+
 			if search != nil {
 				dtoItem.GetFromEntity(*search)
 				guid = dtoItem.ParentGuid
@@ -671,10 +693,6 @@ func (a *ElasticAddressRepository) searchAddressWorker(wg *sync.WaitGroup, GetHo
 			}
 		}
 
-		if district.ID == "" && city.ID != "" {
-			district = city
-		}
-
 		address.District = strings.TrimSpace(district.FormalName)
 		address.DistrictType = strings.TrimSpace(district.ShortName)
 		address.Settlement = strings.TrimSpace(city.FormalName)
@@ -684,6 +702,7 @@ func (a *ElasticAddressRepository) searchAddressWorker(wg *sync.WaitGroup, GetHo
 			address.DistrictFull = util.PrepareFullName(address.DistrictType, address.District)
 		}
 		if address.Settlement != "" {
+			address.SettlementFull = ""
 			if address.DistrictFull != "" {
 				address.SettlementFull = address.DistrictFull + ", "
 			}
@@ -694,7 +713,7 @@ func (a *ElasticAddressRepository) searchAddressWorker(wg *sync.WaitGroup, GetHo
 		case 7:
 			address.StreetType = strings.TrimSpace(address.ShortName)
 			address.Street = strings.TrimSpace(address.FormalName)
-			searchHouses := GetHousesByGuid(address.AoGuid)
+			address.StreetFull = ""
 			if address.SettlementFull != "" {
 				address.StreetFull = address.SettlementFull + ", "
 			} else {
@@ -703,16 +722,6 @@ func (a *ElasticAddressRepository) searchAddressWorker(wg *sync.WaitGroup, GetHo
 				}
 			}
 			address.StreetFull += util.PrepareFullName(address.StreetType, address.Street)
-
-			for _, houseData := range searchHouses {
-				houseItem := dto.JsonHouseDto{}
-				houseItem.GetFromEntity(*houseData)
-				houseList = append(houseList, dto.JsonAddressHouseDto{
-					ID:           houseItem.ID,
-					HouseFullNum: houseItem.HouseFullNum,
-				})
-			}
-			address.Houses = houseList
 		}
 
 		address.AddressSuggest = strings.ToLower(address.AddressSuggest)
@@ -723,12 +732,23 @@ func (a *ElasticAddressRepository) searchAddressWorker(wg *sync.WaitGroup, GetHo
 	wg.Done()
 }
 
-func (a *ElasticAddressRepository) result(done chan bool, begin time.Time, total int64) {
+func (a *ElasticAddressRepository) saveIndexItems(done chan bool, begin time.Time, total int64, indexChan chan<- entity.IndexObject) {
 	bulk := a.GetBulkService()
 	ctx := context.Background()
 	bar := util.StartNewProgress(int(total))
 
 	for d := range a.results {
+		if d.AoLevel == 7 {
+			indexChan <- entity.IndexObject{
+				AoGuid:      d.AoGuid,
+				FullAddress: d.FullAddress,
+			}
+		}
+
+		a.indexMutex.Lock()
+		a.indexCache[d.AoGuid] = d.ToEntity()
+		a.indexMutex.Unlock()
+
 		// Enqueue the document
 		bulk.Add(elastic.NewBulkIndexRequest().Id(d.ID).Doc(d))
 		bar.Increment()
@@ -736,11 +756,11 @@ func (a *ElasticAddressRepository) result(done chan bool, begin time.Time, total
 			// Commit
 			res, err := bulk.Do(ctx)
 			if err != nil {
-				a.logger.WithFields(interfaces.LoggerFields{"error": err}).Fatal("Index bulk commit failed")
+				a.logger.WithFields(interfaces.LoggerFields{"error": err}).Fatal("Address index bulk commit failed")
 				os.Exit(1)
 			}
 			if res.Errors {
-				a.logger.WithFields(interfaces.LoggerFields{"error": a.elasticClient.GetBulkError(res)}).Fatal("Index bulk commit failed")
+				a.logger.WithFields(interfaces.LoggerFields{"error": a.elasticClient.GetBulkError(res)}).Fatal("Address index bulk commit failed")
 				os.Exit(1)
 			}
 		}
@@ -750,15 +770,16 @@ func (a *ElasticAddressRepository) result(done chan bool, begin time.Time, total
 	if bulk.NumberOfActions() > 0 {
 		res, err := bulk.Do(ctx)
 		if err != nil {
-			a.logger.WithFields(interfaces.LoggerFields{"error": err}).Fatal("Index bulk commit failed")
+			a.logger.WithFields(interfaces.LoggerFields{"error": err}).Fatal("Address index bulk commit failed")
 			os.Exit(1)
 		}
 		if res.Errors {
-			a.logger.WithFields(interfaces.LoggerFields{"error": a.elasticClient.GetBulkError(res)}).Fatal("Index bulk commit failed")
+			a.logger.WithFields(interfaces.LoggerFields{"error": a.elasticClient.GetBulkError(res)}).Fatal("Address index bulk commit failed")
 			os.Exit(1)
 		}
 	}
 	bar.Finish()
 	a.logger.WithFields(interfaces.LoggerFields{"execTime": humanize.RelTime(begin, time.Now(), "", "")}).Info("Address index execution time")
 	done <- true
+	close(indexChan)
 }

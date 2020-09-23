@@ -11,6 +11,7 @@ type JsonHouseDto struct {
 	AoGuid          string `json:"ao_guid"`
 	HouseNum        string `json:"house_num"`
 	HouseFullNum    string `json:"house_full_num"`
+	FullAddress     string `json:"full_address"`
 	PostalCode      string `json:"postal_code"`
 	Okato           string `json:"okato"`
 	Oktmo           string `json:"oktmo"`
@@ -27,21 +28,23 @@ type JsonHouseDto struct {
 
 func (item *JsonHouseDto) ToEntity() *entity.HouseObject {
 	return &entity.HouseObject{
-		ID:         item.ID,
-		HouseGuid:  item.HouseGuid,
-		AoGuid:     item.AoGuid,
-		HouseNum:   item.HouseNum,
-		PostalCode: item.PostalCode,
-		Okato:      item.Okato,
-		Oktmo:      item.Oktmo,
-		StartDate:  item.StartDate,
-		EndDate:    item.EndDate,
-		UpdateDate: item.UpdateDate,
-		DivType:    item.DivType,
-		BuildNum:   item.BuildNum,
-		StructNum:  item.StructNum,
-		Counter:    item.Counter,
-		CadNum:     item.CadNum,
+		ID:           item.ID,
+		HouseGuid:    item.HouseGuid,
+		AoGuid:       item.AoGuid,
+		HouseNum:     item.HouseNum,
+		HouseFullNum: item.HouseFullNum,
+		FullAddress:  item.FullAddress,
+		PostalCode:   item.PostalCode,
+		Okato:        item.Okato,
+		Oktmo:        item.Oktmo,
+		StartDate:    item.StartDate,
+		EndDate:      item.EndDate,
+		UpdateDate:   item.UpdateDate,
+		DivType:      item.DivType,
+		BuildNum:     item.BuildNum,
+		StructNum:    item.StructNum,
+		Counter:      item.Counter,
+		CadNum:       item.CadNum,
 	}
 }
 
@@ -53,12 +56,16 @@ func (item *JsonHouseDto) GetFromEntity(entity entity.HouseObject) {
 	if entity.BuildNum != "" {
 		fullNum += ", кор. " + entity.BuildNum
 	}
+	if entity.HouseFullNum == "" {
+		entity.HouseFullNum = fullNum
+	}
 
 	item.ID = entity.ID
 	item.HouseGuid = entity.HouseGuid
 	item.AoGuid = entity.AoGuid
 	item.HouseNum = entity.HouseNum
-	item.HouseFullNum = fullNum
+	item.HouseFullNum = entity.HouseFullNum
+	item.FullAddress = entity.FullAddress
 	item.PostalCode = entity.PostalCode
 	item.Okato = entity.Okato
 	item.Oktmo = entity.Oktmo

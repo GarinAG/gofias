@@ -12,6 +12,8 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/olivere/elastic/v7"
 	"io"
+	"os"
+	"sync"
 	"time"
 )
 
@@ -37,13 +39,22 @@ const (
 				"type": "stemmer",
 				"name": "russian"
 			  },
+			  "ngram": {
+				"type": "ngram",
+				"min_gram": "1",
+				"max_gram": "15"
+			  },
 			  "edge_ngram": {
-				"type": "edge_ngram",
-				"min_gram": "2",
-				"max_gram": "25"
+                "type": "edge_ngram",
+                "min_gram": "1",
+                "max_gram": "50"
 			  }
 			},
 			"analyzer": {
+			  "ngram_analyzer": {
+				"filter": ["lowercase", "russian_stemmer", "ngram"],
+				"tokenizer": "standard"
+			  },
 			  "edge_ngram_analyzer": {
 				"filter": ["lowercase", "russian_stemmer", "edge_ngram"],
 				"tokenizer": "standard"
@@ -53,7 +64,8 @@ const (
 				"tokenizer": "standard"
 			  }
 			}
-		  }
+		  },
+          "max_ngram_diff": 14
 		}
 	  },
 	  "mappings": {
@@ -75,6 +87,16 @@ const (
 			"type": "keyword"
 		  },
 		  "house_full_num": {
+			"type": "text",
+			"analyzer": "ngram_analyzer",
+			"search_analyzer": "keyword_analyzer",
+			"fields": {
+			  "keyword": {
+				"type": "keyword"
+			  }
+			}
+		  },
+		  "full_address": {
 			"type": "text",
 			"analyzer": "edge_ngram_analyzer",
 			"search_analyzer": "keyword_analyzer",
@@ -141,14 +163,17 @@ type ElasticHouseRepository struct {
 	logger        interfaces.LoggerInterface
 	batchSize     int
 	indexName     string
+	results       chan dto.JsonHouseDto
+	noOfWorkers   int
 }
 
-func NewElasticHouseRepository(elasticClient *elasticHelper.Client, logger interfaces.LoggerInterface, batchSize int, prefix string) repository.HouseRepositoryInterface {
+func NewElasticHouseRepository(elasticClient *elasticHelper.Client, logger interfaces.LoggerInterface, batchSize int, prefix string, noOfWorkers int) repository.HouseRepositoryInterface {
 	return &ElasticHouseRepository{
 		elasticClient: elasticClient,
 		logger:        logger,
 		batchSize:     batchSize,
 		indexName:     prefix + entity.HouseObject{}.TableName(),
+		noOfWorkers:   noOfWorkers,
 	}
 }
 
@@ -179,7 +204,7 @@ func (a *ElasticHouseRepository) scroll(scrollService *elastic.ScrollService) ([
 	}
 	scrollService.Size(batch)
 	ctx := context.Background()
-	scrollService.Scroll("1h")
+	scrollService.Scroll("1s")
 
 	for {
 		res, err := scrollService.Do(ctx)
@@ -199,6 +224,11 @@ func (a *ElasticHouseRepository) scroll(scrollService *elastic.ScrollService) ([
 			}
 			items = append(items, item.ToEntity())
 		}
+	}
+
+	err := scrollService.Clear(ctx)
+	if err != nil {
+		a.logger.Error(err.Error())
 	}
 
 	return items, nil
@@ -229,6 +259,38 @@ func (a *ElasticHouseRepository) GetLastUpdatedGuids(start time.Time) ([]string,
 	guids = util.UniqueStringSlice(guids)
 
 	return guids, nil
+}
+
+func (a *ElasticHouseRepository) GetAddressByTerm(term string, size int64, from int64) ([]*entity.HouseObject, error) {
+	if size == 0 {
+		size = 100
+	}
+
+	res, err := a.elasticClient.Client.
+		Search(a.indexName).
+		Query(elastic.NewBoolQuery().Must(
+			elastic.NewMatchQuery("full_address", term).Operator("and"))).
+		From(int(from)).
+		Size(int(size)).
+		Sort("full_address.keyword", true).
+		Do(context.Background())
+
+	if err != nil {
+		return nil, err
+	}
+
+	var items []*entity.HouseObject
+	var item *dto.JsonHouseDto
+	if len(res.Hits.Hits) > 0 {
+		for _, el := range res.Hits.Hits {
+			if err := json.Unmarshal(el.Source, &item); err != nil {
+				return nil, err
+			}
+			items = append(items, item.ToEntity())
+		}
+	}
+
+	return items, nil
 }
 
 func (a *ElasticHouseRepository) InsertUpdateCollection(channel <-chan interface{}, done <-chan bool, count chan<- int, isFull bool) {
@@ -299,4 +361,87 @@ func (a *ElasticHouseRepository) CountAllData(query interface{}) (int64, error) 
 
 func (a *ElasticHouseRepository) Refresh() {
 	a.elasticClient.RefreshIndexes([]string{a.GetIndexName()})
+}
+
+func (a *ElasticHouseRepository) GetBulkService() *elastic.BulkService {
+	return a.elasticClient.Client.Bulk().Index(a.GetIndexName())
+}
+
+func (a *ElasticHouseRepository) Index(indexChan <-chan entity.IndexObject) error {
+	a.results = make(chan dto.JsonHouseDto, a.noOfWorkers)
+	a.Refresh()
+
+	done := make(chan bool)
+	go a.saveIndexItems(done)
+	a.createWorkerPool(a.noOfWorkers, indexChan)
+	<-done
+	a.Refresh()
+
+	return nil
+}
+
+func (a *ElasticHouseRepository) createWorkerPool(noOfWorkers int, indexChan <-chan entity.IndexObject) {
+	var wg sync.WaitGroup
+	for i := 0; i < noOfWorkers; i++ {
+		wg.Add(1)
+		go a.prepareItemsBeforeSave(&wg, indexChan)
+	}
+	wg.Wait()
+	close(a.results)
+}
+
+func (a *ElasticHouseRepository) prepareItemsBeforeSave(wg *sync.WaitGroup, indexChan <-chan entity.IndexObject) {
+	for d := range indexChan {
+		houses, err := a.GetByAddressGuid(d.AoGuid)
+		if err != nil {
+			a.logger.WithFields(interfaces.LoggerFields{"error": err, "ao_guid": d.AoGuid}).Fatal("Get houses failed")
+			continue
+		}
+		for _, house := range houses {
+			saveItem := dto.JsonHouseDto{}
+			saveItem.GetFromEntity(*house)
+			saveItem.FullAddress = d.FullAddress + ", " + saveItem.HouseFullNum
+			a.results <- saveItem
+		}
+	}
+
+	wg.Done()
+}
+
+func (a *ElasticHouseRepository) saveIndexItems(done chan bool) {
+	bulk := a.GetBulkService()
+	ctx := context.Background()
+	begin := time.Now()
+
+	for d := range a.results {
+		// Enqueue the document
+		bulk.Add(elastic.NewBulkIndexRequest().Id(d.ID).Doc(d))
+		if bulk.NumberOfActions() >= a.batchSize {
+			// Commit
+			res, err := bulk.Do(ctx)
+			if err != nil {
+				a.logger.WithFields(interfaces.LoggerFields{"error": err}).Fatal("House index bulk commit failed")
+				os.Exit(1)
+			}
+			if res.Errors {
+				a.logger.WithFields(interfaces.LoggerFields{"error": a.elasticClient.GetBulkError(res)}).Fatal("House index bulk commit failed")
+				os.Exit(1)
+			}
+		}
+	}
+
+	// Commit the final batch before exiting
+	if bulk.NumberOfActions() > 0 {
+		res, err := bulk.Do(ctx)
+		if err != nil {
+			a.logger.WithFields(interfaces.LoggerFields{"error": err}).Fatal("House index bulk commit failed")
+			os.Exit(1)
+		}
+		if res.Errors {
+			a.logger.WithFields(interfaces.LoggerFields{"error": a.elasticClient.GetBulkError(res)}).Fatal("House index bulk commit failed")
+			os.Exit(1)
+		}
+	}
+	a.logger.WithFields(interfaces.LoggerFields{"execTime": humanize.RelTime(begin, time.Now(), "", "")}).Info("House index execution time")
+	done <- true
 }

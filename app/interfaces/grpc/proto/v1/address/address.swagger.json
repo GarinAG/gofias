@@ -194,6 +194,43 @@
           "AddressHandler"
         ]
       }
+    },
+    "/api/v1/suggests": {
+      "get": {
+        "operationId": "AddressHandler_GetSuggests",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/address_v1AddressListResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "term",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
+          }
+        ],
+        "tags": [
+          "AddressHandler"
+        ]
+      }
     }
   },
   "definitions": {

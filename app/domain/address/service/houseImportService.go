@@ -18,7 +18,7 @@ type HouseImportService struct {
 	currentTime int64
 }
 
-func NewHouseService(houseRepo repository.HouseRepositoryInterface, logger interfaces.LoggerInterface) *HouseImportService {
+func NewHouseImportService(houseRepo repository.HouseRepositoryInterface, logger interfaces.LoggerInterface) *HouseImportService {
 	err := houseRepo.Init()
 	if err != nil {
 		logger.Panic(err.Error())
@@ -60,6 +60,7 @@ func (h *HouseImportService) ParseElement(element *xmlparser.XMLElement) (interf
 	result := entity.HouseObject{
 		ID:         element.Attrs["HOUSEID"],
 		AoGuid:     element.Attrs["AOGUID"],
+		HouseGuid:  element.Attrs["HOUSEGUID"],
 		HouseNum:   element.Attrs["HOUSENUM"],
 		PostalCode: element.Attrs["POSTALCODE"],
 		Okato:      element.Attrs["OKATO"],
@@ -101,4 +102,12 @@ func (h *HouseImportService) CountAllData() int64 {
 	}
 
 	return res
+}
+
+func (h *HouseImportService) Index(wg *sync.WaitGroup, indexChan <-chan entity.IndexObject) {
+	defer wg.Done()
+	err := h.HouseRepo.Index(indexChan)
+	if err != nil {
+		h.logger.Error(err.Error())
+	}
 }
