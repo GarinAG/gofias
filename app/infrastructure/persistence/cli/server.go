@@ -4,6 +4,7 @@ import (
 	"github.com/GarinAG/gofias/domain/address/service"
 	directoryService "github.com/GarinAG/gofias/domain/directory/service"
 	fiasApiService "github.com/GarinAG/gofias/domain/fiasApi/service"
+	osmService "github.com/GarinAG/gofias/domain/osm/service"
 	versionService "github.com/GarinAG/gofias/domain/version/service"
 	"github.com/GarinAG/gofias/infrastructure/registry"
 	"github.com/GarinAG/gofias/interfaces"
@@ -22,6 +23,7 @@ type App struct {
 	VersionService   *versionService.VersionService
 	DirectoryService *directoryService.DirectoryService
 	FiasApiService   *fiasApiService.FiasApiService
+	OsmService       *osmService.OsmService
 }
 
 func NewApp(ctn *registry.Container) *App {
@@ -46,6 +48,7 @@ func NewApp(ctn *registry.Container) *App {
 		HouseService:     ctn.Resolve("houseImportService").(*service.HouseImportService),
 		VersionService:   ctn.Resolve("versionService").(*versionService.VersionService),
 		FiasApiService:   ctn.Resolve("fiasApiService").(*fiasApiService.FiasApiService),
+		OsmService:       ctn.Resolve("osmService").(*osmService.OsmService),
 	}
 }
 

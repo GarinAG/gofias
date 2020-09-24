@@ -2,9 +2,11 @@ package registry
 
 import (
 	"flag"
+	"github.com/GarinAG/gofias/domain/address/repository"
 	"github.com/GarinAG/gofias/domain/address/service"
 	directoryService "github.com/GarinAG/gofias/domain/directory/service"
 	fiasApiService "github.com/GarinAG/gofias/domain/fiasApi/service"
+	osmService "github.com/GarinAG/gofias/domain/osm/service"
 	versionService "github.com/GarinAG/gofias/domain/version/service"
 	elasticRepository "github.com/GarinAG/gofias/infrastructure/persistence/address/elastic/repository"
 	"github.com/GarinAG/gofias/infrastructure/persistence/config"
@@ -61,13 +63,6 @@ func NewContainer(loggerPrefix string) (*Container, error) {
 			},
 		},
 		{
-			Name: "directoryService",
-			Build: func(ctn di.Container) (interface{}, error) {
-				return directoryService.NewDirectoryService(ctn.Get("logger").(interfaces.LoggerInterface),
-					ctn.Get("config").(interfaces.ConfigInterface)), nil
-			},
-		},
-		{
 			Name: "elasticClient",
 			Build: func(ctn di.Container) (interface{}, error) {
 				client := elasticHelper.NewElasticClient(ctn.Get("config").(interfaces.ConfigInterface), ctn.Get("logger").(interfaces.LoggerInterface))
@@ -76,20 +71,7 @@ func NewContainer(loggerPrefix string) (*Container, error) {
 			},
 		},
 		{
-			Name: "addressImportService",
-			Build: func(ctn di.Container) (interface{}, error) {
-				appConfig := ctn.Get("config").(interfaces.ConfigInterface)
-				repo := elasticRepository.NewElasticAddressRepository(
-					ctn.Get("elasticClient").(*elasticHelper.Client),
-					ctn.Get("logger").(interfaces.LoggerInterface),
-					appConfig.GetInt("batch.size"),
-					appConfig.GetString("project.prefix"),
-					appConfig.GetInt("workers.addresses"))
-				return service.NewAddressImportService(repo, ctn.Get("logger").(interfaces.LoggerInterface)), nil
-			},
-		},
-		{
-			Name: "houseImportService",
+			Name: "houseRepository",
 			Build: func(ctn di.Container) (interface{}, error) {
 				appConfig := ctn.Get("config").(interfaces.ConfigInterface)
 				repo := elasticRepository.NewElasticHouseRepository(
@@ -98,7 +80,47 @@ func NewContainer(loggerPrefix string) (*Container, error) {
 					appConfig.GetInt("batch.size"),
 					appConfig.GetString("project.prefix"),
 					appConfig.GetInt("workers.houses"))
-				return service.NewHouseImportService(repo, ctn.Get("logger").(interfaces.LoggerInterface)), nil
+
+				return repo, nil
+			},
+		},
+		{
+			Name: "addressRepository",
+			Build: func(ctn di.Container) (interface{}, error) {
+				appConfig := ctn.Get("config").(interfaces.ConfigInterface)
+				repo := elasticRepository.NewElasticAddressRepository(
+					ctn.Get("elasticClient").(*elasticHelper.Client),
+					ctn.Get("logger").(interfaces.LoggerInterface),
+					appConfig.GetInt("batch.size"),
+					appConfig.GetString("project.prefix"),
+					appConfig.GetInt("workers.addresses"))
+
+				return repo, nil
+			},
+		},
+		{
+			Name: "directoryService",
+			Build: func(ctn di.Container) (interface{}, error) {
+				return directoryService.NewDirectoryService(ctn.Get("logger").(interfaces.LoggerInterface),
+					ctn.Get("config").(interfaces.ConfigInterface)), nil
+			},
+		},
+		{
+			Name: "addressImportService",
+			Build: func(ctn di.Container) (interface{}, error) {
+				repo := ctn.Get("addressRepository").(repository.AddressRepositoryInterface)
+				logger := ctn.Get("logger").(interfaces.LoggerInterface)
+
+				return service.NewAddressImportService(repo, logger), nil
+			},
+		},
+		{
+			Name: "houseImportService",
+			Build: func(ctn di.Container) (interface{}, error) {
+				repo := ctn.Get("houseRepository").(repository.HouseRepositoryInterface)
+				logger := ctn.Get("logger").(interfaces.LoggerInterface)
+
+				return service.NewHouseImportService(repo, logger), nil
 			},
 		},
 		{
@@ -130,29 +152,29 @@ func NewContainer(loggerPrefix string) (*Container, error) {
 		{
 			Name: "addressService",
 			Build: func(ctn di.Container) (interface{}, error) {
-				appConfig := ctn.Get("config").(interfaces.ConfigInterface)
-				repo := elasticRepository.NewElasticAddressRepository(
-					ctn.Get("elasticClient").(*elasticHelper.Client),
-					ctn.Get("logger").(interfaces.LoggerInterface),
-					appConfig.GetInt("batch.size"),
-					appConfig.GetString("project.prefix"),
-					appConfig.GetInt("workers.addresses"))
+				repo := ctn.Get("addressRepository").(repository.AddressRepositoryInterface)
+				logger := ctn.Get("logger").(interfaces.LoggerInterface)
 
-				return service.NewAddressService(repo, ctn.Get("logger").(interfaces.LoggerInterface)), nil
+				return service.NewAddressService(repo, logger), nil
 			},
 		},
 		{
 			Name: "houseService",
 			Build: func(ctn di.Container) (interface{}, error) {
-				appConfig := ctn.Get("config").(interfaces.ConfigInterface)
-				repo := elasticRepository.NewElasticHouseRepository(
-					ctn.Get("elasticClient").(*elasticHelper.Client),
-					ctn.Get("logger").(interfaces.LoggerInterface),
-					appConfig.GetInt("batch.size"),
-					appConfig.GetString("project.prefix"),
-					appConfig.GetInt("workers.houses"))
+				repo := ctn.Get("houseRepository").(repository.HouseRepositoryInterface)
+				logger := ctn.Get("logger").(interfaces.LoggerInterface)
 
-				return service.NewHouseService(repo, ctn.Get("logger").(interfaces.LoggerInterface)), nil
+				return service.NewHouseService(repo, logger), nil
+			},
+		},
+		{
+			Name: "osmService",
+			Build: func(ctn di.Container) (interface{}, error) {
+				addressRepo := ctn.Get("addressRepository").(repository.AddressRepositoryInterface)
+				houseRepo := ctn.Get("houseRepository").(repository.HouseRepositoryInterface)
+				logger := ctn.Get("logger").(interfaces.LoggerInterface)
+
+				return osmService.NewOsmService(addressRepo, houseRepo, logger), nil
 			},
 		},
 	}...); err != nil {

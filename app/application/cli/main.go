@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	addressCli "github.com/GarinAG/gofias/domain/address/delivery/cli"
+	osmCli "github.com/GarinAG/gofias/domain/osm/delivery/cli"
 	versionCli "github.com/GarinAG/gofias/domain/version/delivery/cli"
 	indexCli "github.com/GarinAG/gofias/infrastructure/persistence/address/elastic/delivery/cli"
 	cli2 "github.com/GarinAG/gofias/infrastructure/persistence/cli"
@@ -33,6 +34,7 @@ func main() {
 	addressCli.RegisterImportCliEndpoint(app)
 	indexCli.RegisterIndexCliEndpoint(app)
 	versionCli.RegisterVersionCliEndpoint(app)
+	osmCli.RegisterOsmCliEndpoint(app)
 
 	// Запуск приложения
 	if err := app.Run(); err != nil {

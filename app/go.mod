@@ -19,6 +19,7 @@ require (
 	github.com/mattn/go-runewidth v0.0.9 // indirect
 	github.com/mitchellh/mapstructure v1.3.3 // indirect
 	github.com/olivere/elastic/v7 v7.0.19
+	github.com/paulmach/osm v0.1.1
 	github.com/pelletier/go-toml v1.8.0 // indirect
 	github.com/sarulabs/di v2.0.0+incompatible
 	github.com/sirupsen/logrus v1.6.0

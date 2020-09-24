@@ -1,9 +1,17 @@
 package util
 
+import (
+	"regexp"
+	"strings"
+)
+
 type addrShortName struct {
 	short string
 	full  string
 }
+
+var replaceList = make(map[string]string)
+var replaceSting = ""
 
 var shortNameList = map[string]addrShortName{
 	"ул":         addrShortName{short: "ул.", full: "Улица"},
@@ -177,4 +185,30 @@ func PrepareFullName(shortName, offName string) string {
 	}
 
 	return fullName
+}
+
+func prepareReplace() {
+	for _, addr := range shortNameList {
+		key := strings.ToLower(addr.full)
+		replaceList[key] = addr.short
+		replaceSting += key + "|"
+	}
+
+	replaceSting = strings.Trim(replaceSting, "|")
+}
+
+func Replace(address string) string {
+	if len(replaceList) == 0 {
+		prepareReplace()
+	}
+
+	match := "(?is)(" + replaceSting + ")"
+	re := regexp.MustCompile(match)
+	matched := re.FindAllString(address, -1)
+	for _, s := range matched {
+		r := regexp.MustCompile("(?is)" + s)
+		address = r.ReplaceAllString(address, replaceList[s])
+	}
+
+	return address
 }
