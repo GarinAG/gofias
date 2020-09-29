@@ -52,15 +52,15 @@ const (
 			},
 			"analyzer": {
 			  "ngram_analyzer": {
-				"filter": ["lowercase", "russian_stemmer", "ngram"],
+				"filter": ["lowercase", "ngram"],
 				"tokenizer": "standard"
 			  },
 			  "edge_ngram_analyzer": {
-				"filter": ["lowercase", "russian_stemmer", "edge_ngram"],
+				"filter": ["lowercase", "edge_ngram"],
 				"tokenizer": "standard"
 			  },
 			  "keyword_analyzer": {
-				"filter": ["lowercase", "russian_stemmer"],
+				"filter": ["lowercase"],
 				"tokenizer": "standard"
 			  }
 			}
@@ -86,6 +86,11 @@ const (
 		  "house_num": {
 			"type": "keyword"
 		  },
+          "address_suggest": {
+            "type": "text",
+            "analyzer": "edge_ngram_analyzer",
+            "search_analyzer": "keyword_analyzer"
+          },
 		  "house_full_num": {
 			"type": "text",
 			"analyzer": "ngram_analyzer",
@@ -269,7 +274,7 @@ func (a *ElasticHouseRepository) GetAddressByTerm(term string, size int64, from 
 	res, err := a.elasticClient.Client.
 		Search(a.indexName).
 		Query(elastic.NewBoolQuery().Must(
-			elastic.NewMatchQuery("full_address", term).Operator("and"))).
+			elastic.NewMatchQuery("address_suggest", term).Operator("and"))).
 		From(int(from)).
 		Size(int(size)).
 		Sort("full_address.keyword", true).
@@ -400,7 +405,18 @@ func (a *ElasticHouseRepository) prepareItemsBeforeSave(wg *sync.WaitGroup, inde
 		for _, house := range houses {
 			saveItem := dto.JsonHouseDto{}
 			saveItem.GetFromEntity(*house)
+
+			suggest := "дом д. " + saveItem.HouseNum
+			if saveItem.StructNum != "" {
+				suggest += ", строение стр. " + saveItem.StructNum
+			}
+			if saveItem.BuildNum != "" {
+				suggest += ", корпус кор. " + saveItem.BuildNum
+			}
+
+			saveItem.AddressSuggest = d.AddressSuggest + ", " + suggest
 			saveItem.FullAddress = d.FullAddress + ", " + saveItem.HouseFullNum
+
 			a.results <- saveItem
 		}
 	}

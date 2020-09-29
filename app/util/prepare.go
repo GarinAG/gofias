@@ -1,5 +1,7 @@
 package util
 
+import "strings"
+
 type addrShortName struct {
 	short string
 	full  string
@@ -177,4 +179,18 @@ func PrepareFullName(shortName, offName string) string {
 	}
 
 	return fullName
+}
+
+func PrepareSuggest(suggest, shortName, offName string) string {
+	name, exist := shortNameList[shortName]
+	if suggest != "" {
+		suggest += ", "
+	}
+	if exist && name.short != "" {
+		suggest += name.full + " " + name.short + " " + offName
+	} else {
+		suggest += shortName + " " + offName
+	}
+
+	return strings.ToLower(strings.TrimSpace(suggest))
 }

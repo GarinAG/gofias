@@ -88,6 +88,9 @@ func (item *JsonAddressDto) GetFromEntity(entity entity.AddressObject) {
 	if item.FullName == "" {
 		item.FullName = util.PrepareFullName(item.ShortName, item.FormalName)
 	}
+	if item.AddressSuggest == "" {
+		item.AddressSuggest = util.PrepareSuggest("", item.ShortName, item.FormalName)
+	}
 	if item.FullAddress == "" {
 		item.FullAddress = item.FullName
 	}
