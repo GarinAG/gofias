@@ -12,6 +12,7 @@ type JsonHouseDto struct {
 	HouseNum        string `json:"house_num"`
 	HouseFullNum    string `json:"house_full_num"`
 	FullAddress     string `json:"full_address"`
+	AddressSuggest  string `json:"address_suggest"`
 	PostalCode      string `json:"postal_code"`
 	Okato           string `json:"okato"`
 	Oktmo           string `json:"oktmo"`
@@ -49,15 +50,28 @@ func (item *JsonHouseDto) ToEntity() *entity.HouseObject {
 }
 
 func (item *JsonHouseDto) GetFromEntity(entity entity.HouseObject) {
-	fullNum := "д. " + entity.HouseNum
-	if entity.StructNum != "" {
-		fullNum += ", стр. " + entity.StructNum
-	}
-	if entity.BuildNum != "" {
-		fullNum += ", кор. " + entity.BuildNum
-	}
 	if entity.HouseFullNum == "" {
+		fullNum := "д. " + entity.HouseNum
+		if entity.StructNum != "" {
+			fullNum += ", стр. " + entity.StructNum
+		}
+		if entity.BuildNum != "" {
+			fullNum += ", кор. " + entity.BuildNum
+		}
+
 		entity.HouseFullNum = fullNum
+	}
+
+	if item.AddressSuggest == "" {
+		suggest := "дом (д.) " + entity.HouseNum
+		if entity.StructNum != "" {
+			suggest += ", строение (стр.) " + entity.StructNum
+		}
+		if entity.BuildNum != "" {
+			suggest += ", корпус (кор.) " + entity.BuildNum
+		}
+
+		item.AddressSuggest = suggest
 	}
 
 	item.ID = entity.ID
