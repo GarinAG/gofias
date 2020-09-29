@@ -48,11 +48,11 @@ const (
             },
             "analyzer": {
               "edge_ngram_analyzer": {
-                "filter": ["lowercase", "russian_stemmer", "edge_ngram"],
+                "filter": ["lowercase", "edge_ngram"],
                 "tokenizer": "standard"
               },
               "keyword_analyzer": {
-                "filter": ["lowercase", "russian_stemmer"],
+                "filter": ["lowercase"],
                 "tokenizer": "standard"
               }
             }
@@ -365,7 +365,7 @@ func (a *ElasticAddressRepository) GetCitiesByTerm(term string, size int64, from
 	res, err := a.elasticClient.Client.
 		Search(a.indexName).
 		Query(elastic.NewBoolQuery().Must(
-			elastic.NewMultiMatchQuery(term, "full_address").Operator("and")).
+			elastic.NewMultiMatchQuery(term, "address_suggest").Operator("and")).
 			Filter(elastic.NewTermsQuery("ao_level", 1, 4))).
 		From(int(from)).
 		Size(int(size)).
@@ -399,7 +399,7 @@ func (a *ElasticAddressRepository) GetAddressByTerm(term string, size int64, fro
 	res, err := a.elasticClient.Client.
 		Search(a.indexName).
 		Query(elastic.NewBoolQuery().Must(
-			elastic.NewMatchQuery("full_address", term).Operator("and"))).
+			elastic.NewMatchQuery("address_suggest", term).Operator("and"))).
 		From(int(from)).
 		Size(int(size)).
 		Sort("ao_level", true).
@@ -666,7 +666,7 @@ func (a *ElasticAddressRepository) prepareItemsBeforeSave(wg *sync.WaitGroup) {
 		guid := address.ParentGuid
 		address.FullName = util.PrepareFullName(address.ShortName, address.FormalName)
 		address.FullAddress = address.FullName
-		address.AddressSuggest = strings.TrimSpace(address.FormalName)
+		address.AddressSuggest = util.PrepareSuggest("", address.ShortName, address.FormalName)
 
 		for guid != "" {
 			a.indexMutex.RLock()
@@ -680,7 +680,7 @@ func (a *ElasticAddressRepository) prepareItemsBeforeSave(wg *sync.WaitGroup) {
 				dtoItem.GetFromEntity(*search)
 				guid = dtoItem.ParentGuid
 				address.FullAddress = util.PrepareFullName(dtoItem.ShortName, dtoItem.FormalName) + ", " + address.FullAddress
-				address.AddressSuggest = strings.TrimSpace(dtoItem.FormalName) + " " + address.AddressSuggest
+				address.AddressSuggest = util.PrepareSuggest(address.AddressSuggest, dtoItem.ShortName, dtoItem.FormalName)
 
 				if dtoItem.AoLevel >= 4 {
 					city = dtoItem
@@ -724,8 +724,6 @@ func (a *ElasticAddressRepository) prepareItemsBeforeSave(wg *sync.WaitGroup) {
 			address.StreetFull += util.PrepareFullName(address.StreetType, address.Street)
 		}
 
-		address.AddressSuggest = strings.ToLower(address.AddressSuggest)
-
 		a.results <- address
 	}
 
@@ -740,8 +738,9 @@ func (a *ElasticAddressRepository) saveIndexItems(done chan bool, begin time.Tim
 	for d := range a.results {
 		if d.AoLevel == 7 {
 			indexChan <- entity.IndexObject{
-				AoGuid:      d.AoGuid,
-				FullAddress: d.FullAddress,
+				AoGuid:         d.AoGuid,
+				FullAddress:    d.FullAddress,
+				AddressSuggest: d.AddressSuggest,
 			}
 		}
 
