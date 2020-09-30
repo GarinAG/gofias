@@ -102,14 +102,7 @@ const (
 			}
 		  },
 		  "full_address": {
-			"type": "text",
-			"analyzer": "edge_ngram_analyzer",
-			"search_analyzer": "keyword_analyzer",
-			"fields": {
-			  "keyword": {
-				"type": "keyword"
-			  }
-			}
+			"type": "keyword"
 		  },
 		  "str_num": {
 			"type": "keyword"
@@ -277,7 +270,7 @@ func (a *ElasticHouseRepository) GetAddressByTerm(term string, size int64, from 
 			elastic.NewMatchQuery("address_suggest", term).Operator("and"))).
 		From(int(from)).
 		Size(int(size)).
-		Sort("full_address.keyword", true).
+		Sort("full_address", true).
 		Do(context.Background())
 
 	if err != nil {
