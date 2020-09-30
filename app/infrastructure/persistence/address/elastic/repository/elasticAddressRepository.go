@@ -68,14 +68,7 @@ const (
             "search_analyzer": "keyword_analyzer"
           },
           "full_address": {
-            "type": "text",
-            "analyzer": "edge_ngram_analyzer",
-            "search_analyzer": "keyword_analyzer",
-            "fields": {
-			  "keyword": {
-				"type": "keyword"
-			  }
-			}
+            "type": "keyword"
           },
           "formal_name": {
             "type": "keyword"
@@ -370,7 +363,7 @@ func (a *ElasticAddressRepository) GetCitiesByTerm(term string, size int64, from
 		From(int(from)).
 		Size(int(size)).
 		Sort("ao_level", true).
-		Sort("full_address.keyword", true).
+		Sort("full_address", true).
 		Do(context.Background())
 
 	if err != nil {
@@ -403,7 +396,7 @@ func (a *ElasticAddressRepository) GetAddressByTerm(term string, size int64, fro
 		From(int(from)).
 		Size(int(size)).
 		Sort("ao_level", true).
-		Sort("full_address.keyword", true).
+		Sort("full_address", true).
 		Do(context.Background())
 
 	if err != nil {
@@ -435,7 +428,7 @@ func (a *ElasticAddressRepository) GetAddressByPostal(term string, size int64, f
 		From(int(from)).
 		Size(int(size)).
 		Sort("ao_level", true).
-		Sort("full_address.keyword", true).
+		Sort("full_address", true).
 		Do(context.Background())
 
 	if err != nil {
