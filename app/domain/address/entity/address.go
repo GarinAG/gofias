@@ -21,15 +21,19 @@ type AddressObject struct {
 	UpdateDate     string `xml:"UPDATEDATE,attr"`
 	FullName       string
 	FullAddress    string
+	AddressSuggest string
+	DistrictGuid   string
 	District       string
 	DistrictType   string
 	DistrictFull   string
+	SettlementGuid string
 	Settlement     string
 	SettlementType string
 	SettlementFull string
 	Street         string
 	StreetType     string
 	StreetFull     string
+	Location       string
 }
 
 func (a AddressObject) GetXmlFile() string {

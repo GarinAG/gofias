@@ -9,7 +9,7 @@ func RegisterOsmCliEndpoint(app *cli2.App) {
 	h := NewHandler(app.OsmService)
 	app.Server.Commands = append(app.Server.Commands, &cli.Command{
 		Name:  "osm-update",
-		Usage: "Update geo-data",
+		Usage: "UpdateFromExistItem geo-data",
 		Action: func(c *cli.Context) error {
 			h.Update()
 			return nil

@@ -119,6 +119,9 @@ const (
           "region_code": {
             "type": "keyword"
           },
+          "district_guid": {
+            "type": "keyword"
+          },
           "district": {
             "type": "keyword"
           },
@@ -126,6 +129,9 @@ const (
             "type": "keyword"
           },
           "district_full": {
+            "type": "keyword"
+          },
+          "settlement_guid": {
             "type": "keyword"
           },
           "settlement": {
@@ -165,7 +171,8 @@ const (
             "type": "date"
           },
           "location": {
-            "type": "geo_point"
+            "type": "geo_point",
+            "ignore_malformed": true
           },
           "houses": {
             "type": "nested",
@@ -289,7 +296,7 @@ func (a *ElasticAddressRepository) GetByGuid(guid string) (*entity.AddressObject
 	return nil, nil
 }
 
-func (a ElasticAddressRepository) GetCityByFormalName(term string) (*entity.AddressObject, error) {
+func (a *ElasticAddressRepository) GetCityByFormalName(term string) (*entity.AddressObject, error) {
 	res, err := a.elasticClient.Client.
 		Search(a.indexName).
 		Query(elastic.NewBoolQuery().Filter(
@@ -477,6 +484,13 @@ Loop:
 			saveItem.GetFromEntity(d.(entity.AddressObject))
 			// Enqueue the document
 			if saveItem.IsActive() {
+				if !isFull {
+					dbItem, _ := a.GetByGuid(saveItem.AoGuid)
+					if dbItem != nil {
+						saveItem.UpdateFromExistItem(*dbItem)
+					}
+				}
+
 				bulk.Add(elastic.NewBulkIndexRequest().Id(saveItem.ID).Doc(saveItem))
 			} else {
 				bulk.Add(elastic.NewBulkDeleteRequest().Id(saveItem.ID))
@@ -653,6 +667,7 @@ func (a *ElasticAddressRepository) createWorkerPool(noOfWorkers int) {
 
 func (a *ElasticAddressRepository) prepareItemsBeforeSave(wg *sync.WaitGroup) {
 	for address := range a.jobs {
+		address.UpdateBazisDate()
 		dtoItem := dto.JsonAddressDto{}
 		city := dto.JsonAddressDto{}
 		district := dto.JsonAddressDto{}
@@ -686,8 +701,10 @@ func (a *ElasticAddressRepository) prepareItemsBeforeSave(wg *sync.WaitGroup) {
 			}
 		}
 
+		address.DistrictGuid = district.AoGuid
 		address.District = strings.TrimSpace(district.FormalName)
 		address.DistrictType = strings.TrimSpace(district.ShortName)
+		address.SettlementGuid = city.AoGuid
 		address.Settlement = strings.TrimSpace(city.FormalName)
 		address.SettlementType = strings.TrimSpace(city.ShortName)
 

@@ -398,6 +398,7 @@ func (a *ElasticHouseRepository) prepareItemsBeforeSave(wg *sync.WaitGroup, inde
 		for _, house := range houses {
 			saveItem := dto.JsonHouseDto{}
 			saveItem.GetFromEntity(*house)
+			saveItem.UpdateBazisDate()
 
 			suggest := "дом д. " + saveItem.HouseNum
 			if saveItem.StructNum != "" {

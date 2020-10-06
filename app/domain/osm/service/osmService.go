@@ -41,96 +41,158 @@ func (o *OsmService) parseFile(filepath string) {
 	scanner := osmpbf.New(context.Background(), f, 3)
 	defer scanner.Close()
 
-	size := 0
-	var places []entity.Node
-	var buildings []entity.Node
+	addressChan := make(chan *entity.Node)
+	housesChan := make(chan *entity.Node)
+	done := make(chan bool)
+
+	go o.scan(scanner, done, addressChan, housesChan)
+	go o.updateAddresses(done, addressChan)
+
+	<-done
+	close(addressChan)
+	close(housesChan)
+
+	scanErr := scanner.Err()
+	if scanErr != nil {
+		panic(scanErr)
+	}
+}
+
+func (o *OsmService) scan(scanner *osmpbf.Scanner, done chan<- bool, addressChan chan<- *entity.Node, housesChan chan<- *entity.Node) {
 	tagList := "name"
 	conditions := make(map[string][]string)
 	for _, group := range strings.Split(tagList, ",") {
 		conditions[group] = strings.Split(group, "+")
 	}
 
+	bar := util.StartNewProgress(-1)
 	for scanner.Scan() {
-		/*if size > 100 {
-		    break
-		}*/
 		switch e := scanner.Object().(type) {
 		case *osm.Node:
 			//case *osm.Way:
 			//case *osm.Relation:
 			if e.Tags != nil {
 				if o.hasTags(e.TagMap()) && o.containsValidTags(e.TagMap(), conditions) {
-					place := o.getTagByName(e.TagMap(), "place")
-					building := o.getTagByName(e.TagMap(), "building")
-
-					postal := o.getTagByName(e.TagMap(), "addr:postcode")
-					region := o.getTagByName(e.TagMap(), "addr:region")
-					city := o.getTagByName(e.TagMap(), "addr:city")
-					street := o.getTagByName(e.TagMap(), "addr:street")
-					housenum := o.getTagByName(e.TagMap(), "addr:housenumber")
-					name := o.getTagByName(e.TagMap(), "name")
-
-					fullAddr := ""
-					if region != "" && region != name {
-						fullAddr = region
-					}
-					if city != "" && city != name {
-						if fullAddr != "" {
-							fullAddr += ", "
+					bar.Increment()
+					node := o.prepareItems(e)
+					if node != nil {
+						switch node.Type {
+						case "place":
+							addressChan <- node
+						case "building":
+							housesChan <- node
 						}
-						fullAddr += city
-					}
-					if street != "" && street != name {
-						if fullAddr != "" {
-							fullAddr += ", "
-						}
-						fullAddr += street
-					}
-					if housenum != "" && housenum != name {
-						if fullAddr != "" {
-							fullAddr += ", "
-						}
-						fullAddr += housenum
-					} else if name != "" {
-						if fullAddr != "" {
-							fullAddr += ", "
-						}
-						fullAddr += name
-					}
-
-					if fullAddr != "" {
-						if place != "" || (building != "" && street != "" && city != "") {
-							fullAddr = util.Replace(fullAddr)
-						} else {
-							continue
-						}
-
-						node := entity.Node{
-							Name:       fullAddr,
-							Lat:        e.Lat,
-							Lon:        e.Lon,
-							PostalCode: postal,
-						}
-
-						if place != "" {
-							places = append(places, node)
-						} else {
-							buildings = append(buildings, node)
-						}
-						size++
 					}
 				}
 			}
 		}
 	}
 
-	fmt.Printf("%+v\n", places)
-	fmt.Printf("%+v\n", buildings)
+	bar.Finish()
+	close(addressChan)
+	close(housesChan)
+	done <- true
+}
 
-	scanErr := scanner.Err()
-	if scanErr != nil {
-		panic(scanErr)
+func (o *OsmService) updateAddresses(done <-chan bool, addressChan <-chan *entity.Node) {
+	address := make(chan interface{})
+	addressCnt := make(chan int)
+	go o.addressRepo.InsertUpdateCollection(address, done, addressCnt, true)
+
+	for d := range addressChan {
+		items, _ := o.addressRepo.GetAddressByTerm(d.Name, 1, 0)
+		if len(items) > 0 {
+			item := items[0]
+			item.Location = fmt.Sprint(d.Lon, ",", d.Lat)
+			if item.PostalCode == "" && d.PostalCode != "" {
+				item.PostalCode = d.PostalCode
+			}
+			address <- *item
+		}
 	}
+	close(address)
+}
+
+func (o *OsmService) updateHouses(done <-chan bool, housesChan <-chan *entity.Node) {
+	houses := make(chan interface{})
+	housesCnt := make(chan int)
+	go o.houseRepo.InsertUpdateCollection(houses, done, housesCnt, true)
+
+	for d := range housesChan {
+		items, _ := o.addressRepo.GetAddressByTerm(d.Name, 1, 0)
+		if len(items) > 0 {
+			item := items[0]
+			item.Location = fmt.Sprint(d.Lon, ",", d.Lat)
+			if item.PostalCode == "" && d.PostalCode != "" {
+				item.PostalCode = d.PostalCode
+			}
+			houses <- *item
+		}
+	}
+
+	close(houses)
+}
+
+func (o *OsmService) prepareItems(e *osm.Node) *entity.Node {
+	place := o.getTagByName(e.TagMap(), "place")
+
+	postal := o.getTagByName(e.TagMap(), "addr:postcode")
+	region := o.getTagByName(e.TagMap(), "addr:region")
+	city := o.getTagByName(e.TagMap(), "addr:city")
+	street := o.getTagByName(e.TagMap(), "addr:street")
+	housenum := o.getTagByName(e.TagMap(), "addr:housenumber")
+	name := o.getTagByName(e.TagMap(), "name")
+
+	fullAddr := ""
+	if region != "" && region != name {
+		fullAddr = region
+	}
+	if city != "" && city != name {
+		if fullAddr != "" {
+			fullAddr += ", "
+		}
+		fullAddr += city
+	}
+	if street != "" && street != name {
+		if fullAddr != "" {
+			fullAddr += ", "
+		}
+		fullAddr += street
+	}
+	if housenum != "" && housenum != name {
+		if fullAddr != "" {
+			fullAddr += ", "
+		}
+		fullAddr += housenum
+	} else if name != "" {
+		if fullAddr != "" {
+			fullAddr += ", "
+		}
+		fullAddr += name
+	}
+
+	if fullAddr != "" {
+		if place != "" || (housenum != "" && street != "" && city != "") {
+			fullAddr = util.Replace(fullAddr)
+
+			node := entity.Node{
+				Name:       fullAddr,
+				Lat:        e.Lat,
+				Lon:        e.Lon,
+				PostalCode: postal,
+			}
+
+			if place != "" {
+				node.Type = "place"
+			} else {
+				node.Type = "building"
+			}
+
+			return &node
+		}
+	}
+
+	return nil
 }
 
 // check tags contain features from a groups of whitelists

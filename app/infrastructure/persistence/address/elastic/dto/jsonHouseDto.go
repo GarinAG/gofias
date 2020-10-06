@@ -24,28 +24,31 @@ type JsonHouseDto struct {
 	StructNum       string `json:"str_num"`
 	Counter         string `json:"counter"`
 	CadNum          string `json:"cad_num"`
+	Location        string `json:"location"`
 	BazisUpdateDate string `json:"bazis_update_date"`
 }
 
 func (item *JsonHouseDto) ToEntity() *entity.HouseObject {
 	return &entity.HouseObject{
-		ID:           item.ID,
-		HouseGuid:    item.HouseGuid,
-		AoGuid:       item.AoGuid,
-		HouseNum:     item.HouseNum,
-		HouseFullNum: item.HouseFullNum,
-		FullAddress:  item.FullAddress,
-		PostalCode:   item.PostalCode,
-		Okato:        item.Okato,
-		Oktmo:        item.Oktmo,
-		StartDate:    item.StartDate,
-		EndDate:      item.EndDate,
-		UpdateDate:   item.UpdateDate,
-		DivType:      item.DivType,
-		BuildNum:     item.BuildNum,
-		StructNum:    item.StructNum,
-		Counter:      item.Counter,
-		CadNum:       item.CadNum,
+		ID:             item.ID,
+		HouseGuid:      item.HouseGuid,
+		AoGuid:         item.AoGuid,
+		HouseNum:       item.HouseNum,
+		HouseFullNum:   item.HouseFullNum,
+		FullAddress:    item.FullAddress,
+		AddressSuggest: item.AddressSuggest,
+		PostalCode:     item.PostalCode,
+		Okato:          item.Okato,
+		Oktmo:          item.Oktmo,
+		StartDate:      item.StartDate,
+		EndDate:        item.EndDate,
+		UpdateDate:     item.UpdateDate,
+		DivType:        item.DivType,
+		BuildNum:       item.BuildNum,
+		StructNum:      item.StructNum,
+		Counter:        item.Counter,
+		CadNum:         item.CadNum,
+		Location:       item.Location,
 	}
 }
 
@@ -62,7 +65,7 @@ func (item *JsonHouseDto) GetFromEntity(entity entity.HouseObject) {
 		entity.HouseFullNum = fullNum
 	}
 
-	if item.AddressSuggest == "" {
+	if entity.AddressSuggest == "" {
 		suggest := "дом (д.) " + entity.HouseNum
 		if entity.StructNum != "" {
 			suggest += ", строение (стр.) " + entity.StructNum
@@ -71,7 +74,7 @@ func (item *JsonHouseDto) GetFromEntity(entity entity.HouseObject) {
 			suggest += ", корпус (кор.) " + entity.BuildNum
 		}
 
-		item.AddressSuggest = suggest
+		entity.AddressSuggest = suggest
 	}
 
 	item.ID = entity.ID
@@ -91,6 +94,7 @@ func (item *JsonHouseDto) GetFromEntity(entity entity.HouseObject) {
 	item.StructNum = entity.StructNum
 	item.Counter = entity.Counter
 	item.CadNum = entity.CadNum
+	item.Location = entity.Location
 	item.BazisUpdateDate = time.Now().Format("2006-01-02") + "T00:00:00Z"
 }
 
@@ -101,4 +105,8 @@ func (item *JsonHouseDto) IsActive() bool {
 	}
 
 	return true
+}
+
+func (item *JsonHouseDto) UpdateBazisDate() {
+	item.BazisUpdateDate = time.Now().Format("2006-01-02") + "T00:00:00Z"
 }
