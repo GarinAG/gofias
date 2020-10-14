@@ -135,7 +135,8 @@ const (
 			"type": "keyword"
 		  },
 		  "location": {
-			"type": "geo_point"
+			"type": "geo_point",
+            "ignore_malformed": true
 		  }
 		}
 	  }

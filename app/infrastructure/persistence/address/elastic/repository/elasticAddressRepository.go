@@ -403,6 +403,7 @@ func (a *ElasticAddressRepository) GetAddressByTerm(term string, size int64, fro
 		From(int(from)).
 		Size(int(size)).
 		Sort("ao_level", true).
+		Sort("_score", false).
 		Sort("full_address", true).
 		Do(context.Background())
 
@@ -566,9 +567,10 @@ func (a *ElasticAddressRepository) Index(isFull bool, start time.Time, guids []s
 
 func (a *ElasticAddressRepository) prepareIndexQuery(isFull bool, start time.Time, guids []string) elastic.Query {
 	var query elastic.Query
-	queries := []elastic.Query{elastic.NewRangeQuery("ao_level").Gt(1)}
+	var queries []elastic.Query
 	if !isFull {
 		a.logger.Info("Indexing...")
+		queries = append(queries, elastic.NewRangeQuery("ao_level").Gt(1))
 		queries = append(queries, elastic.NewRangeQuery("bazis_update_date").Gte(start.Format("2006-01-02")+"T00:00:00Z"))
 		if len(guids) > 0 {
 			guidsInterface := util.ConvertStringSliceToInterface(guids)
@@ -746,7 +748,7 @@ func (a *ElasticAddressRepository) saveIndexItems(done chan bool, begin time.Tim
 	bar := util.StartNewProgress(int(total))
 
 	for d := range a.results {
-		if d.AoLevel == 7 {
+		if d.AoLevel == 7 && indexChan != nil {
 			indexChan <- entity.IndexObject{
 				AoGuid:         d.AoGuid,
 				FullAddress:    d.FullAddress,

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/GarinAG/gofias/domain/address/repository"
+	"github.com/GarinAG/gofias/domain/directory/service"
 	"github.com/GarinAG/gofias/domain/osm/entity"
 	"github.com/GarinAG/gofias/interfaces"
 	"github.com/GarinAG/gofias/util"
@@ -14,21 +15,37 @@ import (
 )
 
 type OsmService struct {
-	addressRepo repository.AddressRepositoryInterface
-	houseRepo   repository.HouseRepositoryInterface
-	logger      interfaces.LoggerInterface
+	addressRepo     repository.AddressRepositoryInterface
+	houseRepo       repository.HouseRepositoryInterface
+	logger          interfaces.LoggerInterface
+	downloadService *service.DownloadService
+	config          interfaces.ConfigInterface
 }
 
-func NewOsmService(addressRepo repository.AddressRepositoryInterface, houseRepo repository.HouseRepositoryInterface, logger interfaces.LoggerInterface) *OsmService {
+func NewOsmService(
+	addressRepo repository.AddressRepositoryInterface,
+	houseRepo repository.HouseRepositoryInterface,
+	downloadService *service.DownloadService,
+	logger interfaces.LoggerInterface,
+	config interfaces.ConfigInterface,
+) *OsmService {
 	return &OsmService{
-		addressRepo: addressRepo,
-		houseRepo:   houseRepo,
-		logger:      logger,
+		addressRepo:     addressRepo,
+		houseRepo:       houseRepo,
+		logger:          logger,
+		downloadService: downloadService,
+		config:          config,
 	}
 }
 
 func (o *OsmService) Update() {
-	o.parseFile("./central-fed-district-latest.osm.pbf")
+	file, err := o.downloadService.DownloadFile(o.config.GetString("osm.url"), "russia.pbf")
+	if err != nil {
+		o.logger.Fatal(err.Error())
+	}
+	if file != nil {
+		o.parseFile(file.Path)
+	}
 }
 
 func (o *OsmService) parseFile(filepath string) {
@@ -44,14 +61,18 @@ func (o *OsmService) parseFile(filepath string) {
 	addressChan := make(chan *entity.Node)
 	housesChan := make(chan *entity.Node)
 	done := make(chan bool)
+	housesCnt, _ := o.houseRepo.CountAllData(nil)
+	if housesCnt == 0 {
+		housesChan = nil
+	}
 
 	go o.scan(scanner, done, addressChan, housesChan)
 	go o.updateAddresses(done, addressChan)
+	if housesChan != nil {
+		go o.updateHouses(done, housesChan)
+	}
 
 	<-done
-	close(addressChan)
-	close(housesChan)
-
 	scanErr := scanner.Err()
 	if scanErr != nil {
 		panic(scanErr)
@@ -80,7 +101,9 @@ func (o *OsmService) scan(scanner *osmpbf.Scanner, done chan<- bool, addressChan
 						case "place":
 							addressChan <- node
 						case "building":
-							housesChan <- node
+							if housesChan != nil {
+								housesChan <- node
+							}
 						}
 					}
 				}
@@ -103,11 +126,14 @@ func (o *OsmService) updateAddresses(done <-chan bool, addressChan <-chan *entit
 		items, _ := o.addressRepo.GetAddressByTerm(d.Name, 1, 0)
 		if len(items) > 0 {
 			item := items[0]
-			item.Location = fmt.Sprint(d.Lon, ",", d.Lat)
-			if item.PostalCode == "" && d.PostalCode != "" {
-				item.PostalCode = d.PostalCode
+			location := fmt.Sprint(d.Lon, ",", d.Lat)
+			if item.Location != location || item.PostalCode != d.PostalCode {
+				item.Location = location
+				if item.PostalCode == "" && d.PostalCode != "" {
+					item.PostalCode = d.PostalCode
+				}
+				address <- *item
 			}
-			address <- *item
 		}
 	}
 	close(address)
@@ -119,14 +145,17 @@ func (o *OsmService) updateHouses(done <-chan bool, housesChan <-chan *entity.No
 	go o.houseRepo.InsertUpdateCollection(houses, done, housesCnt, true)
 
 	for d := range housesChan {
-		items, _ := o.addressRepo.GetAddressByTerm(d.Name, 1, 0)
+		items, _ := o.houseRepo.GetAddressByTerm(d.Name, 1, 0)
 		if len(items) > 0 {
 			item := items[0]
-			item.Location = fmt.Sprint(d.Lon, ",", d.Lat)
-			if item.PostalCode == "" && d.PostalCode != "" {
-				item.PostalCode = d.PostalCode
+			location := fmt.Sprint(d.Lon, ",", d.Lat)
+			if item.Location != location || item.PostalCode != d.PostalCode {
+				item.Location = location
+				if item.PostalCode == "" && d.PostalCode != "" {
+					item.PostalCode = d.PostalCode
+				}
+				houses <- *item
 			}
-			houses <- *item
 		}
 	}
 
@@ -136,6 +165,7 @@ func (o *OsmService) updateHouses(done <-chan bool, housesChan <-chan *entity.No
 func (o *OsmService) prepareItems(e *osm.Node) *entity.Node {
 	place := o.getTagByName(e.TagMap(), "place")
 
+	official := strings.Split(o.getTagByName(e.TagMap(), "official_status"), ":")
 	postal := o.getTagByName(e.TagMap(), "addr:postcode")
 	region := o.getTagByName(e.TagMap(), "addr:region")
 	city := o.getTagByName(e.TagMap(), "addr:city")
@@ -143,53 +173,54 @@ func (o *OsmService) prepareItems(e *osm.Node) *entity.Node {
 	housenum := o.getTagByName(e.TagMap(), "addr:housenumber")
 	name := o.getTagByName(e.TagMap(), "name")
 
-	fullAddr := ""
-	if region != "" && region != name {
-		fullAddr = region
-	}
-	if city != "" && city != name {
-		if fullAddr != "" {
-			fullAddr += ", "
+	if place != "" || (housenum != "" && street != "" && city != "") {
+		fullAddr := ""
+		if region != "" && region != name {
+			fullAddr = region
 		}
-		fullAddr += city
-	}
-	if street != "" && street != name {
-		if fullAddr != "" {
-			fullAddr += ", "
+		if city != "" && city != name {
+			if fullAddr != "" {
+				fullAddr += ", "
+			}
+			fullAddr += city
 		}
-		fullAddr += street
-	}
-	if housenum != "" && housenum != name {
-		if fullAddr != "" {
-			fullAddr += ", "
+		if street != "" && street != name {
+			if fullAddr != "" {
+				fullAddr += ", "
+			}
+			fullAddr += street
 		}
-		fullAddr += housenum
-	} else if name != "" {
-		if fullAddr != "" {
-			fullAddr += ", "
-		}
-		fullAddr += name
-	}
-
-	if fullAddr != "" {
-		if place != "" || (housenum != "" && street != "" && city != "") {
-			fullAddr = util.Replace(fullAddr)
-
-			node := entity.Node{
-				Name:       fullAddr,
-				Lat:        e.Lat,
-				Lon:        e.Lon,
-				PostalCode: postal,
+		if housenum != "" && housenum != name {
+			if fullAddr != "" {
+				fullAddr += ", "
+			}
+			fullAddr += housenum
+		} else if name != "" {
+			if fullAddr != "" {
+				fullAddr += ", "
+			}
+			if len(official) > 0 {
+				name = official[len(official)-1] + " " + name
 			}
 
-			if place != "" {
-				node.Type = "place"
-			} else {
-				node.Type = "building"
-			}
-
-			return &node
+			fullAddr += name
 		}
+
+		replacedAddr := util.Replace(fullAddr)
+		node := entity.Node{
+			Name:       replacedAddr,
+			Lat:        e.Lat,
+			Lon:        e.Lon,
+			PostalCode: postal,
+		}
+
+		if place != "" {
+			node.Type = "place"
+		} else {
+			node.Type = "building"
+		}
+
+		return &node
 	}
 
 	return nil

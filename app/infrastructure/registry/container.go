@@ -99,9 +99,19 @@ func NewContainer(loggerPrefix string) (*Container, error) {
 			},
 		},
 		{
+			Name: "downloadService",
+			Build: func(ctn di.Container) (interface{}, error) {
+				return directoryService.NewDownloadService(
+					ctn.Get("logger").(interfaces.LoggerInterface),
+					ctn.Get("config").(interfaces.ConfigInterface)), nil
+			},
+		},
+		{
 			Name: "directoryService",
 			Build: func(ctn di.Container) (interface{}, error) {
-				return directoryService.NewDirectoryService(ctn.Get("logger").(interfaces.LoggerInterface),
+				return directoryService.NewDirectoryService(
+					ctn.Get("downloadService").(*directoryService.DownloadService),
+					ctn.Get("logger").(interfaces.LoggerInterface),
 					ctn.Get("config").(interfaces.ConfigInterface)), nil
 			},
 		},
@@ -173,8 +183,10 @@ func NewContainer(loggerPrefix string) (*Container, error) {
 				addressRepo := ctn.Get("addressRepository").(repository.AddressRepositoryInterface)
 				houseRepo := ctn.Get("houseRepository").(repository.HouseRepositoryInterface)
 				logger := ctn.Get("logger").(interfaces.LoggerInterface)
+				downloadService := ctn.Get("downloadService").(*directoryService.DownloadService)
+				appConfig := ctn.Get("config").(interfaces.ConfigInterface)
 
-				return osmService.NewOsmService(addressRepo, houseRepo, logger), nil
+				return osmService.NewOsmService(addressRepo, houseRepo, downloadService, logger, appConfig), nil
 			},
 		},
 	}...); err != nil {

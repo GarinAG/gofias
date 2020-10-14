@@ -11,10 +11,10 @@ type DirectoryService struct {
 	downloadService *DownloadService
 }
 
-func NewDirectoryService(logger interfaces.LoggerInterface, config interfaces.ConfigInterface) *DirectoryService {
+func NewDirectoryService(downloadService *DownloadService, logger interfaces.LoggerInterface, config interfaces.ConfigInterface) *DirectoryService {
 	return &DirectoryService{
 		logger:          logger,
-		downloadService: NewDownloadService(logger, config),
+		downloadService: downloadService,
 	}
 }
 
