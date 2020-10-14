@@ -224,6 +224,10 @@ type ElasticAddressRepository struct {
 }
 
 func NewElasticAddressRepository(elasticClient *elasticHelper.Client, logger interfaces.LoggerInterface, batchSize int, prefix string, noOfWorkers int) repository.AddressRepositoryInterface {
+	if noOfWorkers == 0 {
+		noOfWorkers = 5
+	}
+
 	return &ElasticAddressRepository{
 		logger:        logger,
 		elasticClient: elasticClient,

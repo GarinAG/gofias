@@ -167,6 +167,10 @@ type ElasticHouseRepository struct {
 }
 
 func NewElasticHouseRepository(elasticClient *elasticHelper.Client, logger interfaces.LoggerInterface, batchSize int, prefix string, noOfWorkers int) repository.HouseRepositoryInterface {
+	if noOfWorkers == 0 {
+		noOfWorkers = 10
+	}
+
 	return &ElasticHouseRepository{
 		elasticClient: elasticClient,
 		logger:        logger,

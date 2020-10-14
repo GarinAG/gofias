@@ -33,3 +33,8 @@ grpc:
     enable: true
     address: localhost
     port: 8081
+workers:
+  houses: 10
+  addresses: 5
+osm:
+  url: http://download.geofabrik.de/russia-latest.osm.pbf
