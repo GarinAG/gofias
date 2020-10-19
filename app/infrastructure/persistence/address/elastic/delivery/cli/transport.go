@@ -5,6 +5,7 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+// Регистрация основной команды индексации
 func RegisterIndexCliEndpoint(app *cli2.App) {
 	h := NewHandler(app.ImportService, app.Logger)
 	app.Server.Commands = append(app.Server.Commands, &cli.Command{

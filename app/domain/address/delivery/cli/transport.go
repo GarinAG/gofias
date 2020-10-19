@@ -5,17 +5,20 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+// Регистрация команды импорта
 func RegisterImportCliEndpoint(app *cli2.App) {
 	h := NewHandler(app.ImportService, app.Logger)
 	app.Server.Commands = append(app.Server.Commands, &cli.Command{
 		Name:  "update",
 		Usage: "Run fias import",
 		Flags: []cli.Flag{
+			// Флаг пропуска домов
 			&cli.BoolFlag{
 				Name:  "skip-houses",
 				Value: false,
 				Usage: "Skip houses import",
 			},
+			// Флаг запрета очистки временной директории
 			&cli.BoolFlag{
 				Name:  "skip-clear",
 				Value: false,

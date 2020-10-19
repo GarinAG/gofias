@@ -14,16 +14,19 @@ const (
 	httpFiasApiLastFile = "GetLastDownloadFileInfo"
 )
 
+// Репозиторий версий http
 type HttpFiasApiRepository struct {
-	config interfaces.ConfigInterface
+	config interfaces.ConfigInterface // Конфигурация
 }
 
+// Инициализация репозитория
 func NewHttpFiasApiRepository(config interfaces.ConfigInterface) repository.FiasApiRepositoryInterface {
 	return &HttpFiasApiRepository{
 		config: config,
 	}
 }
 
+// Получить все версии БД ФИАС
 func (f *HttpFiasApiRepository) GetAllDownloadFileInfo() ([]entity.DownloadFileInfo, error) {
 	var files []entity.DownloadFileInfo
 	var jsonFiles []dto.JsonDownloadFileInfo
@@ -33,19 +36,20 @@ func (f *HttpFiasApiRepository) GetAllDownloadFileInfo() ([]entity.DownloadFileI
 	if err != nil {
 		return files, err
 	}
-	json.NewDecoder(res.Body).Decode(&jsonFiles)
+	// Конвертирует структуру ответа в DTO
+	err = json.NewDecoder(res.Body).Decode(&jsonFiles)
+	if err != nil {
+		return files, err
+	}
 	for _, item := range jsonFiles {
-		files = append(files, entity.DownloadFileInfo{
-			VersionId:          item.VersionId,
-			TextVersion:        item.TextVersion,
-			FiasCompleteXmlUrl: item.FiasCompleteXmlUrl,
-			FiasDeltaXmlUrl:    item.FiasDeltaXmlUrl,
-		})
+		// Конвертирует DTO в объект версии
+		files = append(files, f.convertToEntity(item))
 	}
 
 	return files, nil
 }
 
+// Получить последнюю версию БД ФИАС
 func (f *HttpFiasApiRepository) GetLastDownloadFileInfo() (entity.DownloadFileInfo, error) {
 	var file entity.DownloadFileInfo
 	var jsonFile dto.JsonDownloadFileInfo
@@ -54,17 +58,18 @@ func (f *HttpFiasApiRepository) GetLastDownloadFileInfo() (entity.DownloadFileIn
 	if err != nil {
 		return file, err
 	}
-	json.NewDecoder(res.Body).Decode(&jsonFile)
-	file = entity.DownloadFileInfo{
-		VersionId:          jsonFile.VersionId,
-		TextVersion:        jsonFile.TextVersion,
-		FiasCompleteXmlUrl: jsonFile.FiasCompleteXmlUrl,
-		FiasDeltaXmlUrl:    jsonFile.FiasDeltaXmlUrl,
+	// Конвертирует структуру ответа в DTO
+	err = json.NewDecoder(res.Body).Decode(&jsonFile)
+	if err != nil {
+		return file, err
 	}
+	// Конвертирует DTO в объект версии
+	file = f.convertToEntity(jsonFile)
 
 	return file, nil
 }
 
+// Инициализация http-клиента
 func (f *HttpFiasApiRepository) getHttpClient() *http.Client {
 	return &http.Client{Transport: &http.Transport{
 		MaxIdleConns:        20,
@@ -72,6 +77,7 @@ func (f *HttpFiasApiRepository) getHttpClient() *http.Client {
 	}}
 }
 
+// Конвертирует DTO в объект версии
 func (f *HttpFiasApiRepository) convertToEntity(item dto.JsonDownloadFileInfo) entity.DownloadFileInfo {
 	return entity.DownloadFileInfo{
 		VersionId:          item.VersionId,
@@ -81,6 +87,7 @@ func (f *HttpFiasApiRepository) convertToEntity(item dto.JsonDownloadFileInfo) e
 	}
 }
 
+// Конвертирует объект версии в DTO
 func (f *HttpFiasApiRepository) convertToDto(item entity.DownloadFileInfo) dto.JsonDownloadFileInfo {
 	return dto.JsonDownloadFileInfo{
 		VersionId:          item.VersionId,

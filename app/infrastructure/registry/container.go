@@ -23,10 +23,12 @@ var (
 	ConfigType = flag.String("config-type", "yaml", "Config type")
 )
 
+// Объект контейнера зависимостей
 type Container struct {
-	ctn di.Container
+	ctn di.Container // Контейнер
 }
 
+// Инициализация контейнера
 func NewContainer(loggerPrefix string) (*Container, error) {
 	builder, err := di.NewBuilder()
 	if err != nil {
@@ -34,6 +36,7 @@ func NewContainer(loggerPrefix string) (*Container, error) {
 	}
 
 	if err := builder.Add([]di.Def{
+		// Конфигурация
 		{
 			Name: "config",
 			Build: func(ctn di.Container) (interface{}, error) {
@@ -43,6 +46,7 @@ func NewContainer(loggerPrefix string) (*Container, error) {
 				return &appConfig, err
 			},
 		},
+		// Логгер
 		{
 			Name: "logger",
 			Build: func(ctn di.Container) (interface{}, error) {
@@ -62,6 +66,7 @@ func NewContainer(loggerPrefix string) (*Container, error) {
 				return logger, nil
 			},
 		},
+		// Клиент эластика
 		{
 			Name: "elasticClient",
 			Build: func(ctn di.Container) (interface{}, error) {
@@ -70,6 +75,7 @@ func NewContainer(loggerPrefix string) (*Container, error) {
 				return client, nil
 			},
 		},
+		// Репозиторий домов
 		{
 			Name: "houseRepository",
 			Build: func(ctn di.Container) (interface{}, error) {
@@ -84,6 +90,7 @@ func NewContainer(loggerPrefix string) (*Container, error) {
 				return repo, nil
 			},
 		},
+		// Репозиторий адресов
 		{
 			Name: "addressRepository",
 			Build: func(ctn di.Container) (interface{}, error) {
@@ -98,6 +105,7 @@ func NewContainer(loggerPrefix string) (*Container, error) {
 				return repo, nil
 			},
 		},
+		// Сервис загрузок
 		{
 			Name: "downloadService",
 			Build: func(ctn di.Container) (interface{}, error) {
@@ -106,6 +114,7 @@ func NewContainer(loggerPrefix string) (*Container, error) {
 					ctn.Get("config").(interfaces.ConfigInterface)), nil
 			},
 		},
+		// Сервис работы с файлами
 		{
 			Name: "directoryService",
 			Build: func(ctn di.Container) (interface{}, error) {
@@ -115,6 +124,7 @@ func NewContainer(loggerPrefix string) (*Container, error) {
 					ctn.Get("config").(interfaces.ConfigInterface)), nil
 			},
 		},
+		// Сервис импорта адресов
 		{
 			Name: "addressImportService",
 			Build: func(ctn di.Container) (interface{}, error) {
@@ -124,6 +134,7 @@ func NewContainer(loggerPrefix string) (*Container, error) {
 				return service.NewAddressImportService(repo, logger), nil
 			},
 		},
+		// Сервис импорта домов
 		{
 			Name: "houseImportService",
 			Build: func(ctn di.Container) (interface{}, error) {
@@ -133,6 +144,7 @@ func NewContainer(loggerPrefix string) (*Container, error) {
 				return service.NewHouseImportService(repo, logger), nil
 			},
 		},
+		// Сервис версий
 		{
 			Name: "versionService",
 			Build: func(ctn di.Container) (interface{}, error) {
@@ -141,6 +153,7 @@ func NewContainer(loggerPrefix string) (*Container, error) {
 				return versionService.NewVersionService(repo, ctn.Get("logger").(interfaces.LoggerInterface)), nil
 			},
 		},
+		// Сервис работы с ФИАС API
 		{
 			Name: "fiasApiService",
 			Build: func(ctn di.Container) (interface{}, error) {
@@ -148,6 +161,7 @@ func NewContainer(loggerPrefix string) (*Container, error) {
 				return fiasApiService.NewFiasApiService(repo, ctn.Get("logger").(interfaces.LoggerInterface)), nil
 			},
 		},
+		// Сервис импорта
 		{
 			Name: "importService",
 			Build: func(ctn di.Container) (interface{}, error) {
@@ -159,6 +173,7 @@ func NewContainer(loggerPrefix string) (*Container, error) {
 					ctn.Get("config").(interfaces.ConfigInterface)), nil
 			},
 		},
+		// Сервис адресов
 		{
 			Name: "addressService",
 			Build: func(ctn di.Container) (interface{}, error) {
@@ -168,6 +183,7 @@ func NewContainer(loggerPrefix string) (*Container, error) {
 				return service.NewAddressService(repo, logger), nil
 			},
 		},
+		// Сервис домов
 		{
 			Name: "houseService",
 			Build: func(ctn di.Container) (interface{}, error) {
@@ -177,6 +193,7 @@ func NewContainer(loggerPrefix string) (*Container, error) {
 				return service.NewHouseService(repo, logger), nil
 			},
 		},
+		// Сервис работы с OpenStreetMap
 		{
 			Name: "osmService",
 			Build: func(ctn di.Container) (interface{}, error) {
@@ -198,10 +215,12 @@ func NewContainer(loggerPrefix string) (*Container, error) {
 	}, nil
 }
 
+// Получить зависимость
 func (c *Container) Resolve(name string) interface{} {
 	return c.ctn.Get(name)
 }
 
+// Очистить контейнер
 func (c *Container) Clean() error {
 	return c.ctn.Clean()
 }

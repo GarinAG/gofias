@@ -1,5 +1,6 @@
 package entity
 
+// Объект разбора OSM-файла
 type Node struct {
 	Type       string
 	Name       string

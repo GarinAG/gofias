@@ -1,5 +1,6 @@
 package entity
 
+// Объект версии
 type Version struct {
 	ID               int
 	FiasVersion      string
@@ -8,6 +9,7 @@ type Version struct {
 	RecUpdateHouses  int
 }
 
+// Получить название таблицы в БД
 func (v Version) TableName() string {
 	return "fias_version"
 }

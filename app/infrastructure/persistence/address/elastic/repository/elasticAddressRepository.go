@@ -19,6 +19,7 @@ import (
 )
 
 const (
+	// Структура индекса в эластике
 	addrIndexSettings = `
 	{
       "settings": {
@@ -189,6 +190,7 @@ const (
       }
     }
     `
+	// Обработчик удаления старых адресов
 	addrPipelineId   = "addr_drop_pipeline"
 	addrDropPipeline = `
 	{
@@ -211,18 +213,20 @@ const (
     `
 )
 
+// Репозиторий адресов в эластике
 type ElasticAddressRepository struct {
-	logger        interfaces.LoggerInterface
-	batchSize     int
-	elasticClient *elasticHelper.Client
-	indexName     string
-	jobs          chan dto.JsonAddressDto
-	results       chan dto.JsonAddressDto
-	noOfWorkers   int
-	indexCache    map[string]*entity.AddressObject
-	indexMutex    sync.RWMutex
+	logger        interfaces.LoggerInterface       // Логгер
+	batchSize     int                              // Размер пачки для обновления
+	elasticClient *elasticHelper.Client            // Клиент эластика
+	indexName     string                           // Название индекса
+	jobs          chan dto.JsonAddressDto          // Список задач для индексации
+	results       chan dto.JsonAddressDto          // Список объектов индексации
+	noOfWorkers   int                              // Количество обработчиков индексации
+	indexCache    map[string]*entity.AddressObject // Кэш объектов индексации
+	indexMutex    sync.RWMutex                     // Объект блокировки записи в кэш
 }
 
+// Инициализация репозитория
 func NewElasticAddressRepository(elasticClient *elasticHelper.Client, logger interfaces.LoggerInterface, batchSize int, prefix string, noOfWorkers int) repository.AddressRepositoryInterface {
 	if noOfWorkers == 0 {
 		noOfWorkers = 5
@@ -237,23 +241,29 @@ func NewElasticAddressRepository(elasticClient *elasticHelper.Client, logger int
 	}
 }
 
+// Инициализация индекса
 func (a *ElasticAddressRepository) Init() error {
+	// Создание индекса
 	err := a.elasticClient.CreateIndex(a.indexName, addrIndexSettings)
 	if err != nil {
 		return err
 	}
 
+	// Добавление процессора для удаления старых объектов
 	return a.elasticClient.CreatePreprocessor(addrPipelineId, addrDropPipeline)
 }
 
+// Получить назваине индекса
 func (a *ElasticAddressRepository) GetIndexName() string {
 	return a.indexName
 }
 
+// Удалить индекс
 func (a *ElasticAddressRepository) Clear() error {
 	return a.elasticClient.DropIndex(a.indexName)
 }
 
+// Найти адрес по названию
 func (a *ElasticAddressRepository) GetByFormalName(term string) (*entity.AddressObject, error) {
 	res, err := a.elasticClient.Client.
 		Search(a.indexName).
@@ -266,6 +276,7 @@ func (a *ElasticAddressRepository) GetByFormalName(term string) (*entity.Address
 	}
 
 	var item *dto.JsonAddressDto
+	// Конвертирует структуру ответа в DTO
 	if len(res.Hits.Hits) > 0 {
 		if err := json.Unmarshal(res.Hits.Hits[0].Source, &item); err != nil {
 			return nil, err
@@ -277,6 +288,7 @@ func (a *ElasticAddressRepository) GetByFormalName(term string) (*entity.Address
 	return nil, nil
 }
 
+// Найти адрес по GUID
 func (a *ElasticAddressRepository) GetByGuid(guid string) (*entity.AddressObject, error) {
 	res, err := a.elasticClient.Client.
 		Search(a.indexName).
@@ -289,6 +301,7 @@ func (a *ElasticAddressRepository) GetByGuid(guid string) (*entity.AddressObject
 	}
 
 	var item *dto.JsonAddressDto
+	// Конвертирует структуру ответа в DTO
 	if len(res.Hits.Hits) > 0 {
 		if err := json.Unmarshal(res.Hits.Hits[0].Source, &item); err != nil {
 			return nil, err
@@ -300,6 +313,7 @@ func (a *ElasticAddressRepository) GetByGuid(guid string) (*entity.AddressObject
 	return nil, nil
 }
 
+// Найти город по названию
 func (a *ElasticAddressRepository) GetCityByFormalName(term string) (*entity.AddressObject, error) {
 	res, err := a.elasticClient.Client.
 		Search(a.indexName).
@@ -316,6 +330,7 @@ func (a *ElasticAddressRepository) GetCityByFormalName(term string) (*entity.Add
 	}
 
 	var item *dto.JsonAddressDto
+	// Конвертирует структуру ответа в DTO
 	if len(res.Hits.Hits) > 0 {
 		if err := json.Unmarshal(res.Hits.Hits[0].Source, &item); err != nil {
 			return nil, err
@@ -327,6 +342,7 @@ func (a *ElasticAddressRepository) GetCityByFormalName(term string) (*entity.Add
 	return nil, nil
 }
 
+// Подсчитать количество адресов по фильтру
 func (a *ElasticAddressRepository) CountAllData(query interface{}) (int64, error) {
 	if query == nil {
 		query = elastic.NewBoolQuery()
@@ -334,6 +350,7 @@ func (a *ElasticAddressRepository) CountAllData(query interface{}) (int64, error
 	return a.elasticClient.CountAllData(a.GetIndexName(), query.(elastic.Query))
 }
 
+// Получить список всех городов
 func (a *ElasticAddressRepository) GetCities() ([]*entity.AddressObject, error) {
 	res, err := a.elasticClient.Client.
 		Search(a.indexName).
@@ -349,6 +366,7 @@ func (a *ElasticAddressRepository) GetCities() ([]*entity.AddressObject, error) 
 
 	var items []*entity.AddressObject
 	var item *dto.JsonAddressDto
+	// Конвертирует структуру ответа в DTO
 	if len(res.Hits.Hits) > 0 {
 		for _, el := range res.Hits.Hits {
 			if err := json.Unmarshal(el.Source, &item); err != nil {
@@ -361,6 +379,7 @@ func (a *ElasticAddressRepository) GetCities() ([]*entity.AddressObject, error) 
 	return items, nil
 }
 
+// Найти города по подстроке
 func (a *ElasticAddressRepository) GetCitiesByTerm(term string, size int64, from int64) ([]*entity.AddressObject, error) {
 	if size == 0 {
 		size = 100
@@ -383,6 +402,7 @@ func (a *ElasticAddressRepository) GetCitiesByTerm(term string, size int64, from
 
 	var items []*entity.AddressObject
 	var item *dto.JsonAddressDto
+	// Конвертирует структуру ответа в DTO
 	if len(res.Hits.Hits) > 0 {
 		for _, el := range res.Hits.Hits {
 			if err := json.Unmarshal(el.Source, &item); err != nil {
@@ -395,6 +415,7 @@ func (a *ElasticAddressRepository) GetCitiesByTerm(term string, size int64, from
 	return items, nil
 }
 
+// Найти адрес по подстроке
 func (a *ElasticAddressRepository) GetAddressByTerm(term string, size int64, from int64) ([]*entity.AddressObject, error) {
 	if size == 0 {
 		size = 100
@@ -417,6 +438,7 @@ func (a *ElasticAddressRepository) GetAddressByTerm(term string, size int64, fro
 
 	var items []*entity.AddressObject
 	var item *dto.JsonAddressDto
+	// Конвертирует структуру ответа в DTO
 	if len(res.Hits.Hits) > 0 {
 		for _, el := range res.Hits.Hits {
 			if err := json.Unmarshal(el.Source, &item); err != nil {
@@ -429,6 +451,7 @@ func (a *ElasticAddressRepository) GetAddressByTerm(term string, size int64, fro
 	return items, nil
 }
 
+// Найти адрес по почтовому индексу
 func (a *ElasticAddressRepository) GetAddressByPostal(term string, size int64, from int64) ([]*entity.AddressObject, error) {
 	if size == 0 {
 		size = 100
@@ -449,6 +472,7 @@ func (a *ElasticAddressRepository) GetAddressByPostal(term string, size int64, f
 
 	var items []*entity.AddressObject
 	var item *dto.JsonAddressDto
+	// Конвертирует структуру ответа в DTO
 	if len(res.Hits.Hits) > 0 {
 		for _, el := range res.Hits.Hits {
 			if err := json.Unmarshal(el.Source, &item); err != nil {
@@ -461,15 +485,12 @@ func (a *ElasticAddressRepository) GetAddressByPostal(term string, size int64, f
 	return items, nil
 }
 
-func (a *ElasticAddressRepository) GetDataByQuery(query elastic.Query) ([]elastic.SearchHit, error) {
-	scrollService := a.elasticClient.Client.Scroll(a.GetIndexName()).Query(query).Sort("ao_level", true)
-	return a.elasticClient.ScrollData(scrollService)
-}
-
+// Получить объект для работы с пачками элементов
 func (a *ElasticAddressRepository) GetBulkService() *elastic.BulkService {
 	return a.elasticClient.Client.Bulk().Index(a.GetIndexName())
 }
 
+// Обновить коллекцию адресов
 func (a *ElasticAddressRepository) InsertUpdateCollection(channel <-chan interface{}, done <-chan bool, count chan<- int, isFull bool) {
 	bulk := a.GetBulkService()
 	ctx := context.Background()
@@ -477,6 +498,7 @@ func (a *ElasticAddressRepository) InsertUpdateCollection(channel <-chan interfa
 	var total uint64
 	step := 1
 
+	// Цикл получения объекта адреса из канала
 Loop:
 	for {
 		select {
@@ -487,22 +509,24 @@ Loop:
 			total++
 			saveItem := dto.JsonAddressDto{}
 			saveItem.GetFromEntity(d.(entity.AddressObject))
-			// Enqueue the document
+			// Проверяет активность объекта
 			if saveItem.IsActive() {
+				// При неполном импорте дополняет данными из индекса
 				if !isFull {
 					dbItem, _ := a.GetByGuid(saveItem.AoGuid)
 					if dbItem != nil {
 						saveItem.UpdateFromExistItem(*dbItem)
 					}
 				}
-
+				// Добавляет объект в очередь на сохранение
 				bulk.Add(elastic.NewBulkIndexRequest().Id(saveItem.ID).Doc(saveItem))
 			} else {
+				// Добавляет объект в очередь на удаление
 				bulk.Add(elastic.NewBulkDeleteRequest().Id(saveItem.ID))
 			}
 
+			// Отправляет запросы в эластик при превышении размера пачки
 			if bulk.NumberOfActions() >= a.batchSize {
-				// Commit
 				res, err := bulk.Do(ctx)
 				if err != nil {
 					a.logger.WithFields(interfaces.LoggerFields{"error": err}).Fatal("Add addresses bulk commit failed")
@@ -520,7 +544,7 @@ Loop:
 		}
 	}
 
-	// Commit the final batch before exiting
+	// Отправляет оставшиеся запросы в эластик
 	if bulk.NumberOfActions() > 0 {
 		res, err := bulk.Do(ctx)
 		if err != nil {
@@ -539,44 +563,59 @@ Loop:
 	count <- int(total)
 }
 
+// Обновить индекс
 func (a *ElasticAddressRepository) Refresh() {
 	a.elasticClient.RefreshIndexes([]string{a.GetIndexName()})
 }
 
+// Переоткрыть индекс
 func (a *ElasticAddressRepository) ReopenIndex() {
 	a.elasticClient.Client.CloseIndex(a.GetIndexName())
 	a.elasticClient.Client.OpenIndex(a.GetIndexName())
 }
 
+// Индексация адресов
 func (a *ElasticAddressRepository) Index(isFull bool, start time.Time, guids []string, indexChan chan<- entity.IndexObject) error {
-	a.indexMutex = sync.RWMutex{}
-	a.indexCache = make(map[string]*entity.AddressObject)
-	a.jobs = make(chan dto.JsonAddressDto, a.noOfWorkers)
-	a.results = make(chan dto.JsonAddressDto, a.noOfWorkers)
-	a.Refresh()
-	a.ReopenIndex()
-
-	query := a.prepareIndexQuery(isFull, start, guids)
-	queryCount := a.calculateIndexCount(query)
-
-	go a.getIndexItems(query)
 	done := make(chan bool)
+	a.indexMutex = sync.RWMutex{}
+	// Создает экземпляр кэша
+	a.indexCache = make(map[string]*entity.AddressObject)
+	// Создает канал для работы с объектами
+	a.jobs = make(chan dto.JsonAddressDto, a.noOfWorkers)
+	// Создает канал для сохранения объектов в индекс
+	a.results = make(chan dto.JsonAddressDto, a.noOfWorkers)
+	// Обновляет индекс
+	a.Refresh()
+	// Подготавливает фильтр для получения элементов
+	query := a.prepareIndexQuery(isFull, start, guids)
+	// Получает общее количество элементов по фильтру
+	queryCount := a.calculateIndexCount(query)
+	// Получает элементы из индекса для переиндексации
+	go a.getIndexItems(query)
+	// Обновляет элементы в индексе
 	go a.saveIndexItems(done, time.Now(), queryCount, indexChan)
+	// Создает пул задач на обработку элементов
 	a.createWorkerPool(a.noOfWorkers)
 	<-done
+	// Обновляет индекс
 	a.Refresh()
 
 	return nil
 }
 
+// Подготовить фильтр для получения элементов
 func (a *ElasticAddressRepository) prepareIndexQuery(isFull bool, start time.Time, guids []string) elastic.Query {
 	var query elastic.Query
 	var queries []elastic.Query
+	// Проверяет, является ли индексация полной
 	if !isFull {
 		a.logger.Info("Indexing...")
+		// Добавляет фильтр на ограничение выборки по уровню адреса
 		queries = append(queries, elastic.NewRangeQuery("ao_level").Gt(1))
+		// Добавляет фильтр на ограничение выборки по дате начала импорта
 		queries = append(queries, elastic.NewRangeQuery("bazis_update_date").Gte(start.Format("2006-01-02")+"T00:00:00Z"))
 		if len(guids) > 0 {
+			// Добавляет фильтр на ограничение выборки по списку GUID
 			guidsInterface := util.ConvertStringSliceToInterface(guids)
 			query = elastic.NewBoolQuery().Should(elastic.NewBoolQuery().Must(queries...), elastic.NewBoolQuery().Must(elastic.NewTermsQuery("ao_guid", guidsInterface...)))
 		} else {
@@ -584,17 +623,21 @@ func (a *ElasticAddressRepository) prepareIndexQuery(isFull bool, start time.Tim
 		}
 	} else {
 		a.logger.Info("Full indexing...")
+		// Индексирует все элементы в индексе
 		query = elastic.NewBoolQuery().Must(queries...)
 	}
 
 	return query
 }
 
+// Получить общее количество элементов по фильтру
 func (a *ElasticAddressRepository) calculateIndexCount(query elastic.Query) int64 {
+	// Получает общее количество элементов
 	addTotalCount, err := a.CountAllData(nil)
 	if err != nil {
 		a.logger.Error(err.Error())
 	}
+	// Получает количество элементов по фильтру
 	queryCount, err := a.CountAllData(query)
 	if err != nil {
 		a.logger.Error(err.Error())
@@ -606,12 +649,15 @@ func (a *ElasticAddressRepository) calculateIndexCount(query elastic.Query) int6
 	return queryCount
 }
 
+// Получить элементы из индекса для переиндексации
 func (a *ElasticAddressRepository) getIndexItems(query elastic.Query) {
 	batch := a.batchSize
+	// Ограничивает размер пачки при поиске
 	if batch > 10000 {
 		batch = 10000
 	}
 
+	// Инициализирует сервис выборки элементов через ScrollApi
 	scrollService := a.elasticClient.Client.Scroll(a.GetIndexName()).
 		Query(query).
 		Sort("ao_level", true).
@@ -622,6 +668,7 @@ func (a *ElasticAddressRepository) getIndexItems(query elastic.Query) {
 	count := 0
 	var wg sync.WaitGroup
 
+	// Получает данные из эластика пачками
 	for {
 		res, err := scrollService.Do(ctx)
 		if err == io.EOF {
@@ -636,9 +683,11 @@ func (a *ElasticAddressRepository) getIndexItems(query elastic.Query) {
 		}
 		count += len(res.Hits.Hits)
 		wg.Add(1)
+		// Добавляет элементы в пул задач
 		go a.addJobs(res.Hits.Hits, &wg)
 	}
 
+	// Принудительно закрывает сервис выборки элементов
 	err := scrollService.Clear(ctx)
 	if err != nil {
 		a.logger.Error(err.Error())
@@ -650,10 +699,12 @@ func (a *ElasticAddressRepository) getIndexItems(query elastic.Query) {
 	close(a.jobs)
 }
 
+// Добавить элементы в пул задач
 func (a *ElasticAddressRepository) addJobs(hits []*elastic.SearchHit, wg *sync.WaitGroup) {
 	defer wg.Done()
 	for _, hit := range hits {
 		var item dto.JsonAddressDto
+		// Конвертирует структуру ответа в DTO
 		if err := json.Unmarshal(hit.Source, &item); err != nil {
 			a.logger.Fatal(err.Error())
 		}
@@ -661,44 +712,57 @@ func (a *ElasticAddressRepository) addJobs(hits []*elastic.SearchHit, wg *sync.W
 	}
 }
 
+// Создать пул задач на обработку элементов
 func (a *ElasticAddressRepository) createWorkerPool(noOfWorkers int) {
 	var wg sync.WaitGroup
 	for i := 0; i < noOfWorkers; i++ {
 		wg.Add(1)
+		// Подготавливает элементы перед сохранением в индекс
 		go a.prepareItemsBeforeSave(&wg)
 	}
 	wg.Wait()
 	close(a.results)
 }
 
+// Подготовить элементы перед сохранением в индекс
 func (a *ElasticAddressRepository) prepareItemsBeforeSave(wg *sync.WaitGroup) {
 	for address := range a.jobs {
+		// Устанавливает время обновления объекта
 		address.UpdateBazisDate()
 		dtoItem := dto.JsonAddressDto{}
 		city := dto.JsonAddressDto{}
 		district := dto.JsonAddressDto{}
 		guid := address.ParentGuid
+		// Формирует информацию об адресе объекта
 		address.FullName = util.PrepareFullName(address.ShortName, address.FormalName)
 		address.FullAddress = address.FullName
 		address.AddressSuggest = util.PrepareSuggest("", address.ShortName, address.FormalName)
 
+		// Ищет родительские объекты и дополняет адрес текущего объекта
 		for guid != "" {
+			// Блокирует объект кэша для поиска элемента
 			a.indexMutex.RLock()
+			// Ищет родительский объект в кэше
 			search, ok := a.indexCache[guid]
+			// Снимает блокировку кэша
 			a.indexMutex.RUnlock()
 			if !ok {
 				search, _ = a.GetByGuid(guid)
 			}
 
 			if search != nil {
+				// Конвертирует объект адреса в DTO
 				dtoItem.GetFromEntity(*search)
 				guid = dtoItem.ParentGuid
+				// Дополняет адрес текущего объекта
 				address.FullAddress = util.PrepareFullName(dtoItem.ShortName, dtoItem.FormalName) + ", " + address.FullAddress
 				address.AddressSuggest = util.PrepareSuggest(address.AddressSuggest, dtoItem.ShortName, dtoItem.FormalName)
 
+				// Устанавливает город объекта
 				if dtoItem.AoLevel >= 4 {
 					city = dtoItem
 				}
+				// Устанавливает район объекта
 				if dtoItem.AoLevel < 4 {
 					district = dtoItem
 				}
@@ -707,16 +771,18 @@ func (a *ElasticAddressRepository) prepareItemsBeforeSave(wg *sync.WaitGroup) {
 			}
 		}
 
+		// Формирует информацию о районе объекта
 		address.DistrictGuid = district.AoGuid
 		address.District = strings.TrimSpace(district.FormalName)
 		address.DistrictType = strings.TrimSpace(district.ShortName)
-		address.SettlementGuid = city.AoGuid
-		address.Settlement = strings.TrimSpace(city.FormalName)
-		address.SettlementType = strings.TrimSpace(city.ShortName)
-
 		if address.District != "" {
 			address.DistrictFull = util.PrepareFullName(address.DistrictType, address.District)
 		}
+
+		// Формирует информацию о поселении объекта
+		address.SettlementGuid = city.AoGuid
+		address.Settlement = strings.TrimSpace(city.FormalName)
+		address.SettlementType = strings.TrimSpace(city.ShortName)
 		if address.Settlement != "" {
 			address.SettlementFull = ""
 			if address.DistrictFull != "" {
@@ -725,6 +791,7 @@ func (a *ElasticAddressRepository) prepareItemsBeforeSave(wg *sync.WaitGroup) {
 			address.SettlementFull += util.PrepareFullName(address.SettlementType, address.Settlement)
 		}
 
+		// Формирует информацию об улице объекта
 		switch address.AoLevel {
 		case 7:
 			address.StreetType = strings.TrimSpace(address.ShortName)
@@ -746,12 +813,16 @@ func (a *ElasticAddressRepository) prepareItemsBeforeSave(wg *sync.WaitGroup) {
 	wg.Done()
 }
 
+// Обновить элементы в индексе
 func (a *ElasticAddressRepository) saveIndexItems(done chan bool, begin time.Time, total int64, indexChan chan<- entity.IndexObject) {
+	// Получает объект для работы с пачками элементов
 	bulk := a.GetBulkService()
 	ctx := context.Background()
+	// Инициализация прогресс-бара
 	bar := util.StartNewProgress(int(total))
 
 	for d := range a.results {
+		// Добавляет объект в индексацию домов, если данный объект является улицей
 		if d.AoLevel == 7 && indexChan != nil {
 			indexChan <- entity.IndexObject{
 				AoGuid:         d.AoGuid,
@@ -760,15 +831,18 @@ func (a *ElasticAddressRepository) saveIndexItems(done chan bool, begin time.Tim
 			}
 		}
 
+		// Блокирует кэш для записи
 		a.indexMutex.Lock()
+		// Записывает объект в кэш
 		a.indexCache[d.AoGuid] = d.ToEntity()
+		// Снимает блокировку кэша
 		a.indexMutex.Unlock()
 
-		// Enqueue the document
+		// Добавляет объект в очередь на сохранение
 		bulk.Add(elastic.NewBulkIndexRequest().Id(d.ID).Doc(d))
 		bar.Increment()
+		// Отправляет запросы в эластик при превышении размера пачки
 		if bulk.NumberOfActions() >= a.batchSize {
-			// Commit
 			res, err := bulk.Do(ctx)
 			if err != nil {
 				a.logger.WithFields(interfaces.LoggerFields{"error": err}).Fatal("Address index bulk commit failed")
@@ -781,7 +855,7 @@ func (a *ElasticAddressRepository) saveIndexItems(done chan bool, begin time.Tim
 		}
 	}
 
-	// Commit the final batch before exiting
+	// Отправляет оставшиеся запросы в эластик
 	if bulk.NumberOfActions() > 0 {
 		res, err := bulk.Do(ctx)
 		if err != nil {

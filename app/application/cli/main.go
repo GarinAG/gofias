@@ -31,6 +31,7 @@ func main() {
 
 	// Инициализация приложения
 	app := cli2.NewApp(ctn)
+	// Инициализация команд приложения
 	addressCli.RegisterImportCliEndpoint(app)
 	indexCli.RegisterIndexCliEndpoint(app)
 	versionCli.RegisterVersionCliEndpoint(app)

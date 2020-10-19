@@ -1,5 +1,6 @@
 package entity
 
+// Объект дома
 type HouseObject struct {
 	ID             string `xml:"HOUSEID,attr"`
 	HouseGuid      string `xml:"HOUSEGUID,attr"`
@@ -22,10 +23,12 @@ type HouseObject struct {
 	CadNum         string `xml:"CADNUM,attr"`
 }
 
+// Получить название файла импорта
 func (o HouseObject) GetXmlFile() string {
 	return "AS_HOUSE_"
 }
 
+// Получить название таблицы в БД
 func (o HouseObject) TableName() string {
 	return "fias_houses"
 }

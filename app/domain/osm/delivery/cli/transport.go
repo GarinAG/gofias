@@ -5,6 +5,7 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+// Регистрация команды импорта местоположений
 func RegisterOsmCliEndpoint(app *cli2.App) {
 	h := NewHandler(app.OsmService)
 	app.Server.Commands = append(app.Server.Commands, &cli.Command{

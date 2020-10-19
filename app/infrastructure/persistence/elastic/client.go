@@ -7,10 +7,12 @@ import (
 	"io"
 )
 
+// Объект-обёртка клиента эластика
 type Client struct {
-	Client *elastic.Client
+	Client *elastic.Client // Клиент эластика
 }
 
+// Инициализация объекта
 func NewElasticClient(configInterface interfaces.ConfigInterface, logger interfaces.LoggerInterface) *Client {
 	scheme := configInterface.GetString("elastic.scheme")
 	user := configInterface.GetString("elastic.username")
@@ -19,6 +21,7 @@ func NewElasticClient(configInterface interfaces.ConfigInterface, logger interfa
 	if scheme == "" {
 		scheme = "http"
 	}
+	// Инициализация свойств подключения к клиенту
 	options := []elastic.ClientOptionFunc{
 		elastic.SetURL(scheme + "://" + configInterface.GetString("elastic.host")),
 		elastic.SetSniff(configInterface.GetBool("elastic.sniff")),
@@ -26,10 +29,12 @@ func NewElasticClient(configInterface interfaces.ConfigInterface, logger interfa
 		elastic.SetErrorLog(logger),
 		//elastic.SetTraceLog(logger),
 	}
+	// Проверка авторизации
 	if user != "" && pass != "" {
 		options = append(options, elastic.SetBasicAuth(user, pass))
 	}
 
+	// Подключение к эластику
 	client, err := elastic.NewClient(options...)
 
 	if err != nil {
@@ -41,6 +46,7 @@ func NewElasticClient(configInterface interfaces.ConfigInterface, logger interfa
 	}
 }
 
+// Проверка наличия индекса
 func (e *Client) IndexExists(index string) (bool, error) {
 	ctx := context.Background()
 	exists, err := e.Client.IndexExists(index).Do(ctx)
@@ -51,6 +57,7 @@ func (e *Client) IndexExists(index string) (bool, error) {
 	return exists, nil
 }
 
+// Удаление индекса
 func (e *Client) DropIndex(index string) error {
 	ctx := context.Background()
 	exists, err := e.IndexExists(index)
@@ -67,6 +74,7 @@ func (e *Client) DropIndex(index string) error {
 	return nil
 }
 
+// Создание индекса
 func (e *Client) CreateIndex(index string, body string) error {
 	ctx := context.Background()
 	exists, err := e.IndexExists(index)
@@ -82,6 +90,7 @@ func (e *Client) CreateIndex(index string, body string) error {
 	return nil
 }
 
+// Добавление обработчика
 func (e *Client) CreatePreprocessor(pipelineId, pipeline string) error {
 	ctx := context.Background()
 	_, err := e.Client.IngestPutPipeline(pipelineId).BodyString(pipeline).Do(ctx)
@@ -92,6 +101,7 @@ func (e *Client) CreatePreprocessor(pipelineId, pipeline string) error {
 	return nil
 }
 
+// Обновление индекса
 func (e *Client) RefreshIndexes(indexes []string) {
 	ctx := context.Background()
 	e.Client.Refresh(indexes...).Do(ctx)
@@ -100,11 +110,13 @@ func (e *Client) RefreshIndexes(indexes []string) {
 	e.Client.ClearCache(indexes...).Do(ctx)
 }
 
+// Получить элементы из индекса через ScrollApi
 func (e *Client) ScrollData(scrollService *elastic.ScrollService) ([]elastic.SearchHit, error) {
 	ctx := context.Background()
 	scrollService.Scroll("1s")
 	var totals []elastic.SearchHit
 
+	// Получает данные из эластика пачками
 	for {
 		res, err := scrollService.Do(ctx)
 		if err == io.EOF {
@@ -121,6 +133,7 @@ func (e *Client) ScrollData(scrollService *elastic.ScrollService) ([]elastic.Sea
 		}
 	}
 
+	// Принудительно закрывает сервис выборки элементов
 	err := scrollService.Clear(ctx)
 	if err != nil {
 		return nil, err
@@ -129,6 +142,7 @@ func (e *Client) ScrollData(scrollService *elastic.ScrollService) ([]elastic.Sea
 	return totals, nil
 }
 
+// Подсчитать количество элементов в БД по фильтру
 func (e *Client) CountAllData(index string, query elastic.Query) (int64, error) {
 	cnt := e.Client.Count(index)
 	if query != nil {
@@ -142,6 +156,7 @@ func (e *Client) CountAllData(index string, query elastic.Query) (int64, error) 
 	return res, nil
 }
 
+// Получает список ошибок при работе с пачками
 func (e *Client) GetBulkError(bulk *elastic.BulkResponse) *elastic.ErrorDetails {
 	var errorDetail *elastic.ErrorDetails
 

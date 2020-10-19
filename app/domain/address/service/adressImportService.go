@@ -12,12 +12,14 @@ import (
 	"time"
 )
 
+// Сервис импорта адресов
 type AddressImportService struct {
-	AddressRepo repository.AddressRepositoryInterface
-	IsFull      bool `default:"false"`
-	logger      interfaces.LoggerInterface
+	AddressRepo repository.AddressRepositoryInterface // Репозиторий адресов
+	IsFull      bool                                  `default:"false"` // Полный импорт
+	logger      interfaces.LoggerInterface            // Логгер
 }
 
+// Инициализация сервиса
 func NewAddressImportService(addressRepo repository.AddressRepositoryInterface, logger interfaces.LoggerInterface) *AddressImportService {
 	err := addressRepo.Init()
 	if err != nil {
@@ -31,27 +33,31 @@ func NewAddressImportService(addressRepo repository.AddressRepositoryInterface, 
 	}
 }
 
+// Импорт адресов
 func (a *AddressImportService) Import(filePath string, wg *sync.WaitGroup, cnt chan int) {
 	defer wg.Done()
 	addressChannel := make(chan interface{})
 	done := make(chan bool)
 	total := 0
 	if a.IsFull {
-		total = 4500000
+		total = 4500000 // Максимальное количество элементов для прогрессбара
 	}
+	// Чтение файла импорта и парсинг элементов
 	go util.ParseFile(filePath, done, addressChannel, a.logger, a.ParseElement, "Object", total)
+	// Сохраняет элементы в БД
 	go a.AddressRepo.InsertUpdateCollection(addressChannel, done, cnt, a.IsFull)
 }
 
+// Индексация таблицы адресов
 func (a *AddressImportService) Index(isFull bool, start time.Time, guids []string, wg *sync.WaitGroup, indexChan chan<- entity.IndexObject) {
 	defer wg.Done()
 	err := a.AddressRepo.Index(isFull, start, guids, indexChan)
-	if err != nil {
-		a.logger.Error(err.Error())
-	}
+	a.checkError(err)
 }
 
+// Разбор объекта из xml
 func (a *AddressImportService) ParseElement(element *xmlparser.XMLElement) (interface{}, error) {
+	// Пропускает неактивные элементы при полном импорте
 	if a.IsFull {
 		if element.Attrs["CURRSTATUS"] != "0" ||
 			element.Attrs["ACTSTATUS"] != "1" ||
@@ -86,11 +92,17 @@ func (a *AddressImportService) ParseElement(element *xmlparser.XMLElement) (inte
 	return result, nil
 }
 
+// Подсчет общего количества адресов
 func (a *AddressImportService) CountAllData() int64 {
 	res, err := a.AddressRepo.CountAllData(nil)
+	a.checkError(err)
+
+	return res
+}
+
+// Проверяет наличие ошибки и логирует ее
+func (a *AddressImportService) checkError(err error) {
 	if err != nil {
 		a.logger.Error(err.Error())
 	}
-
-	return res
 }

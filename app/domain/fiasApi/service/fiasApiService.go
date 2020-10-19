@@ -7,11 +7,13 @@ import (
 	"os"
 )
 
+// Сервис работы с ФИАС
 type FiasApiService struct {
-	logger      interfaces.LoggerInterface
-	fiasApiRepo repository.FiasApiRepositoryInterface
+	logger      interfaces.LoggerInterface            // Логгер
+	fiasApiRepo repository.FiasApiRepositoryInterface // Репозиторий БД ФИАС
 }
 
+// Инициализация сервиса
 func NewFiasApiService(fiasApiRepo repository.FiasApiRepositoryInterface, logger interfaces.LoggerInterface) *FiasApiService {
 	return &FiasApiService{
 		logger:      logger,
@@ -19,22 +21,26 @@ func NewFiasApiService(fiasApiRepo repository.FiasApiRepositoryInterface, logger
 	}
 }
 
+// Получить все версии БД ФИАС
 func (f *FiasApiService) GetAllDownloadFileInfo() []entity.DownloadFileInfo {
 	res, err := f.fiasApiRepo.GetAllDownloadFileInfo()
-	if err != nil {
-		f.logger.WithFields(interfaces.LoggerFields{"error": err}).Fatal("GetAllDownloadFileInfo error")
-		os.Exit(1)
-	}
+	f.checkFatalError(err)
 
 	return res
 }
 
+// Получить последнюю версию БД ФИАС
 func (f *FiasApiService) GetLastDownloadFileInfo() entity.DownloadFileInfo {
 	res, err := f.fiasApiRepo.GetLastDownloadFileInfo()
-	if err != nil {
-		f.logger.WithFields(interfaces.LoggerFields{"error": err}).Fatal("GetLastDownloadFileInfo error")
-		os.Exit(1)
-	}
+	f.checkFatalError(err)
 
 	return res
+}
+
+// Проверяет наличие ошибки и логирует ее
+func (f *FiasApiService) checkFatalError(err error) {
+	if err != nil {
+		f.logger.Fatal(err.Error())
+		os.Exit(1)
+	}
 }

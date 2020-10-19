@@ -1,5 +1,6 @@
 package entity
 
+// Объект адреса
 type AddressObject struct {
 	ID             string `xml:"AOID,attr"`
 	AoGuid         string `xml:"AOGUID,attr"`
@@ -36,10 +37,12 @@ type AddressObject struct {
 	Location       string
 }
 
+// Получить название файла импорта
 func (a AddressObject) GetXmlFile() string {
 	return "AS_ADDROBJ_"
 }
 
+// Получить название таблицы в БД
 func (a AddressObject) TableName() string {
 	return "fias_address"
 }

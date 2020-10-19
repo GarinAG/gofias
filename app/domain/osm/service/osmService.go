@@ -14,14 +14,16 @@ import (
 	"strings"
 )
 
+// Сервис работы с OSM
 type OsmService struct {
-	addressRepo     repository.AddressRepositoryInterface
-	houseRepo       repository.HouseRepositoryInterface
-	logger          interfaces.LoggerInterface
-	downloadService *service.DownloadService
-	config          interfaces.ConfigInterface
+	addressRepo     repository.AddressRepositoryInterface // Репозиторий адресов
+	houseRepo       repository.HouseRepositoryInterface   // Репозиторий домов
+	logger          interfaces.LoggerInterface            // Логгер
+	downloadService *service.DownloadService              // Сервис управления загрузкой файлов
+	config          interfaces.ConfigInterface            // Конфигурация
 }
 
+// Инициализация сервиса
 func NewOsmService(
 	addressRepo repository.AddressRepositoryInterface,
 	houseRepo repository.HouseRepositoryInterface,
@@ -38,37 +40,44 @@ func NewOsmService(
 	}
 }
 
+// Обновляет данные местоположений
 func (o *OsmService) Update() {
+	// Скачивает файл с данными
 	file, err := o.downloadService.DownloadFile(o.config.GetString("osm.url"), "russia.pbf")
-	if err != nil {
-		o.logger.Fatal(err.Error())
-	}
+	o.checkFatalError(err)
 	if file != nil {
+		// Разбирает файл с данными
 		o.parseFile(file.Path)
 	}
 }
 
+// Разбирает файл с данными
 func (o *OsmService) parseFile(filepath string) {
+	// Открывает файл с данными OSM
 	f, err := os.Open(filepath)
-	if err != nil {
-		panic(err)
-	}
+	o.checkFatalError(err)
 	defer f.Close()
 
+	// Создает объект сканнера
 	scanner := osmpbf.New(context.Background(), f, 3)
 	defer scanner.Close()
 
 	addressChan := make(chan *entity.Node)
 	housesChan := make(chan *entity.Node)
 	done := make(chan bool)
+	// Проверяет наличие домов в БД
 	housesCnt, _ := o.houseRepo.CountAllData(nil)
 	if housesCnt == 0 {
 		housesChan = nil
 	}
 
+	// Сканирует файл с данными OSM
 	go o.scan(scanner, done, addressChan, housesChan)
+	// Обновляет адреса
 	go o.updateAddresses(done, addressChan)
+	// При наличии домов разрешает обновление местоположений
 	if housesChan != nil {
+		// Обновляет дома
 		go o.updateHouses(done, housesChan)
 	}
 
@@ -79,7 +88,9 @@ func (o *OsmService) parseFile(filepath string) {
 	}
 }
 
+// Сканирует файл с данными OSM
 func (o *OsmService) scan(scanner *osmpbf.Scanner, done chan<- bool, addressChan chan<- *entity.Node, housesChan chan<- *entity.Node) {
+	// Создает список условий, проставляет обязательное условие - наличие названия
 	tagList := "name"
 	conditions := make(map[string][]string)
 	for _, group := range strings.Split(tagList, ",") {
@@ -89,18 +100,21 @@ func (o *OsmService) scan(scanner *osmpbf.Scanner, done chan<- bool, addressChan
 	bar := util.StartNewProgress(-1)
 	for scanner.Scan() {
 		switch e := scanner.Object().(type) {
+		// Элемент является объектом
 		case *osm.Node:
 			//case *osm.Way:
 			//case *osm.Relation:
 			if e.Tags != nil {
+				// Проверяет условия
 				if o.hasTags(e.TagMap()) && o.containsValidTags(e.TagMap(), conditions) {
 					bar.Increment()
+					// Проверяет и разбирает объект
 					node := o.prepareItems(e)
 					if node != nil {
 						switch node.Type {
-						case "place":
+						case "place": // Объект является адресом
 							addressChan <- node
-						case "building":
+						case "building": // Объект является домом
 							if housesChan != nil {
 								housesChan <- node
 							}
@@ -117,16 +131,20 @@ func (o *OsmService) scan(scanner *osmpbf.Scanner, done chan<- bool, addressChan
 	done <- true
 }
 
+// Обновляет адреса
 func (o *OsmService) updateAddresses(done <-chan bool, addressChan <-chan *entity.Node) {
 	address := make(chan interface{})
 	addressCnt := make(chan int)
+	// Сохраняет элементы в БД
 	go o.addressRepo.InsertUpdateCollection(address, done, addressCnt, true)
 
 	for d := range addressChan {
+		// Ищет адреса в БД по названию
 		items, _ := o.addressRepo.GetAddressByTerm(d.Name, 1, 0)
 		if len(items) > 0 {
 			item := items[0]
 			location := fmt.Sprint(d.Lon, ",", d.Lat)
+			// Сохраняет только адреса, у которых отличается местоположение или индекс с данными из OSM
 			if item.Location != location || item.PostalCode != d.PostalCode {
 				item.Location = location
 				if item.PostalCode == "" && d.PostalCode != "" {
@@ -139,16 +157,20 @@ func (o *OsmService) updateAddresses(done <-chan bool, addressChan <-chan *entit
 	close(address)
 }
 
+// Обновляет дома
 func (o *OsmService) updateHouses(done <-chan bool, housesChan <-chan *entity.Node) {
 	houses := make(chan interface{})
 	housesCnt := make(chan int)
+	// Сохраняет элементы в БД
 	go o.houseRepo.InsertUpdateCollection(houses, done, housesCnt, true)
 
 	for d := range housesChan {
+		// Ищет дома в БД по адресу
 		items, _ := o.houseRepo.GetAddressByTerm(d.Name, 1, 0)
 		if len(items) > 0 {
 			item := items[0]
 			location := fmt.Sprint(d.Lon, ",", d.Lat)
+			// Сохраняет только дома, у которых отличается местоположение или индекс с данными из OSM
 			if item.Location != location || item.PostalCode != d.PostalCode {
 				item.Location = location
 				if item.PostalCode == "" && d.PostalCode != "" {
@@ -162,9 +184,9 @@ func (o *OsmService) updateHouses(done <-chan bool, housesChan <-chan *entity.No
 	close(houses)
 }
 
+// Проверяет и разбирает объект
 func (o *OsmService) prepareItems(e *osm.Node) *entity.Node {
 	place := o.getTagByName(e.TagMap(), "place")
-
 	official := strings.Split(o.getTagByName(e.TagMap(), "official_status"), ":")
 	postal := o.getTagByName(e.TagMap(), "addr:postcode")
 	region := o.getTagByName(e.TagMap(), "addr:region")
@@ -173,6 +195,7 @@ func (o *OsmService) prepareItems(e *osm.Node) *entity.Node {
 	housenum := o.getTagByName(e.TagMap(), "addr:housenumber")
 	name := o.getTagByName(e.TagMap(), "name")
 
+	// Проверяет наличие тегов у объекта
 	if place != "" || (housenum != "" && street != "" && city != "") {
 		fullAddr := ""
 		if region != "" && region != name {
@@ -206,6 +229,7 @@ func (o *OsmService) prepareItems(e *osm.Node) *entity.Node {
 			fullAddr += name
 		}
 
+		// TODO Добавить проверку на тип адреса: улица, город, область
 		replacedAddr := util.Replace(fullAddr)
 		node := entity.Node{
 			Name:       replacedAddr,
@@ -226,7 +250,7 @@ func (o *OsmService) prepareItems(e *osm.Node) *entity.Node {
 	return nil
 }
 
-// check tags contain features from a groups of whitelists
+// Проверяет наличие конкретных тегов у объекта по группам
 func (o *OsmService) containsValidTags(tags map[string]string, group map[string][]string) bool {
 	for _, list := range group {
 		if o.matchTagsAgainstCompulsoryTagList(tags, list) {
@@ -236,7 +260,7 @@ func (o *OsmService) containsValidTags(tags map[string]string, group map[string]
 	return false
 }
 
-// trim leading/trailing spaces from keys and values
+// Очищает теги от лишних пробелов
 func (o *OsmService) trimTags(tags map[string]string) map[string]string {
 	trimmed := make(map[string]string)
 	for k, v := range tags {
@@ -245,7 +269,7 @@ func (o *OsmService) trimTags(tags map[string]string) map[string]string {
 	return trimmed
 }
 
-// check if a tag list is empty or not
+// Проверяет наличие тегов у объекта
 func (o *OsmService) hasTags(tags map[string]string) bool {
 	n := len(tags)
 	if n == 0 {
@@ -254,19 +278,19 @@ func (o *OsmService) hasTags(tags map[string]string) bool {
 	return true
 }
 
-// check tags contain features from a whitelist
+// Проверяет наличие конкретных тегов у объекта по спискам
 func (o *OsmService) matchTagsAgainstCompulsoryTagList(tags map[string]string, tagList []string) bool {
 	for _, name := range tagList {
 
 		feature := strings.Split(name, "~")
 		foundVal, foundKey := tags[feature[0]]
 
-		// key check
+		// Проверка наличия тега в списке
 		if !foundKey {
 			return false
 		}
 
-		// value check
+		// Проверка значения тега
 		if len(feature) > 1 {
 			if foundVal != feature[1] {
 				return false
@@ -277,13 +301,21 @@ func (o *OsmService) matchTagsAgainstCompulsoryTagList(tags map[string]string, t
 	return true
 }
 
-// check tags contain features from a whitelist
+// Получить значение тега по названию
 func (o *OsmService) getTagByName(tags map[string]string, name string) string {
 	foundVal, foundKey := tags[name]
-	// key check
+	// Проверка наличия тега в списке
 	if !foundKey {
 		return ""
 	}
 
 	return foundVal
+}
+
+// Проверяет наличие ошибки и логирует ее
+func (o *OsmService) checkFatalError(err error) {
+	if err != nil {
+		o.logger.Fatal(err.Error())
+		os.Exit(1)
+	}
 }

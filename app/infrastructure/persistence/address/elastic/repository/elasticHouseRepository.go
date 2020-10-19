@@ -18,6 +18,7 @@ import (
 )
 
 const (
+	// Структура индекса в эластике
 	houseIndexSettings = `
 	{
 	  "settings": {
@@ -142,6 +143,7 @@ const (
 	  }
 	}
 	`
+	// Обработчик удаления старых домов
 	housesPipelineId  = "house_drop_pipeline"
 	houseDropPipeline = `
 	{
@@ -157,15 +159,17 @@ const (
 	`
 )
 
+// Репозиторий домов в эластике
 type ElasticHouseRepository struct {
-	elasticClient *elasticHelper.Client
-	logger        interfaces.LoggerInterface
-	batchSize     int
-	indexName     string
-	results       chan dto.JsonHouseDto
-	noOfWorkers   int
+	elasticClient *elasticHelper.Client      // Клиент эластика
+	logger        interfaces.LoggerInterface // Логгер
+	batchSize     int                        // Размер пачки для обновления
+	indexName     string                     // Название индекса
+	results       chan dto.JsonHouseDto      // Список объектов индексации
+	noOfWorkers   int                        // Количество обработчиков индексации
 }
 
+// Инициализация репозитория
 func NewElasticHouseRepository(elasticClient *elasticHelper.Client, logger interfaces.LoggerInterface, batchSize int, prefix string, noOfWorkers int) repository.HouseRepositoryInterface {
 	if noOfWorkers == 0 {
 		noOfWorkers = 10
@@ -180,28 +184,35 @@ func NewElasticHouseRepository(elasticClient *elasticHelper.Client, logger inter
 	}
 }
 
-func (a *ElasticHouseRepository) GetIndexName() string {
-	return a.indexName
-}
-
+// Инициализация индекса
 func (a *ElasticHouseRepository) Init() error {
+	// Создание индекса
 	err := a.elasticClient.CreateIndex(a.indexName, houseIndexSettings)
 	if err != nil {
 		return err
 	}
 
+	// Добавление процессора для удаления старых объектов
 	return a.elasticClient.CreatePreprocessor(housesPipelineId, houseDropPipeline)
 }
 
+// Получить назваине индекса
+func (a *ElasticHouseRepository) GetIndexName() string {
+	return a.indexName
+}
+
+// Удалить индекс
 func (a *ElasticHouseRepository) Clear() error {
 	return a.elasticClient.DropIndex(a.indexName)
 }
 
+// Получить элементы из индекса через ScrollApi
 func (a *ElasticHouseRepository) scroll(scrollService *elastic.ScrollService) ([]*entity.HouseObject, error) {
 	var items []*entity.HouseObject
 	var item *dto.JsonHouseDto
 
 	batch := a.batchSize
+	// Ограничивает размер пачки при поиске
 	if batch > 10000 {
 		batch = 10000
 	}
@@ -209,6 +220,7 @@ func (a *ElasticHouseRepository) scroll(scrollService *elastic.ScrollService) ([
 	ctx := context.Background()
 	scrollService.Scroll("1s")
 
+	// Получает данные из эластика пачками
 	for {
 		res, err := scrollService.Do(ctx)
 		if err == io.EOF {
@@ -221,6 +233,7 @@ func (a *ElasticHouseRepository) scroll(scrollService *elastic.ScrollService) ([
 		if res == nil || len(res.Hits.Hits) == 0 {
 			break
 		}
+		// Конвертирует структуру ответа в DTO
 		for _, el := range res.Hits.Hits {
 			if err := json.Unmarshal(el.Source, &item); err != nil {
 				return nil, err
@@ -229,6 +242,7 @@ func (a *ElasticHouseRepository) scroll(scrollService *elastic.ScrollService) ([
 		}
 	}
 
+	// Принудительно закрывает сервис выборки элементов
 	err := scrollService.Clear(ctx)
 	if err != nil {
 		a.logger.Error(err.Error())
@@ -237,7 +251,9 @@ func (a *ElasticHouseRepository) scroll(scrollService *elastic.ScrollService) ([
 	return items, nil
 }
 
+// Найти дома по GUID адреса
 func (a *ElasticHouseRepository) GetByAddressGuid(guid string) ([]*entity.HouseObject, error) {
+	// Инициализирует сервис выборки элементов через ScrollApi
 	scrollService := a.elasticClient.Client.Scroll(a.GetIndexName()).
 		Query(elastic.NewTermQuery("ao_guid", guid)).
 		Sort("house_full_num.keyword", true)
@@ -245,9 +261,11 @@ func (a *ElasticHouseRepository) GetByAddressGuid(guid string) ([]*entity.HouseO
 	return a.scroll(scrollService)
 }
 
+// Получить GUID последних обновленных домов
 func (a *ElasticHouseRepository) GetLastUpdatedGuids(start time.Time) ([]string, error) {
 	var guids []string
 
+	// Инициализирует сервис выборки элементов через ScrollApi
 	scrollService := a.elasticClient.Client.Scroll(a.GetIndexName()).
 		Query(elastic.NewRangeQuery("bazis_update_date").Gte(start.Format("2006-01-02") + "T00:00:00Z"))
 
@@ -259,11 +277,13 @@ func (a *ElasticHouseRepository) GetLastUpdatedGuids(start time.Time) ([]string,
 	for _, item := range items {
 		guids = append(guids, item.AoGuid)
 	}
+	// Удаление дублей
 	guids = util.UniqueStringSlice(guids)
 
 	return guids, nil
 }
 
+// Найти дома по подстроке
 func (a *ElasticHouseRepository) GetAddressByTerm(term string, size int64, from int64) ([]*entity.HouseObject, error) {
 	if size == 0 {
 		size = 100
@@ -284,6 +304,7 @@ func (a *ElasticHouseRepository) GetAddressByTerm(term string, size int64, from 
 
 	var items []*entity.HouseObject
 	var item *dto.JsonHouseDto
+	// Конвертирует структуру ответа в DTO
 	if len(res.Hits.Hits) > 0 {
 		for _, el := range res.Hits.Hits {
 			if err := json.Unmarshal(el.Source, &item); err != nil {
@@ -296,6 +317,7 @@ func (a *ElasticHouseRepository) GetAddressByTerm(term string, size int64, from 
 	return items, nil
 }
 
+// Обновить коллекцию домов
 func (a *ElasticHouseRepository) InsertUpdateCollection(channel <-chan interface{}, done <-chan bool, count chan<- int, isFull bool) {
 	bulk := a.elasticClient.Client.Bulk().Index(a.indexName)
 	ctx := context.Background()
@@ -303,6 +325,7 @@ func (a *ElasticHouseRepository) InsertUpdateCollection(channel <-chan interface
 	begin := time.Now()
 	step := 1
 
+	// Цикл получения объекта дома из канала
 Loop:
 	for {
 		select {
@@ -313,12 +336,16 @@ Loop:
 			total++
 			saveItem := dto.JsonHouseDto{}
 			saveItem.GetFromEntity(d.(entity.HouseObject))
+			// Проверяет активность объекта
 			if saveItem.IsActive() {
+				// Добавляет объект в очередь на сохранение
 				bulk.Add(elastic.NewBulkIndexRequest().Id(saveItem.ID).Doc(saveItem))
 			} else {
+				// Добавляет объект в очередь на удаление
 				bulk.Add(elastic.NewBulkDeleteRequest().Id(saveItem.ID))
 			}
 
+			// Отправляет запросы в эластик при превышении размера пачки
 			if bulk.NumberOfActions() >= a.batchSize {
 				res, err := bulk.Do(ctx)
 				if err != nil {
@@ -337,7 +364,7 @@ Loop:
 		}
 	}
 
-	// Commit the final batch before exiting
+	// Отправляет оставшиеся запросы в эластик
 	if bulk.NumberOfActions() > 0 {
 		res, err := bulk.Do(ctx)
 		if err != nil {
@@ -355,6 +382,7 @@ Loop:
 	count <- int(total)
 }
 
+// Подсчитать количество домов в БД по фильтру
 func (a *ElasticHouseRepository) CountAllData(query interface{}) (int64, error) {
 	if query == nil {
 		query = elastic.NewBoolQuery()
@@ -362,39 +390,50 @@ func (a *ElasticHouseRepository) CountAllData(query interface{}) (int64, error) 
 	return a.elasticClient.CountAllData(a.GetIndexName(), query.(elastic.Query))
 }
 
+// Обновить индекс
 func (a *ElasticHouseRepository) Refresh() {
 	a.elasticClient.RefreshIndexes([]string{a.GetIndexName()})
 }
 
+// Получить объект для работы с пачками элементов
 func (a *ElasticHouseRepository) GetBulkService() *elastic.BulkService {
 	return a.elasticClient.Client.Bulk().Index(a.GetIndexName())
 }
 
+// Индексация домов
 func (a *ElasticHouseRepository) Index(indexChan <-chan entity.IndexObject) error {
-	a.results = make(chan dto.JsonHouseDto, a.noOfWorkers)
-	a.Refresh()
-
 	done := make(chan bool)
+	// Создает канал для сохранения объектов в индекс
+	a.results = make(chan dto.JsonHouseDto, a.noOfWorkers)
+	// Обновляет индекс
+	a.Refresh()
+	// Обновляет элементы в индексе
 	go a.saveIndexItems(done)
+	// Создает пул задач на обработку элементов
 	a.createWorkerPool(a.noOfWorkers, indexChan)
 	<-done
+	// Обновляет индекс
 	a.Refresh()
 
 	return nil
 }
 
+// Создать пул задач на обработку элементов
 func (a *ElasticHouseRepository) createWorkerPool(noOfWorkers int, indexChan <-chan entity.IndexObject) {
 	var wg sync.WaitGroup
 	for i := 0; i < noOfWorkers; i++ {
 		wg.Add(1)
+		// Подготавливает элементы перед сохранением в индекс
 		go a.prepareItemsBeforeSave(&wg, indexChan)
 	}
 	wg.Wait()
 	close(a.results)
 }
 
+// Подготовить элементы перед сохранением в индекс
 func (a *ElasticHouseRepository) prepareItemsBeforeSave(wg *sync.WaitGroup, indexChan <-chan entity.IndexObject) {
 	for d := range indexChan {
+		// Получает список домов по GUID адреса
 		houses, err := a.GetByAddressGuid(d.AoGuid)
 		if err != nil {
 			a.logger.WithFields(interfaces.LoggerFields{"error": err, "ao_guid": d.AoGuid}).Fatal("Get houses failed")
@@ -402,9 +441,12 @@ func (a *ElasticHouseRepository) prepareItemsBeforeSave(wg *sync.WaitGroup, inde
 		}
 		for _, house := range houses {
 			saveItem := dto.JsonHouseDto{}
+			// Конвертирует объект дома в DTO
 			saveItem.GetFromEntity(*house)
+			// Устанавливает время обновления объекта
 			saveItem.UpdateBazisDate()
 
+			// Формирует информацию об адресе объекта
 			suggest := "дом д. " + saveItem.HouseNum
 			if saveItem.StructNum != "" {
 				suggest += ", строение стр. " + saveItem.StructNum
@@ -423,16 +465,18 @@ func (a *ElasticHouseRepository) prepareItemsBeforeSave(wg *sync.WaitGroup, inde
 	wg.Done()
 }
 
+// Обновить элементы в индексе
 func (a *ElasticHouseRepository) saveIndexItems(done chan bool) {
+	// Получает объект для работы с пачками элементов
 	bulk := a.GetBulkService()
 	ctx := context.Background()
 	begin := time.Now()
 
 	for d := range a.results {
-		// Enqueue the document
+		// Добавляет объект в очередь на сохранение
 		bulk.Add(elastic.NewBulkIndexRequest().Id(d.ID).Doc(d))
+		// Отправляет запросы в эластик при превышении размера пачки
 		if bulk.NumberOfActions() >= a.batchSize {
-			// Commit
 			res, err := bulk.Do(ctx)
 			if err != nil {
 				a.logger.WithFields(interfaces.LoggerFields{"error": err}).Fatal("House index bulk commit failed")
@@ -445,7 +489,7 @@ func (a *ElasticHouseRepository) saveIndexItems(done chan bool) {
 		}
 	}
 
-	// Commit the final batch before exiting
+	// Отправляет оставшиеся запросы в эластик
 	if bulk.NumberOfActions() > 0 {
 		res, err := bulk.Do(ctx)
 		if err != nil {

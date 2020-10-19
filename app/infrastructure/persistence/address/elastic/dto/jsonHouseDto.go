@@ -5,6 +5,7 @@ import (
 	"time"
 )
 
+// Объект дома в эластике
 type JsonHouseDto struct {
 	ID              string `json:"house_id"`
 	HouseGuid       string `json:"house_guid"`
@@ -28,6 +29,7 @@ type JsonHouseDto struct {
 	BazisUpdateDate string `json:"bazis_update_date"`
 }
 
+// Конвертирует объект дома эластика в объект дома
 func (item *JsonHouseDto) ToEntity() *entity.HouseObject {
 	return &entity.HouseObject{
 		ID:             item.ID,
@@ -52,6 +54,7 @@ func (item *JsonHouseDto) ToEntity() *entity.HouseObject {
 	}
 }
 
+// Конвертирует объект дома в объект дома эластика
 func (item *JsonHouseDto) GetFromEntity(entity entity.HouseObject) {
 	if entity.HouseFullNum == "" {
 		fullNum := "д. " + entity.HouseNum
@@ -98,6 +101,7 @@ func (item *JsonHouseDto) GetFromEntity(entity entity.HouseObject) {
 	item.BazisUpdateDate = time.Now().Format("2006-01-02") + "T00:00:00Z"
 }
 
+// Проверяет активность объекта
 func (item *JsonHouseDto) IsActive() bool {
 	end, err := time.Parse("2006-01-02", item.EndDate)
 	if err != nil || end.Unix() <= time.Now().Unix() {
@@ -107,6 +111,7 @@ func (item *JsonHouseDto) IsActive() bool {
 	return true
 }
 
+// Устанавливает время обновления объекта
 func (item *JsonHouseDto) UpdateBazisDate() {
 	item.BazisUpdateDate = time.Now().Format("2006-01-02") + "T00:00:00Z"
 }

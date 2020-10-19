@@ -9,12 +9,14 @@ import (
 	"strconv"
 )
 
+// GRPC-обработчик проверки версии сервиса
 type VersionHandler struct {
-	Version        string
-	Server         *grpc.Server
-	versionService *service.VersionService
+	Version        string                  // Версия приложения
+	Server         *grpc.Server            // GRPC-сервер
+	versionService *service.VersionService // Сервис версий
 }
 
+// Инициализация обработчика
 func NewVersionHandler(a *service.VersionService, v string) *VersionHandler {
 	handler := &VersionHandler{
 		Version:        v,
@@ -24,7 +26,9 @@ func NewVersionHandler(a *service.VersionService, v string) *VersionHandler {
 	return handler
 }
 
+// Получить информацию о версии приложения
 func (h *VersionHandler) GetVersion(ctx context.Context, empty *empty.Empty) (*version.Version, error) {
+	// Получает поледнюю версию БД ФИАС
 	lastVersion := h.versionService.GetLastVersionInfo()
 	return &version.Version{
 		ServerVersion: h.Version,

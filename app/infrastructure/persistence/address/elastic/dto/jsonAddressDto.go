@@ -7,6 +7,7 @@ import (
 	"time"
 )
 
+// Объект адреса в эластике
 type JsonAddressDto struct {
 	ID              string `json:"ao_id"`
 	AoGuid          string `json:"ao_guid"`
@@ -44,6 +45,7 @@ type JsonAddressDto struct {
 	BazisUpdateDate string `json:"bazis_update_date"`
 }
 
+// Конвертирует объект адреса эластика в объект адрес
 func (item *JsonAddressDto) ToEntity() *entity.AddressObject {
 	return &entity.AddressObject{
 		ID:             item.ID,
@@ -82,6 +84,7 @@ func (item *JsonAddressDto) ToEntity() *entity.AddressObject {
 	}
 }
 
+// Конвертирует объект адреса в объект адреса эластика
 func (item *JsonAddressDto) GetFromEntity(entity entity.AddressObject) {
 	item.ID = entity.ID
 	item.AoGuid = entity.AoGuid
@@ -129,6 +132,7 @@ func (item *JsonAddressDto) GetFromEntity(entity entity.AddressObject) {
 	item.BazisUpdateDate = time.Now().Format("2006-01-02") + "T00:00:00Z"
 }
 
+// Проверяет активность объекта
 func (item *JsonAddressDto) IsActive() bool {
 	if item.CurrStatus != "0" ||
 		item.ActStatus != "1" ||
@@ -140,10 +144,12 @@ func (item *JsonAddressDto) IsActive() bool {
 	return true
 }
 
+// Устанавливает время обновления объекта
 func (item *JsonAddressDto) UpdateBazisDate() {
 	item.BazisUpdateDate = time.Now().Format("2006-01-02") + "T00:00:00Z"
 }
 
+// Заполняет объект адреса эластика из данных адреса
 func (item *JsonAddressDto) UpdateFromExistItem(entity entity.AddressObject) {
 	if entity.FullAddress != "" {
 		item.FullAddress = entity.FullName
