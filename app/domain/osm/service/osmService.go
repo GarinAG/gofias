@@ -143,7 +143,7 @@ func (o *OsmService) updateAddresses(done <-chan bool, addressChan <-chan *entit
 		items, _ := o.addressRepo.GetAddressByTerm(d.Name, 1, 0)
 		if len(items) > 0 {
 			item := items[0]
-			location := fmt.Sprint(d.Lon, ",", d.Lat)
+			location := fmt.Sprint(d.Lat, ",", d.Lon)
 			// Сохраняет только адреса, у которых отличается местоположение или индекс с данными из OSM
 			if item.Location != location || item.PostalCode != d.PostalCode {
 				item.Location = location
@@ -169,7 +169,7 @@ func (o *OsmService) updateHouses(done <-chan bool, housesChan <-chan *entity.No
 		items, _ := o.houseRepo.GetAddressByTerm(d.Name, 1, 0)
 		if len(items) > 0 {
 			item := items[0]
-			location := fmt.Sprint(d.Lon, ",", d.Lat)
+			location := fmt.Sprint(d.Lat, ",", d.Lon)
 			// Сохраняет только дома, у которых отличается местоположение или индекс с данными из OSM
 			if item.Location != location || item.PostalCode != d.PostalCode {
 				item.Location = location
@@ -190,16 +190,30 @@ func (o *OsmService) prepareItems(e *osm.Node) *entity.Node {
 	official := strings.Split(o.getTagByName(e.TagMap(), "official_status"), ":")
 	postal := o.getTagByName(e.TagMap(), "addr:postcode")
 	region := o.getTagByName(e.TagMap(), "addr:region")
+	district := o.getTagByName(e.TagMap(), "addr:district")
 	city := o.getTagByName(e.TagMap(), "addr:city")
 	street := o.getTagByName(e.TagMap(), "addr:street")
 	housenum := o.getTagByName(e.TagMap(), "addr:housenumber")
 	name := o.getTagByName(e.TagMap(), "name")
+	if strings.Contains(district, "городской округ") {
+		district = ""
+	}
 
 	// Проверяет наличие тегов у объекта
-	if place != "" || (housenum != "" && street != "" && city != "") {
+	if place != "" || (housenum != "" || street != "" || city != "") {
+		if place != "" && place != "city" && place != "town" && region == "" && district == "" && city == "" {
+			return nil
+		}
+
 		fullAddr := ""
 		if region != "" && region != name {
 			fullAddr = region
+		}
+		if district != "" && district != name {
+			if fullAddr != "" {
+				fullAddr += ", "
+			}
+			fullAddr += district
 		}
 		if city != "" && city != name {
 			if fullAddr != "" {
@@ -218,19 +232,18 @@ func (o *OsmService) prepareItems(e *osm.Node) *entity.Node {
 				fullAddr += ", "
 			}
 			fullAddr += housenum
-		} else if name != "" {
+		} else if name != "" && name != city {
 			if fullAddr != "" {
 				fullAddr += ", "
 			}
-			if len(official) > 0 {
+			if len(official) > 0 && len(official[len(official)-1]) > 0 {
 				name = official[len(official)-1] + " " + name
 			}
 
 			fullAddr += name
 		}
 
-		// TODO Добавить проверку на тип адреса: улица, город, область
-		replacedAddr := util.Replace(fullAddr)
+		replacedAddr := strings.TrimSpace(util.Replace(fullAddr))
 		node := entity.Node{
 			Name:       replacedAddr,
 			Lat:        e.Lat,
