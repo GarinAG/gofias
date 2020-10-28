@@ -66,7 +66,7 @@ type ElasticVersionRepository struct {
 func NewElasticVersionRepository(elasticClient *elasticHelper.Client, configInterface interfaces.ConfigInterface) repository.VersionRepositoryInterface {
 	repos := &ElasticVersionRepository{
 		elasticClient: elasticClient,
-		indexName:     configInterface.GetString("project.prefix") + entity.Version{}.TableName(),
+		indexName:     configInterface.GetConfig().ProjectPrefix + entity.Version{}.TableName(),
 	}
 
 	return repos

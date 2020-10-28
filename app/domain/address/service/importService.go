@@ -9,6 +9,7 @@ import (
 	versionEntity "github.com/GarinAG/gofias/domain/version/entity"
 	versionService "github.com/GarinAG/gofias/domain/version/service"
 	"github.com/GarinAG/gofias/interfaces"
+	"github.com/GarinAG/gofias/util"
 	"os"
 	"regexp"
 	"sync"
@@ -25,6 +26,7 @@ type ImportService struct {
 	IsFull               bool                       `default:"false"` // Полный импорт
 	SkipHouses           bool                       `default:"false"` // Пропускать импорт домов
 	SkipClear            bool                       `default:"false"` // Не удалять скачанные файлы после импорта
+	SkipOsm              bool                       `default:"false"` // Не удалять скачанные файлы после импорта
 	Begin                time.Time                  // Время начала импорта
 }
 
@@ -129,7 +131,7 @@ func (is *ImportService) StartFullImport(api *fiasApiService.FiasApiService, ver
 func (is *ImportService) convertDownloadInfoToVersion(info entity.DownloadFileInfo, cntAddr int, cntHouses int) *versionEntity.Version {
 	versionDateSlice := info.TextVersion[len(info.TextVersion)-10 : len(info.TextVersion)]
 	versionTime, _ := time.Parse("02.01.2006", versionDateSlice)
-	versionDate := versionTime.Format("2006-01-02") + "T00:00:00Z"
+	versionDate := versionTime.Format(util.TimeFormat)
 
 	return &versionEntity.Version{
 		ID:               info.VersionId,
@@ -186,22 +188,107 @@ func (is *ImportService) ParseFiles(files *[]directoryEntity.File) (int, int) {
 	return cntAddr, cntHouse
 }
 
+// Получить список адресов по GUID для индексации домов
+func (is *ImportService) GetIndexObjects(guids []string) map[string]addressEntity.IndexObject {
+	indexList := make(map[string]addressEntity.IndexObject)
+	if len(guids) > 0 {
+		list, _ := is.addressImportService.GetAddressByGuidList(guids)
+
+		if list != nil {
+			for _, item := range list {
+				indexList[item.AoGuid] = addressEntity.IndexObject{
+					AoGuid:         item.AoGuid,
+					FullAddress:    item.FullAddress,
+					AddressSuggest: item.AddressSuggest,
+				}
+			}
+		}
+	}
+
+	return indexList
+}
+
 // Индексация таблиц БД
 func (is *ImportService) Index() {
+	// Базовая индексация элементов БД
+	is.BaseIndex()
+	// Индексация домов по временной метке
+	if !is.IsFull {
+		is.IndexHouses()
+	}
+}
+
+// Базовая индексация элементов БД
+func (is *ImportService) BaseIndex() {
+	is.logger.Info("Start base address indexing")
 	var wg sync.WaitGroup
 	var guids []string
 	// Канал индексации домов при изменении адресов
-	indexChan := make(chan addressEntity.IndexObject, is.config.GetInt("workers.houses"))
-
-	// Получает GUID адресов последних загруженных домов
-	if !is.IsFull {
-		guids = is.houseImportService.GetLastUpdatedGuids(is.Begin)
+	indexChan := make(chan addressEntity.IndexObject, is.config.GetConfig().Workers.Houses)
+	houseCount := is.houseImportService.CountAllData()
+	if houseCount == 0 {
+		indexChan = nil
 	}
 
-	wg.Add(2)
 	// Индексация таблицы адресов
+	wg.Add(1)
 	go is.addressImportService.Index(is.IsFull, is.Begin, guids, &wg, indexChan)
-	// Индексация таблицы домов
-	go is.houseImportService.Index(&wg, indexChan)
+	// Индексация таблицы домов по измененным адресам
+	if indexChan != nil {
+		wg.Add(1)
+		go is.houseImportService.Index(is.Begin, &wg, indexChan, is.GetIndexObjects)
+	}
 	wg.Wait()
+
+	// Индексация таблицы домов по временной метке, выполняется после обновления адресов
+	if !is.IsFull && houseCount > 0 {
+		is.logger.Info("Start base houses indexing")
+		wg.Add(1)
+		go is.houseImportService.Index(is.Begin, &wg, nil, is.GetIndexObjects)
+		wg.Wait()
+	}
+}
+
+// Индексация домов по временной метке
+func (is *ImportService) IndexHouses() {
+	is.logger.Info("Start indexing by houses timestamp")
+	var wg sync.WaitGroup
+	var guids []string
+	var sliceGuid []string
+	houseCount := is.houseImportService.CountAllData()
+	if houseCount > 0 {
+		// Получает GUID адресов последних загруженных домов
+		guids = is.houseImportService.GetLastUpdatedGuids(is.Begin)
+		if len(guids) > 0 {
+			start := 0
+			cnt := is.config.GetConfig().BatchSize
+			if cnt > 10000 || cnt == 0 {
+				cnt = 10000
+			}
+			// Канал индексации домов при изменении адресов
+			indexChan := make(chan addressEntity.IndexObject, is.config.GetConfig().Workers.Houses)
+			wg.Add(1)
+			// Индексация таблицы домов
+			go is.houseImportService.Index(is.Begin, &wg, indexChan, is.GetIndexObjects)
+
+			for {
+				if start >= len(guids) {
+					break
+				}
+				sliceCnt := cnt + start
+				if sliceCnt >= len(guids) {
+					sliceCnt = len(guids) - 1
+				}
+				sliceGuid = guids[start:sliceCnt]
+				start += cnt
+
+				addressList := is.GetIndexObjects(sliceGuid)
+				for _, address := range addressList {
+					indexChan <- address
+				}
+			}
+			close(indexChan)
+			wg.Wait()
+		}
+	}
 }

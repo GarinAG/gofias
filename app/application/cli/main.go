@@ -27,7 +27,7 @@ func main() {
 	}
 
 	// Инициализация глобальной переменно вывода информации в консоль
-	util.CanPrintProcess = ctn.Resolve("config").(interfaces.ConfigInterface).GetBool("process.print")
+	util.CanPrintProcess = ctn.Resolve("config").(interfaces.ConfigInterface).GetConfig().ProcessPrint
 
 	// Инициализация приложения
 	app := cli2.NewApp(ctn)

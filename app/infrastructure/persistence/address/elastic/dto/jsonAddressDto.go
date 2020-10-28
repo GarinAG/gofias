@@ -96,16 +96,6 @@ func (item *JsonAddressDto) GetFromEntity(entity entity.AddressObject) {
 	item.FullName = entity.FullName
 	item.FullAddress = entity.FullAddress
 	item.AddressSuggest = entity.AddressSuggest
-	if item.FullAddress == "" {
-		item.FullAddress = item.FullName
-	}
-	if item.FullName == "" {
-		item.FullName = util.PrepareFullName(item.ShortName, item.FormalName)
-	}
-	if item.AddressSuggest == "" {
-		item.AddressSuggest = util.PrepareSuggest("", item.ShortName, item.FormalName)
-	}
-
 	item.Code = entity.Code
 	item.RegionCode = entity.RegionCode
 	item.PostalCode = entity.PostalCode
@@ -129,7 +119,18 @@ func (item *JsonAddressDto) GetFromEntity(entity entity.AddressObject) {
 	item.StreetType = entity.StreetType
 	item.StreetFull = entity.StreetFull
 	item.Location = entity.Location
-	item.BazisUpdateDate = time.Now().Format("2006-01-02") + "T00:00:00Z"
+
+	if item.FullName == "" {
+		item.FullName = util.PrepareFullName(item.ShortName, item.FormalName)
+	}
+	if item.FullAddress == "" {
+		item.FullAddress = item.FullName
+	}
+	if item.AddressSuggest == "" {
+		item.AddressSuggest = util.PrepareSuggest("", item.ShortName, item.FormalName)
+	}
+
+	item.UpdateBazisDate()
 }
 
 // Проверяет активность объекта
@@ -146,13 +147,13 @@ func (item *JsonAddressDto) IsActive() bool {
 
 // Устанавливает время обновления объекта
 func (item *JsonAddressDto) UpdateBazisDate() {
-	item.BazisUpdateDate = time.Now().Format("2006-01-02") + "T00:00:00Z"
+	item.BazisUpdateDate = time.Now().Format(util.TimeFormat)
 }
 
 // Заполняет объект адреса эластика из данных адреса
 func (item *JsonAddressDto) UpdateFromExistItem(entity entity.AddressObject) {
 	if entity.FullAddress != "" {
-		item.FullAddress = entity.FullName
+		item.FullAddress = entity.FullAddress
 	}
 	if entity.AddressSuggest != "" {
 		item.AddressSuggest = entity.AddressSuggest

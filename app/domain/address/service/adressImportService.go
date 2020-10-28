@@ -36,16 +36,14 @@ func NewAddressImportService(addressRepo repository.AddressRepositoryInterface, 
 // Импорт адресов
 func (a *AddressImportService) Import(filePath string, wg *sync.WaitGroup, cnt chan int) {
 	defer wg.Done()
+	var importWg sync.WaitGroup
+	importWg.Add(2)
 	addressChannel := make(chan interface{})
-	done := make(chan bool)
-	total := 0
-	if a.IsFull {
-		total = 4500000 // Максимальное количество элементов для прогрессбара
-	}
 	// Чтение файла импорта и парсинг элементов
-	go util.ParseFile(filePath, done, addressChannel, a.logger, a.ParseElement, "Object", total)
+	go util.ParseFile(&importWg, filePath, addressChannel, a.logger, a.ParseElement, "Object", -1)
 	// Сохраняет элементы в БД
-	go a.AddressRepo.InsertUpdateCollection(addressChannel, done, cnt, a.IsFull)
+	go a.AddressRepo.InsertUpdateCollection(&importWg, addressChannel, cnt, a.IsFull)
+	importWg.Wait()
 }
 
 // Индексация таблицы адресов
@@ -105,4 +103,12 @@ func (a *AddressImportService) checkError(err error) {
 	if err != nil {
 		a.logger.Error(err.Error())
 	}
+}
+
+// Получить список адресов по GUID
+func (a *AddressImportService) GetAddressByGuidList(guids []string) ([]*entity.AddressObject, error) {
+	res, err := a.AddressRepo.GetAddressByGuidList(util.UniqueStringSlice(guids))
+	a.checkError(err)
+
+	return res, nil
 }

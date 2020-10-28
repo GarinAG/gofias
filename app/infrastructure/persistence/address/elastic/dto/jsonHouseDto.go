@@ -2,6 +2,7 @@ package dto
 
 import (
 	"github.com/GarinAG/gofias/domain/address/entity"
+	"github.com/GarinAG/gofias/util"
 	"time"
 )
 
@@ -56,36 +57,12 @@ func (item *JsonHouseDto) ToEntity() *entity.HouseObject {
 
 // Конвертирует объект дома в объект дома эластика
 func (item *JsonHouseDto) GetFromEntity(entity entity.HouseObject) {
-	if entity.HouseFullNum == "" {
-		fullNum := "д. " + entity.HouseNum
-		if entity.StructNum != "" {
-			fullNum += ", стр. " + entity.StructNum
-		}
-		if entity.BuildNum != "" {
-			fullNum += ", кор. " + entity.BuildNum
-		}
-
-		entity.HouseFullNum = fullNum
-	}
-
-	if entity.AddressSuggest == "" {
-		suggest := "дом (д.) " + entity.HouseNum
-		if entity.StructNum != "" {
-			suggest += ", строение (стр.) " + entity.StructNum
-		}
-		if entity.BuildNum != "" {
-			suggest += ", корпус (кор.) " + entity.BuildNum
-		}
-
-		entity.AddressSuggest = suggest
-	}
-
+	item.FullAddress = entity.FullAddress
+	item.AddressSuggest = entity.AddressSuggest
 	item.ID = entity.ID
 	item.HouseGuid = entity.HouseGuid
 	item.AoGuid = entity.AoGuid
 	item.HouseNum = entity.HouseNum
-	item.HouseFullNum = entity.HouseFullNum
-	item.FullAddress = entity.FullAddress
 	item.PostalCode = entity.PostalCode
 	item.Okato = entity.Okato
 	item.Oktmo = entity.Oktmo
@@ -98,7 +75,34 @@ func (item *JsonHouseDto) GetFromEntity(entity entity.HouseObject) {
 	item.Counter = entity.Counter
 	item.CadNum = entity.CadNum
 	item.Location = entity.Location
-	item.BazisUpdateDate = time.Now().Format("2006-01-02") + "T00:00:00Z"
+
+	if item.HouseFullNum == "" {
+		fullNum := "д. " + entity.HouseNum
+		if entity.StructNum != "" {
+			fullNum += ", стр. " + entity.StructNum
+		}
+		if entity.BuildNum != "" {
+			fullNum += ", кор. " + entity.BuildNum
+		}
+
+		item.HouseFullNum = fullNum
+	}
+	if item.AddressSuggest == "" {
+		suggest := "дом (д.) " + entity.HouseNum
+		if entity.StructNum != "" {
+			suggest += ", строение (стр.) " + entity.StructNum
+		}
+		if entity.BuildNum != "" {
+			suggest += ", корпус (кор.) " + entity.BuildNum
+		}
+
+		item.AddressSuggest = suggest
+	}
+	if item.FullAddress == "" {
+		item.FullAddress = item.HouseFullNum
+	}
+
+	item.UpdateBazisDate()
 }
 
 // Проверяет активность объекта
@@ -113,5 +117,18 @@ func (item *JsonHouseDto) IsActive() bool {
 
 // Устанавливает время обновления объекта
 func (item *JsonHouseDto) UpdateBazisDate() {
-	item.BazisUpdateDate = time.Now().Format("2006-01-02") + "T00:00:00Z"
+	item.BazisUpdateDate = time.Now().Format(util.TimeFormat)
+}
+
+// Заполняет объект дома эластика из данных дома
+func (item *JsonHouseDto) UpdateFromExistItem(entity entity.HouseObject) {
+	if entity.FullAddress != "" {
+		item.FullAddress = entity.FullAddress
+	}
+	if entity.AddressSuggest != "" {
+		item.AddressSuggest = entity.AddressSuggest
+	}
+	if entity.Location != "" {
+		item.Location = entity.Location
+	}
 }

@@ -2,6 +2,8 @@ package util
 
 import "sort"
 
+var TimeFormat = "2006-01-02T15:04:00Z"
+
 // Проверить наличие строки в массиве
 func ContainsString(arr []string, str string) bool {
 	for _, a := range arr {

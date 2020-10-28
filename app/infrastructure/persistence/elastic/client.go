@@ -14,18 +14,15 @@ type Client struct {
 
 // Инициализация объекта
 func NewElasticClient(configInterface interfaces.ConfigInterface, logger interfaces.LoggerInterface) *Client {
-	scheme := configInterface.GetString("elastic.scheme")
-	user := configInterface.GetString("elastic.username")
-	pass := configInterface.GetString("elastic.password")
+	scheme := configInterface.GetConfig().Elastic.Scheme
+	user := configInterface.GetConfig().Elastic.User
+	pass := configInterface.GetConfig().Elastic.Password
 
-	if scheme == "" {
-		scheme = "http"
-	}
 	// Инициализация свойств подключения к клиенту
 	options := []elastic.ClientOptionFunc{
-		elastic.SetURL(scheme + "://" + configInterface.GetString("elastic.host")),
-		elastic.SetSniff(configInterface.GetBool("elastic.sniff")),
-		elastic.SetGzip(configInterface.GetBool("elastic.gzip")),
+		elastic.SetURL(scheme + "://" + configInterface.GetConfig().Elastic.Host),
+		elastic.SetSniff(configInterface.GetConfig().Elastic.Sniff),
+		elastic.SetGzip(configInterface.GetConfig().Elastic.Gzip),
 		elastic.SetErrorLog(logger),
 		//elastic.SetTraceLog(logger),
 	}
@@ -113,7 +110,7 @@ func (e *Client) RefreshIndexes(indexes []string) {
 // Получить элементы из индекса через ScrollApi
 func (e *Client) ScrollData(scrollService *elastic.ScrollService) ([]elastic.SearchHit, error) {
 	ctx := context.Background()
-	scrollService.Scroll("1s")
+	scrollService.Scroll("1m")
 	var totals []elastic.SearchHit
 
 	// Получает данные из эластика пачками

@@ -78,7 +78,7 @@ func (g *GrpcServer) Run() error {
 	wg.Add(1)
 	// Запускает GRPC-сервер
 	go g.grpcService(&wg)
-	if g.Config.GetBool("grpc.gateway.enable") {
+	if g.Config.GetConfig().Grpc.Gateway.Enable {
 		wg.Add(1)
 		// Запускает http-сервер
 		go g.proxyService(&wg)
@@ -109,8 +109,8 @@ func (g *GrpcServer) grpcService(wg *sync.WaitGroup) {
 
 // Запуск GRPC-сервера
 func (g *GrpcServer) Serve() error {
-	address := g.Config.GetString("grpc.address") + ":" + g.Config.GetString("grpc.port")
-	listener, err := net.Listen(g.Config.GetString("grpc.network"), address)
+	address := g.Config.GetConfig().Grpc.Address + ":" + g.Config.GetConfig().Grpc.Port
+	listener, err := net.Listen(g.Config.GetConfig().Grpc.Network, address)
 	if err != nil {
 		return err
 	}
@@ -136,7 +136,7 @@ func (g *GrpcServer) proxyService(wg *sync.WaitGroup) {
 
 	// Регистрирует обработчики запросов
 	opts := []grpc.DialOption{grpc.WithInsecure()}
-	grpcAddress := g.Config.GetString("grpc.address") + ":" + g.Config.GetString("grpc.port")
+	grpcAddress := g.Config.GetConfig().Grpc.Address + ":" + g.Config.GetConfig().Grpc.Port
 	// Регистрирует обработчик адресов
 	err := grpcHandlerAddressV1.RegisterAddressHandlerHandlerFromEndpoint(ctx, mux, grpcAddress, opts)
 	if err != nil {
@@ -154,7 +154,7 @@ func (g *GrpcServer) proxyService(wg *sync.WaitGroup) {
 	}
 
 	// Запускает http-сервер
-	gatewayAddress := g.Config.GetString("grpc.gateway.address") + ":" + g.Config.GetString("grpc.gateway.port")
+	gatewayAddress := g.Config.GetConfig().Grpc.Gateway.Address + ":" + g.Config.GetConfig().Grpc.Gateway.Port
 	g.Logger.Info("Start Http server on: " + gatewayAddress)
 	g.Logger.Fatal(http.ListenAndServe(gatewayAddress, mux).Error())
 }

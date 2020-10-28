@@ -7,7 +7,7 @@ import (
 
 // Регистрация команды импорта
 func RegisterImportCliEndpoint(app *cli2.App) {
-	h := NewHandler(app.ImportService, app.Logger)
+	h := NewHandler(app.ImportService, app.OsmService, app.Logger)
 	app.Server.Commands = append(app.Server.Commands, &cli.Command{
 		Name:  "update",
 		Usage: "Run fias import",
@@ -24,10 +24,17 @@ func RegisterImportCliEndpoint(app *cli2.App) {
 				Value: false,
 				Usage: "Skip clear tmp folder on startup",
 			},
+			// Флаг запрета загрузки OSM данных после индексации
+			&cli.BoolFlag{
+				Name:  "skip-osm",
+				Value: false,
+				Usage: "Skip osm update",
+			},
 		},
 		Action: func(c *cli.Context) error {
 			app.ImportService.SkipHouses = c.Bool("skip-houses")
 			app.ImportService.SkipClear = c.Bool("skip-clear")
+			app.ImportService.SkipOsm = c.Bool("skip-osm")
 
 			h.CheckUpdates(app.FiasApiService, app.VersionService)
 			return nil

@@ -2,6 +2,7 @@ package registry
 
 import (
 	"flag"
+	cache "github.com/AeroAgency/golang-bigcache-lib"
 	"github.com/GarinAG/gofias/domain/address/repository"
 	"github.com/GarinAG/gofias/domain/address/service"
 	directoryService "github.com/GarinAG/gofias/domain/directory/service"
@@ -15,7 +16,9 @@ import (
 	log "github.com/GarinAG/gofias/infrastructure/persistence/logger"
 	versionRepository "github.com/GarinAG/gofias/infrastructure/persistence/version/elastic/repository"
 	"github.com/GarinAG/gofias/interfaces"
+	"github.com/allegro/bigcache"
 	"github.com/sarulabs/di"
+	"time"
 )
 
 var (
@@ -52,18 +55,39 @@ func NewContainer(loggerPrefix string) (*Container, error) {
 			Build: func(ctn di.Container) (interface{}, error) {
 				appConfig := ctn.Get("config").(interfaces.ConfigInterface)
 				loggerConfig := interfaces.LoggerConfiguration{
-					EnableConsole:      appConfig.GetBool("logger.console.enable"),
-					ConsoleLevel:       appConfig.GetString("logger.console.level"),
-					ConsoleJSONFormat:  appConfig.GetBool("logger.console.json"),
-					EnableFile:         appConfig.GetBool("logger.file.enable"),
-					FileLevel:          appConfig.GetString("logger.file.level"),
-					FileJSONFormat:     appConfig.GetBool("logger.file.json"),
-					FileLocation:       appConfig.GetString("logger.file.path"),
+					EnableConsole:      appConfig.GetConfig().LoggerConsole.Enable,
+					ConsoleLevel:       appConfig.GetConfig().LoggerConsole.Level,
+					ConsoleJSONFormat:  appConfig.GetConfig().LoggerConsole.Json,
+					EnableFile:         appConfig.GetConfig().LoggerFile.Enable,
+					FileLevel:          appConfig.GetConfig().LoggerFile.Level,
+					FileJSONFormat:     appConfig.GetConfig().LoggerFile.Json,
+					FileLocation:       appConfig.GetConfig().LoggerFile.Path,
 					FileLocationPrefix: loggerPrefix,
 				}
 				logger := log.NewZapLogger(loggerConfig)
 
 				return logger, nil
+			},
+		},
+		// Кэш
+		{
+			Name: "cache",
+			Build: func(ctn di.Container) (interface{}, error) {
+				cacheConfig := bigcache.Config{
+					Shards:             1024,
+					LifeWindow:         10 * time.Minute,
+					CleanWindow:        5 * time.Minute,
+					MaxEntriesInWindow: 1000 * 10 * 60,
+					MaxEntrySize:       500,
+					Verbose:            false,
+					HardMaxCacheSize:   2048,
+					OnRemove:           nil,
+					OnRemoveWithReason: nil,
+				}
+				bigCacheInstance, _ := bigcache.NewBigCache(cacheConfig)
+				cacheInstance := cache.NewBigCache(bigCacheInstance)
+
+				return cacheInstance, nil
 			},
 		},
 		// Клиент эластика
@@ -83,9 +107,9 @@ func NewContainer(loggerPrefix string) (*Container, error) {
 				repo := elasticRepository.NewElasticHouseRepository(
 					ctn.Get("elasticClient").(*elasticHelper.Client),
 					ctn.Get("logger").(interfaces.LoggerInterface),
-					appConfig.GetInt("batch.size"),
-					appConfig.GetString("project.prefix"),
-					appConfig.GetInt("workers.houses"))
+					appConfig.GetConfig().BatchSize,
+					appConfig.GetConfig().ProjectPrefix,
+					appConfig.GetConfig().Workers.Houses)
 
 				return repo, nil
 			},
@@ -98,9 +122,10 @@ func NewContainer(loggerPrefix string) (*Container, error) {
 				repo := elasticRepository.NewElasticAddressRepository(
 					ctn.Get("elasticClient").(*elasticHelper.Client),
 					ctn.Get("logger").(interfaces.LoggerInterface),
-					appConfig.GetInt("batch.size"),
-					appConfig.GetString("project.prefix"),
-					appConfig.GetInt("workers.addresses"))
+					appConfig.GetConfig().BatchSize,
+					appConfig.GetConfig().ProjectPrefix,
+					appConfig.GetConfig().Workers.Addresses,
+					ctn.Get("cache").(cache.CacheInterface))
 
 				return repo, nil
 			},

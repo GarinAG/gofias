@@ -19,6 +19,7 @@ cd ..
 ## FIAS import CLI props
 * `skip-clear (bool)` - Skip clear tmp directory on start (default `false`)
 * `skip-houses (bool)` - Skip houses index (default `false`)
+* `skip-osm (bool)` - Skip geo-data import (default `false`)
 
 ## FIAS grpc server usage
 

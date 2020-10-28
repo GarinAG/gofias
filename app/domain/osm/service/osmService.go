@@ -12,6 +12,7 @@ import (
 	"github.com/paulmach/osm/osmpbf"
 	"os"
 	"strings"
+	"sync"
 )
 
 // Сервис работы с OSM
@@ -43,7 +44,7 @@ func NewOsmService(
 // Обновляет данные местоположений
 func (o *OsmService) Update() {
 	// Скачивает файл с данными
-	file, err := o.downloadService.DownloadFile(o.config.GetString("osm.url"), "russia.pbf")
+	file, err := o.downloadService.DownloadFile(o.config.GetConfig().Osm.Url, "russia.pbf")
 	o.checkFatalError(err)
 	if file != nil {
 		// Разбирает файл с данными
@@ -53,6 +54,8 @@ func (o *OsmService) Update() {
 
 // Разбирает файл с данными
 func (o *OsmService) parseFile(filepath string) {
+	o.logger.Info("Start parsing OSM file")
+
 	// Открывает файл с данными OSM
 	f, err := os.Open(filepath)
 	o.checkFatalError(err)
@@ -64,24 +67,28 @@ func (o *OsmService) parseFile(filepath string) {
 
 	addressChan := make(chan *entity.Node)
 	housesChan := make(chan *entity.Node)
-	done := make(chan bool)
 	// Проверяет наличие домов в БД
 	housesCnt, _ := o.houseRepo.CountAllData(nil)
+	housesCnt = 0 // TODO Enable houses import
 	if housesCnt == 0 {
 		housesChan = nil
 	}
 
+	var wg sync.WaitGroup
+	wg.Add(2)
 	// Сканирует файл с данными OSM
-	go o.scan(scanner, done, addressChan, housesChan)
+	go o.scan(&wg, scanner, addressChan, housesChan)
 	// Обновляет адреса
-	go o.updateAddresses(done, addressChan)
+	go o.updateAddresses(&wg, addressChan)
 	// При наличии домов разрешает обновление местоположений
 	if housesChan != nil {
+		wg.Add(1)
 		// Обновляет дома
-		go o.updateHouses(done, housesChan)
+		go o.updateHouses(&wg, housesChan)
 	}
-
-	<-done
+	wg.Wait()
+	o.downloadService.ClearDirectory()
+	o.logger.Info("OSM parsing finished")
 	scanErr := scanner.Err()
 	if scanErr != nil {
 		panic(scanErr)
@@ -89,7 +96,8 @@ func (o *OsmService) parseFile(filepath string) {
 }
 
 // Сканирует файл с данными OSM
-func (o *OsmService) scan(scanner *osmpbf.Scanner, done chan<- bool, addressChan chan<- *entity.Node, housesChan chan<- *entity.Node) {
+func (o *OsmService) scan(wg *sync.WaitGroup, scanner *osmpbf.Scanner, addressChan chan<- *entity.Node, housesChan chan<- *entity.Node) {
+	defer wg.Done()
 	// Создает список условий, проставляет обязательное условие - наличие названия
 	tagList := "name"
 	conditions := make(map[string][]string)
@@ -97,19 +105,18 @@ func (o *OsmService) scan(scanner *osmpbf.Scanner, done chan<- bool, addressChan
 		conditions[group] = strings.Split(group, "+")
 	}
 
-	bar := util.StartNewProgress(-1)
+	bar := util.StartNewProgress(-1, "Import OSM", false)
+
 	for scanner.Scan() {
 		switch e := scanner.Object().(type) {
 		// Элемент является объектом
 		case *osm.Node:
-			//case *osm.Way:
-			//case *osm.Relation:
 			if e.Tags != nil {
 				// Проверяет условия
 				if o.hasTags(e.TagMap()) && o.containsValidTags(e.TagMap(), conditions) {
-					bar.Increment()
 					// Проверяет и разбирает объект
 					node := o.prepareItems(e)
+					bar.Increment()
 					if node != nil {
 						switch node.Type {
 						case "place": // Объект является адресом
@@ -122,21 +129,27 @@ func (o *OsmService) scan(scanner *osmpbf.Scanner, done chan<- bool, addressChan
 					}
 				}
 			}
+			//case *osm.Way:
+			//case *osm.Relation:
 		}
 	}
 
 	bar.Finish()
 	close(addressChan)
-	close(housesChan)
-	done <- true
+	if housesChan != nil {
+		close(housesChan)
+	}
 }
 
 // Обновляет адреса
-func (o *OsmService) updateAddresses(done <-chan bool, addressChan <-chan *entity.Node) {
+func (o *OsmService) updateAddresses(wg *sync.WaitGroup, addressChan <-chan *entity.Node) {
+	defer wg.Done()
 	address := make(chan interface{})
 	addressCnt := make(chan int)
+	var importWg sync.WaitGroup
+	importWg.Add(1)
 	// Сохраняет элементы в БД
-	go o.addressRepo.InsertUpdateCollection(address, done, addressCnt, true)
+	go o.addressRepo.InsertUpdateCollection(&importWg, address, addressCnt, true)
 
 	for d := range addressChan {
 		// Ищет адреса в БД по названию
@@ -145,9 +158,9 @@ func (o *OsmService) updateAddresses(done <-chan bool, addressChan <-chan *entit
 			item := items[0]
 			location := fmt.Sprint(d.Lat, ",", d.Lon)
 			// Сохраняет только адреса, у которых отличается местоположение или индекс с данными из OSM
-			if item.Location != location || item.PostalCode != d.PostalCode {
+			if item.Location != location || (d.PostalCode != "" && item.PostalCode != d.PostalCode) {
 				item.Location = location
-				if item.PostalCode == "" && d.PostalCode != "" {
+				if d.PostalCode != "" && item.PostalCode != d.PostalCode {
 					item.PostalCode = d.PostalCode
 				}
 				address <- *item
@@ -155,33 +168,49 @@ func (o *OsmService) updateAddresses(done <-chan bool, addressChan <-chan *entit
 		}
 	}
 	close(address)
+	<-addressCnt
+	importWg.Wait()
 }
 
 // Обновляет дома
-func (o *OsmService) updateHouses(done <-chan bool, housesChan <-chan *entity.Node) {
+func (o *OsmService) updateHouses(wg *sync.WaitGroup, housesChan <-chan *entity.Node) {
+	defer wg.Done()
 	houses := make(chan interface{})
 	housesCnt := make(chan int)
+	var importWg sync.WaitGroup
+	importWg.Add(1)
 	// Сохраняет элементы в БД
-	go o.houseRepo.InsertUpdateCollection(houses, done, housesCnt, true)
+	go o.houseRepo.InsertUpdateCollection(&importWg, houses, housesCnt, true)
 
 	for d := range housesChan {
+		// Ищет ближайщий адрес при отсутствии города
+		if d.HouseAddress != "" {
+			nearest, _ := o.addressRepo.GetNearestCity(d.Lon, d.Lat)
+			if nearest == nil {
+				continue
+			} else {
+				d.Name = nearest.FullAddress + " " + d.Name
+			}
+		}
+
 		// Ищет дома в БД по адресу
 		items, _ := o.houseRepo.GetAddressByTerm(d.Name, 1, 0)
 		if len(items) > 0 {
 			item := items[0]
 			location := fmt.Sprint(d.Lat, ",", d.Lon)
 			// Сохраняет только дома, у которых отличается местоположение или индекс с данными из OSM
-			if item.Location != location || item.PostalCode != d.PostalCode {
+			if item.Location != location || (d.PostalCode != "" && item.PostalCode != d.PostalCode) {
 				item.Location = location
-				if item.PostalCode == "" && d.PostalCode != "" {
+				if d.PostalCode != "" && item.PostalCode != d.PostalCode {
 					item.PostalCode = d.PostalCode
 				}
 				houses <- *item
 			}
 		}
 	}
-
 	close(houses)
+	<-housesCnt
+	importWg.Wait()
 }
 
 // Проверяет и разбирает объект
@@ -195,44 +224,49 @@ func (o *OsmService) prepareItems(e *osm.Node) *entity.Node {
 	street := o.getTagByName(e.TagMap(), "addr:street")
 	housenum := o.getTagByName(e.TagMap(), "addr:housenumber")
 	name := o.getTagByName(e.TagMap(), "name")
+	houseAddress := ""
 	if strings.Contains(district, "городской округ") {
 		district = ""
 	}
 
 	// Проверяет наличие тегов у объекта
-	if place != "" || (housenum != "" || street != "" || city != "") {
+	if place != "" || (housenum != "" && street != "") {
 		if place != "" && place != "city" && place != "town" && region == "" && district == "" && city == "" {
 			return nil
 		}
 
 		fullAddr := ""
-		if region != "" && region != name {
+		if region != "" {
 			fullAddr = region
 		}
-		if district != "" && district != name {
+		if district != "" {
 			if fullAddr != "" {
 				fullAddr += ", "
 			}
 			fullAddr += district
 		}
-		if city != "" && city != name {
+		if city != "" {
 			if fullAddr != "" {
 				fullAddr += ", "
 			}
+			if place == "city" || place == "town" {
+				fullAddr += "город "
+			}
 			fullAddr += city
 		}
-		if street != "" && street != name {
+		if street != "" {
 			if fullAddr != "" {
 				fullAddr += ", "
 			}
 			fullAddr += street
 		}
-		if housenum != "" && housenum != name {
+		if housenum != "" {
+			houseAddress = fullAddr
 			if fullAddr != "" {
 				fullAddr += ", "
 			}
 			fullAddr += housenum
-		} else if name != "" && name != city {
+		} else if name != "" {
 			if fullAddr != "" {
 				fullAddr += ", "
 			}
@@ -249,12 +283,16 @@ func (o *OsmService) prepareItems(e *osm.Node) *entity.Node {
 			Lat:        e.Lat,
 			Lon:        e.Lon,
 			PostalCode: postal,
+			Node:       e,
 		}
 
 		if place != "" {
 			node.Type = "place"
 		} else {
 			node.Type = "building"
+			if city == "" {
+				node.HouseAddress = houseAddress
+			}
 		}
 
 		return &node

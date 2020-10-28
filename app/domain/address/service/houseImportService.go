@@ -37,16 +37,14 @@ func NewHouseImportService(houseRepo repository.HouseRepositoryInterface, logger
 // Импорт домов
 func (h *HouseImportService) Import(filePath string, wg *sync.WaitGroup, cnt chan int) {
 	defer wg.Done()
+	var importWg sync.WaitGroup
+	importWg.Add(2)
 	addressChannel := make(chan interface{})
-	done := make(chan bool)
-	total := 0
-	if h.IsFull {
-		total = 75000000 // Максимальное количество элементов для прогрессбара
-	}
 	// Чтение файла импорта и парсинг элементов
-	go util.ParseFile(filePath, done, addressChannel, h.logger, h.ParseElement, "House", total)
+	go util.ParseFile(&importWg, filePath, addressChannel, h.logger, h.ParseElement, "House", -1)
 	// Сохраняет элементы в БД
-	go h.HouseRepo.InsertUpdateCollection(addressChannel, done, cnt, h.IsFull)
+	go h.HouseRepo.InsertUpdateCollection(&importWg, addressChannel, cnt, h.IsFull)
+	importWg.Wait()
 }
 
 // Разбор объекта из xml
@@ -105,9 +103,9 @@ func (h *HouseImportService) CountAllData() int64 {
 }
 
 // Индексация таблицы домов
-func (h *HouseImportService) Index(wg *sync.WaitGroup, indexChan <-chan entity.IndexObject) {
+func (h *HouseImportService) Index(start time.Time, wg *sync.WaitGroup, indexChan <-chan entity.IndexObject, objects repository.GetIndexObjects) {
 	defer wg.Done()
-	err := h.HouseRepo.Index(indexChan)
+	err := h.HouseRepo.Index(start, indexChan, objects)
 	h.checkError(err)
 }
 

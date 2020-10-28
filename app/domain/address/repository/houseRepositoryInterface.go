@@ -2,8 +2,12 @@ package repository
 
 import (
 	"github.com/GarinAG/gofias/domain/address/entity"
+	"sync"
 	"time"
 )
+
+// Интерфейс функции получения адресов по GUID
+type GetIndexObjects func(guids []string) map[string]entity.IndexObject
 
 // Интерфейс репозитория домов
 type HouseRepositoryInterface interface {
@@ -11,6 +15,8 @@ type HouseRepositoryInterface interface {
 	Init() error
 	// Очистка таблицы в БД
 	Clear() error
+	// Найти дом по GUID
+	GetByGuid(guid string) (*entity.HouseObject, error)
 	// Найти дома по GUID адреса
 	GetByAddressGuid(guid string) ([]*entity.HouseObject, error)
 	// Получить GUID последних обновленных домов
@@ -18,11 +24,11 @@ type HouseRepositoryInterface interface {
 	// Найти дома по подстроке
 	GetAddressByTerm(term string, size int64, from int64) ([]*entity.HouseObject, error)
 	// Обновить коллекцию домов
-	InsertUpdateCollection(channel <-chan interface{}, done <-chan bool, count chan<- int, isFull bool)
+	InsertUpdateCollection(wg *sync.WaitGroup, channel <-chan interface{}, count chan<- int, isFull bool)
 	// Получить название таблицы в БД
 	GetIndexName() string
 	// Подсчитать количество домов в БД по фильтру
 	CountAllData(query interface{}) (int64, error)
 	// Индексация таблицы домов
-	Index(indexChan <-chan entity.IndexObject) error
+	Index(start time.Time, indexChan <-chan entity.IndexObject, GetIndexObjects GetIndexObjects) error
 }

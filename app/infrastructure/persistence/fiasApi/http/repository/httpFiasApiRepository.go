@@ -31,7 +31,7 @@ func (f *HttpFiasApiRepository) GetAllDownloadFileInfo() ([]entity.DownloadFileI
 	var files []entity.DownloadFileInfo
 	var jsonFiles []dto.JsonDownloadFileInfo
 
-	url := f.config.GetString("fiasApi.url") + httpFiasApiAllFiles
+	url := f.config.GetConfig().FiasApiUrl + httpFiasApiAllFiles
 	res, err := f.getHttpClient().Get(url)
 	if err != nil {
 		return files, err
@@ -53,7 +53,7 @@ func (f *HttpFiasApiRepository) GetAllDownloadFileInfo() ([]entity.DownloadFileI
 func (f *HttpFiasApiRepository) GetLastDownloadFileInfo() (entity.DownloadFileInfo, error) {
 	var file entity.DownloadFileInfo
 	var jsonFile dto.JsonDownloadFileInfo
-	url := f.config.GetString("fiasApi.url") + httpFiasApiLastFile
+	url := f.config.GetConfig().FiasApiUrl + httpFiasApiLastFile
 	res, err := f.getHttpClient().Get(url)
 	if err != nil {
 		return file, err

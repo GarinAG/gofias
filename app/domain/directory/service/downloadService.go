@@ -14,25 +14,6 @@ import (
 	"strings"
 )
 
-// Вспомогательный объект работы с загрузкой файлов, добавляет вывод прогресс-бара
-type WriteCounter struct {
-	Total    uint64
-	Progress *util.Progress
-}
-
-// Обработчик загрузки файлов
-func (wc *WriteCounter) Write(p []byte) (int, error) {
-	n := len(p)
-	wc.Total += uint64(n)
-	wc.PrintProgress()
-	return n, nil
-}
-
-// Обновляет прогресс-бар
-func (wc WriteCounter) PrintProgress() {
-	wc.Progress.SetCurrent(int64(wc.Total))
-}
-
 // Сервис управления загрузкой файлов
 type DownloadService struct {
 	logger interfaces.LoggerInterface // Логгер
@@ -49,7 +30,7 @@ func NewDownloadService(logger interfaces.LoggerInterface, config interfaces.Con
 
 // Очистка директории
 func (d *DownloadService) ClearDirectory() {
-	dir := d.config.GetString("directory.filePath")
+	dir := d.config.GetConfig().DirectoryFilePath
 
 	// Проверяет наличие директории
 	if _, err := os.Stat(dir); err == nil {
@@ -61,7 +42,7 @@ func (d *DownloadService) ClearDirectory() {
 
 // Создание временной директории
 func (d *DownloadService) CreateDirectory() {
-	dir := d.config.GetString("directory.filePath")
+	dir := d.config.GetConfig().DirectoryFilePath
 
 	// Проверяет отсутствие директории
 	if _, err := os.Stat(dir); err != nil {
@@ -94,10 +75,10 @@ func (d *DownloadService) GetDownloadSize(url string) uint64 {
 
 // Скачать файл
 func (d *DownloadService) DownloadFile(url string, fileName string) (*fileEntity.File, error) {
-	// Очищает директорию
+	// Создает директорию
 	d.CreateDirectory()
 
-	filePathLocal := d.config.GetString("directory.filePath") + fileName
+	filePathLocal := d.config.GetConfig().DirectoryFilePath + fileName
 	// Проверяет наличие ранее скачанного файла
 	if _, err := os.Stat(filePathLocal); os.IsNotExist(err) {
 		d.logger.WithFields(interfaces.LoggerFields{"url": url, "path": filePathLocal}).Info("Download Started")
@@ -110,10 +91,7 @@ func (d *DownloadService) DownloadFile(url string, fileName string) (*fileEntity
 		defer out.Close()
 
 		// Создает прогресс-бар для отображение статуса загрузки
-		counter := &WriteCounter{
-			Progress: util.StartNewProgress(int(d.GetDownloadSize(url))),
-		}
-		counter.Progress.SetBytes()
+		bar := util.StartNewProgress(int(d.GetDownloadSize(url)), "Downloading", true)
 
 		// Получает файл
 		resp, err := http.Get(url)
@@ -123,7 +101,7 @@ func (d *DownloadService) DownloadFile(url string, fileName string) (*fileEntity
 		defer resp.Body.Close()
 
 		// Копирует файл во временный
-		if _, err = io.Copy(out, io.TeeReader(resp.Body, counter)); err != nil {
+		if _, err = io.Copy(io.MultiWriter(out, bar.GeBar()), resp.Body); err != nil {
 			return nil, err
 		}
 		// Переименовывает временный файл
@@ -131,7 +109,7 @@ func (d *DownloadService) DownloadFile(url string, fileName string) (*fileEntity
 			return nil, err
 		}
 
-		counter.Progress.Finish()
+		bar.Finish()
 		d.logger.Info("Download Finished")
 	}
 
@@ -147,7 +125,7 @@ func (d *DownloadService) Unzip(file *fileEntity.File, parts ...string) ([]fileE
 		os.Exit(1)
 	}
 
-	dest := d.config.GetString("directory.filePath")
+	dest := d.config.GetConfig().DirectoryFilePath
 	var filenames []fileEntity.File
 
 	r, err := zip.OpenReader(file.Path)
