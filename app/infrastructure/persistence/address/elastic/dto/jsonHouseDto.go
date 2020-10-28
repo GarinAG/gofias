@@ -2,9 +2,11 @@ package dto
 
 import (
 	"github.com/GarinAG/gofias/domain/address/entity"
+	"github.com/GarinAG/gofias/util"
 	"time"
 )
 
+// Объект дома в эластике
 type JsonHouseDto struct {
 	ID              string `json:"house_id"`
 	HouseGuid       string `json:"house_guid"`
@@ -24,62 +26,43 @@ type JsonHouseDto struct {
 	StructNum       string `json:"str_num"`
 	Counter         string `json:"counter"`
 	CadNum          string `json:"cad_num"`
+	Location        string `json:"location"`
 	BazisUpdateDate string `json:"bazis_update_date"`
 }
 
+// Конвертирует объект дома эластика в объект дома
 func (item *JsonHouseDto) ToEntity() *entity.HouseObject {
 	return &entity.HouseObject{
-		ID:           item.ID,
-		HouseGuid:    item.HouseGuid,
-		AoGuid:       item.AoGuid,
-		HouseNum:     item.HouseNum,
-		HouseFullNum: item.HouseFullNum,
-		FullAddress:  item.FullAddress,
-		PostalCode:   item.PostalCode,
-		Okato:        item.Okato,
-		Oktmo:        item.Oktmo,
-		StartDate:    item.StartDate,
-		EndDate:      item.EndDate,
-		UpdateDate:   item.UpdateDate,
-		DivType:      item.DivType,
-		BuildNum:     item.BuildNum,
-		StructNum:    item.StructNum,
-		Counter:      item.Counter,
-		CadNum:       item.CadNum,
+		ID:             item.ID,
+		HouseGuid:      item.HouseGuid,
+		AoGuid:         item.AoGuid,
+		HouseNum:       item.HouseNum,
+		HouseFullNum:   item.HouseFullNum,
+		FullAddress:    item.FullAddress,
+		AddressSuggest: item.AddressSuggest,
+		PostalCode:     item.PostalCode,
+		Okato:          item.Okato,
+		Oktmo:          item.Oktmo,
+		StartDate:      item.StartDate,
+		EndDate:        item.EndDate,
+		UpdateDate:     item.UpdateDate,
+		DivType:        item.DivType,
+		BuildNum:       item.BuildNum,
+		StructNum:      item.StructNum,
+		Counter:        item.Counter,
+		CadNum:         item.CadNum,
+		Location:       item.Location,
 	}
 }
 
+// Конвертирует объект дома в объект дома эластика
 func (item *JsonHouseDto) GetFromEntity(entity entity.HouseObject) {
-	if entity.HouseFullNum == "" {
-		fullNum := "д. " + entity.HouseNum
-		if entity.StructNum != "" {
-			fullNum += ", стр. " + entity.StructNum
-		}
-		if entity.BuildNum != "" {
-			fullNum += ", кор. " + entity.BuildNum
-		}
-
-		entity.HouseFullNum = fullNum
-	}
-
-	if item.AddressSuggest == "" {
-		suggest := "дом (д.) " + entity.HouseNum
-		if entity.StructNum != "" {
-			suggest += ", строение (стр.) " + entity.StructNum
-		}
-		if entity.BuildNum != "" {
-			suggest += ", корпус (кор.) " + entity.BuildNum
-		}
-
-		item.AddressSuggest = suggest
-	}
-
+	item.FullAddress = entity.FullAddress
+	item.AddressSuggest = entity.AddressSuggest
 	item.ID = entity.ID
 	item.HouseGuid = entity.HouseGuid
 	item.AoGuid = entity.AoGuid
 	item.HouseNum = entity.HouseNum
-	item.HouseFullNum = entity.HouseFullNum
-	item.FullAddress = entity.FullAddress
 	item.PostalCode = entity.PostalCode
 	item.Okato = entity.Okato
 	item.Oktmo = entity.Oktmo
@@ -91,9 +74,38 @@ func (item *JsonHouseDto) GetFromEntity(entity entity.HouseObject) {
 	item.StructNum = entity.StructNum
 	item.Counter = entity.Counter
 	item.CadNum = entity.CadNum
-	item.BazisUpdateDate = time.Now().Format("2006-01-02") + "T00:00:00Z"
+	item.Location = entity.Location
+
+	if item.HouseFullNum == "" {
+		fullNum := "д. " + entity.HouseNum
+		if entity.StructNum != "" {
+			fullNum += ", стр. " + entity.StructNum
+		}
+		if entity.BuildNum != "" {
+			fullNum += ", кор. " + entity.BuildNum
+		}
+
+		item.HouseFullNum = fullNum
+	}
+	if item.AddressSuggest == "" {
+		suggest := "дом (д.) " + entity.HouseNum
+		if entity.StructNum != "" {
+			suggest += ", строение (стр.) " + entity.StructNum
+		}
+		if entity.BuildNum != "" {
+			suggest += ", корпус (кор.) " + entity.BuildNum
+		}
+
+		item.AddressSuggest = suggest
+	}
+	if item.FullAddress == "" {
+		item.FullAddress = item.HouseFullNum
+	}
+
+	item.UpdateBazisDate()
 }
 
+// Проверяет активность объекта
 func (item *JsonHouseDto) IsActive() bool {
 	end, err := time.Parse("2006-01-02", item.EndDate)
 	if err != nil || end.Unix() <= time.Now().Unix() {
@@ -101,4 +113,22 @@ func (item *JsonHouseDto) IsActive() bool {
 	}
 
 	return true
+}
+
+// Устанавливает время обновления объекта
+func (item *JsonHouseDto) UpdateBazisDate() {
+	item.BazisUpdateDate = time.Now().Format(util.TimeFormat)
+}
+
+// Заполняет объект дома эластика из данных дома
+func (item *JsonHouseDto) UpdateFromExistItem(entity entity.HouseObject) {
+	if entity.FullAddress != "" {
+		item.FullAddress = entity.FullAddress
+	}
+	if entity.AddressSuggest != "" {
+		item.AddressSuggest = entity.AddressSuggest
+	}
+	if entity.Location != "" {
+		item.Location = entity.Location
+	}
 }

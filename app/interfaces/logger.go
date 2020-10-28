@@ -1,45 +1,49 @@
 package interfaces
 
+// Интерфейс набора дополнительных полей
 type LoggerFields map[string]interface{}
 
 const (
-	//Debug has verbose message
+	// Вывод отладочной информации
 	Debug = "debug"
-	//Info is default log level
+	// Вывод логов по умолчанию
 	Info = "info"
-	//Warn is for logging messages about possible issues
+	// Вывод сообщений о возможных проблемах
 	Warn = "warn"
-	//Error is for logging errors
+	// Вывод ошибок
 	Error = "error"
-	//Fatal is for logging fatal messages. The sytem shutsdown after logging the message.
+	// Вывод критических ошибок. Приложение завершает работу после регистрации сообщения.
 	Fatal = "fatal"
 )
 
+// Интерфейс логгера
 type LoggerInterface interface {
+	// Вывести отладку
 	Debug(format string, args ...interface{})
-
+	// Вывести информацию
 	Info(format string, args ...interface{})
-
+	// Вывести предупреждение
 	Warn(format string, args ...interface{})
-
+	// Вывести ошибку
 	Error(format string, args ...interface{})
-
+	// Вывести критическую ошибку
 	Fatal(format string, args ...interface{})
-
+	// Вывести критическую ошибку
 	Panic(format string, args ...interface{})
-
+	// Вывести дополнительные данные
 	WithFields(keyValues LoggerFields) LoggerInterface
-
+	// Вывести текст
 	Printf(format string, args ...interface{})
 }
 
+// Объект конфигурации логгера
 type LoggerConfiguration struct {
-	EnableConsole      bool
-	ConsoleJSONFormat  bool
-	ConsoleLevel       string
-	EnableFile         bool
-	FileJSONFormat     bool
-	FileLevel          string
-	FileLocation       string
-	FileLocationPrefix string
+	EnableConsole      bool   // Разрешить вывод в консоль
+	ConsoleJSONFormat  bool   // Формат вывода в консоль
+	ConsoleLevel       string // Уровень ошибок для вывода в консоль
+	EnableFile         bool   // Разрешить сохранять в файл
+	FileJSONFormat     bool   // Формат сохранения в файл
+	FileLevel          string // Уровень ошибок для сохранения в файл
+	FileLocation       string // Путь до папки с логами
+	FileLocationPrefix string // Префикс названия файла логов
 }

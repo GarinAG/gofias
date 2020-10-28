@@ -1,5 +1,10 @@
 package util
 
+import "sort"
+
+var TimeFormat = "2006-01-02T15:04:00Z"
+
+// Проверить наличие строки в массиве
 func ContainsString(arr []string, str string) bool {
 	for _, a := range arr {
 		if a == str {
@@ -10,6 +15,7 @@ func ContainsString(arr []string, str string) bool {
 	return false
 }
 
+// Удалить дубликаты строк в массиве
 func UniqueStringSlice(slice []string) []string {
 	keys := make(map[string]bool)
 	var list []string
@@ -24,6 +30,7 @@ func UniqueStringSlice(slice []string) []string {
 	return list
 }
 
+// Конвертировать массив строк в массив итерфейсов
 func ConvertStringSliceToInterface(slice []string) []interface{} {
 	newSlice := make([]interface{}, len(slice))
 	for i := range slice {
@@ -31,4 +38,11 @@ func ConvertStringSliceToInterface(slice []string) []interface{} {
 	}
 
 	return newSlice
+}
+
+// Сортировать массив строк по длине строки, от большего к меньшему
+func SortStringSliceByLength(slice []string) {
+	sort.Slice(slice, func(i, j int) bool {
+		return len(slice[i]) > len(slice[j])
+	})
 }

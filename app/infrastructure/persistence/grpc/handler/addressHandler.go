@@ -12,12 +12,14 @@ import (
 	"strconv"
 )
 
+// GRPC-обработчик адресов
 type AddressHandler struct {
-	Server         *grpc.Server
-	addressService *service.AddressService
-	houseService   *service.HouseService
+	Server         *grpc.Server            // GRPC-сервер
+	addressService *service.AddressService // Сервис адресов
+	houseService   *service.HouseService   // Сервис домов
 }
 
+// Инициализация обработчика
 func NewAddressHandler(a *service.AddressService, h *service.HouseService) *AddressHandler {
 	handler := &AddressHandler{
 		addressService: a,
@@ -27,6 +29,7 @@ func NewAddressHandler(a *service.AddressService, h *service.HouseService) *Addr
 	return handler
 }
 
+// Найти города по подстроке
 func (h *AddressHandler) GetCitiesByTerm(ctx context.Context, request *addressV1.TermRequest) (*addressV1.AddressListResponse, error) {
 	if request.Term == "" {
 		return nil, status.Error(codes.InvalidArgument, "term is required")
@@ -35,6 +38,7 @@ func (h *AddressHandler) GetCitiesByTerm(ctx context.Context, request *addressV1
 	return h.prepareList(cities)
 }
 
+// Найти адрес по подстроке
 func (h *AddressHandler) GetAddressByTerm(ctx context.Context, request *addressV1.TermRequest) (*addressV1.AddressListResponse, error) {
 	if request.Term == "" {
 		return nil, status.Error(codes.InvalidArgument, "term is required")
@@ -43,6 +47,7 @@ func (h *AddressHandler) GetAddressByTerm(ctx context.Context, request *addressV
 	return h.prepareList(cities)
 }
 
+// Найти адрес по почтовому индексу
 func (h *AddressHandler) GetAddressByPostal(ctx context.Context, request *addressV1.TermRequest) (*addressV1.AddressListResponse, error) {
 	if request.Term == "" {
 		return nil, status.Error(codes.InvalidArgument, "term is required")
@@ -51,11 +56,13 @@ func (h *AddressHandler) GetAddressByPostal(ctx context.Context, request *addres
 	return h.prepareList(cities)
 }
 
+// Получить список всех городов
 func (h *AddressHandler) GetAllCities(ctx context.Context, empty *empty.Empty) (*addressV1.AddressListResponse, error) {
 	cities := h.addressService.GetCities()
 	return h.prepareList(cities)
 }
 
+// Найти адрес по GUID
 func (h *AddressHandler) GetByGuid(ctx context.Context, guid *addressV1.GuidRequest) (*addressV1.Address, error) {
 	if guid.Guid == "" {
 		return nil, status.Error(codes.InvalidArgument, "guid is required")
@@ -68,28 +75,37 @@ func (h *AddressHandler) GetByGuid(ctx context.Context, guid *addressV1.GuidRequ
 	return nil, status.Error(codes.NotFound, "address not found")
 }
 
+// Найти адрес по подстроке
 func (h *AddressHandler) GetSuggests(ctx context.Context, request *addressV1.SimpleTerm) (*addressV1.AddressListResponse, error) {
 	var houseNum int64
 	size := request.Size
+	// Ограничивает размер выборки
 	if size == 0 {
 		size = 100
 	}
 
+	// Получает адреса по подсроке
 	suggests := h.addressService.GetAddressByTerm(request.Term, size, 0)
 	houseNum = size - int64(len(suggests))
+	// Проверка на необходимость загрузки домов
 	if houseNum > 0 {
 		cities := make(map[string]*entity.AddressObject, houseNum)
+		// Получает дома по подсроке
 		houses := h.houseService.GetAddressByTerm(request.Term, houseNum, 0)
 		for _, house := range houses {
+			// Ищет информацию об адресе дома в кэше
 			city, ok := cities[house.AoGuid]
 			if ok == false {
+				// Получает информацию об адресе дома
 				city = h.addressService.GetByGuid(house.AoGuid)
 				if city == nil {
 					continue
 				}
+				// Сохраняет информацию об адресе в кэш
 				cities[house.AoGuid] = city
 			}
 
+			// Формирует объект адреса
 			suggests = append(suggests, &entity.AddressObject{
 				ID:             house.ID,
 				AoGuid:         house.HouseGuid,
@@ -127,6 +143,7 @@ func (h *AddressHandler) GetSuggests(ctx context.Context, request *addressV1.Sim
 	return h.prepareList(suggests)
 }
 
+// Формирует список объектов адресов
 func (h *AddressHandler) prepareList(cities []*entity.AddressObject) (*addressV1.AddressListResponse, error) {
 	list := addressV1.AddressListResponse{}
 
@@ -137,6 +154,7 @@ func (h *AddressHandler) prepareList(cities []*entity.AddressObject) (*addressV1
 	return &list, nil
 }
 
+// Конвертирует объект адреса в grpc-объект
 func (h *AddressHandler) convertToAddress(addr *entity.AddressObject) *addressV1.Address {
 	if addr == nil {
 		return nil

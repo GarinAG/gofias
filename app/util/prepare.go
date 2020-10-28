@@ -1,13 +1,28 @@
 package util
 
-import "strings"
+import (
+	"regexp"
+	"strings"
+)
 
+// Объект названия сокращенных местоположений
 type addrShortName struct {
 	short string
 	full  string
 }
 
+// Список для замены названий
+var replaceList = map[string]string{
+	"городское поселение": "город",
+	"ё":                   "е",
+}
+
+// Текст для замены названий
+var replaceSting = ""
+
+// Список сокращенных названий местоположений
 var shortNameList = map[string]addrShortName{
+	"г/п":        addrShortName{short: "г.", full: "Городское поселение"},
 	"ул":         addrShortName{short: "ул.", full: "Улица"},
 	"пер":        addrShortName{short: "пер.", full: "Переулок"},
 	"д":          addrShortName{short: "д.", full: "Деревня"},
@@ -162,6 +177,7 @@ var shortNameList = map[string]addrShortName{
 	"с/о":        addrShortName{short: "с/о", full: "Сельский округ"},
 }
 
+// Форматировать название местоположения
 func PrepareFullName(shortName, offName string) string {
 	fullName := ""
 	name, exist := shortNameList[shortName]
@@ -181,6 +197,7 @@ func PrepareFullName(shortName, offName string) string {
 	return fullName
 }
 
+// Форматировать подсказку для поиска
 func PrepareSuggest(suggest, shortName, offName string) string {
 	name, exist := shortNameList[shortName]
 	if suggest != "" {
@@ -193,4 +210,37 @@ func PrepareSuggest(suggest, shortName, offName string) string {
 	}
 
 	return strings.ToLower(strings.TrimSpace(suggest))
+}
+
+// Формирование строки замены названий
+func prepareReplace() {
+	var replaceStingAr []string
+	for key, _ := range replaceList {
+		key := strings.ToLower(key)
+		replaceStingAr = append(replaceStingAr, key)
+	}
+	replaceStingAr = UniqueStringSlice(replaceStingAr)
+	SortStringSliceByLength(replaceStingAr)
+	replaceSting = strings.Join(replaceStingAr, "|")
+}
+
+// Заменить текст в названии местоположения
+func Replace(address string) string {
+	// Сформировать строку замены, если пустая
+	if len(replaceSting) == 0 {
+		prepareReplace()
+	}
+
+	// Поиск совпадений по подстроке
+	match := "(?is)(" + replaceSting + ")"
+	re := regexp.MustCompile(match)
+	matched := re.FindAllString(address, 2)
+	// Замена совпадений в названии
+	for _, s := range matched {
+		s = strings.ToLower(strings.TrimSpace(s))
+		r := regexp.MustCompile("(?is)" + s)
+		address = r.ReplaceAllString(address, replaceList[s])
+	}
+
+	return address
 }

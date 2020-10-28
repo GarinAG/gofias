@@ -1,14 +1,14 @@
 # GoFias
 
-[Go](http://www.golang.org/) (golang) библиотека для импорта данных из [БД ФИАС](https://fias.nalog.ru/) в [Elasticsearch](http://www.elasticsearch.org/)
+A [Go](http://www.golang.org/) (golang) library that import [fias](https://fias.nalog.ru/) data to [Elasticsearch](http://www.elasticsearch.org/)
 
-Прочитать на других языках: [Русский](README.md), [English](README.en.md).
+Read this in other languages: [Русский](README.md), [English](README.en.md).
 
-## Базовые параметры командной строки
-* `config-path (строка)` - Установить путь конфигурации (по умолчанию `./`)
-* `config-type (строка)` - Установите тип конфигурации (по умолчани `yaml`)
+## Base CLI props
+* `config-path (string)` - Set additional config path (default `./`)
+* `config-type (string)` - Set additional config type (default `yaml`)
 
-## Использование сервиса импорта ФИАС
+## FIAS import service usage
 ```shell script
 cd GOROOT/src/gofias/app/
 go build -o ./fias ./application/cli/
@@ -16,20 +16,20 @@ cd ..
 ./fias update --skip-houses --skip-clear
 ```
 
-## Параметры командной строки сервиса импорта ФИАС
-* `skip-clear (булево)` - Пропустить очистку каталога при запуске (по умолчанию `false`)
-* `skip-houses (булево)` - Пропустить импорт домов (default `false`)
-* `skip-osm (булево)` - Пропустить импорт гео-данных (default `false`)
+## FIAS import CLI props
+* `skip-clear (bool)` - Skip clear tmp directory on start (default `false`)
+* `skip-houses (bool)` - Skip houses index (default `false`)
+* `skip-osm (bool)` - Skip geo-data import (default `false`)
 
-## Использование GRPC-сервера
+## FIAS grpc server usage
 
-### С использованием docker (docker-compose)
+### With docker-compose
 ```shell script
 cd GOROOT/src/gofias
 docker-compose up -d
 ```
 
-### Без использования docker (docker-compose)
+### Without docker-compose
 ```shell script
 cd GOROOT/src/gofias
 go build -o ./grpc_fias ./application/grpc/
@@ -37,13 +37,13 @@ cd ..
 ./grpc_fias
 ```
 
-## Информация об индексах ElasticSearch
+## ElasticSearch indexes info
 
-### Адреса (address)
+### address
 
-Содержит информацию об адресах ФИАС
+Contains information about FIAS addresses
 
-<details><summary>Структура индекса</summary>
+<details><summary>Index mapping</summary>
 <p>
 
 ```json
@@ -225,7 +225,7 @@ cd ..
 </p>
 </details>
 
-<details><summary>Обработчик удаления старых адресов</summary>
+<details><summary>Index pipeline</summary>
 <p>
 
 ```json
@@ -251,11 +251,11 @@ cd ..
 </p>
 </details>
 
-### Дома (houses)
+### houses
 
-Содержит информацию о домах ФИАС
+Contains information about FIAS houses
 
-<details><summary>Структура индекса</summary>
+<details><summary>Index mapping</summary>
 <p>
 
 ```json
@@ -386,7 +386,7 @@ cd ..
 </p>
 </details>
 
-<details><summary>Обработчик удаления старых домов</summary>
+<details><summary>Index pipeline</summary>
 <p>
 
 ```json
@@ -408,9 +408,9 @@ cd ..
 
 ### version
 
-Содержит информацию о версиях ФИАС
+Contains information about FIAS versions
 
-<details><summary>Структура индекса</summary>
+<details><summary>Index mapping</summary>
 <p>
 
 ```json
@@ -457,19 +457,19 @@ cd ..
 </details>
 
 
-## Формат Protobuf
+## Protobuf
 
-#### Быстрые ссылки
+#### Quick links
 
-* [.proto-файлы](app/interfaces/grpc/proto)
+* [.proto files](app/interfaces/grpc/proto)
 
-* [сгенерированные сущности](app/infrastructure/persistence/grpc/dto)
+* [generated entities](app/infrastructure/persistence/grpc/dto)
 
-* [grpc-обоработчкики запросов](app/infrastructure/persistence/grpc/handler)
+* [grpc handlers](app/infrastructure/persistence/grpc/handler)
 
-Используйте приведенный ниже код, если Вы хотите перегенерировать созданные ранее сущности.
+Use the code below if you want to recreate the generated entities.
 
-#### Установка protoc
+#### Install
 
 ```shell script
 mkdir tmp
@@ -488,7 +488,7 @@ go get -u github.com/grpc-ecosystem/grpc-gateway/v1/protoc-gen-swagger
 go get -u github.com/golang/protobuf/protoc-gen-go
 ```
 
-#### Генерация сущностей
+#### Generate proto
 ```shell script
 export GOOGLEAPIS=$GOPATH/pkg/mod/github.com/grpc-ecosystem/grpc-gateway@v1.15.2/third_party/googleapis;\
 protoc -I. -I$GOPATH/src -I$GOOGLEAPIS --go_out=plugins=grpc:. app/interfaces/grpc/proto/version/*.proto && \
