@@ -150,6 +150,13 @@ func (o *OsmService) updateAddresses(wg *sync.WaitGroup, addressChan <-chan *ent
 	importWg.Add(1)
 	// Сохраняет элементы в БД
 	go o.addressRepo.InsertUpdateCollection(&importWg, address, addressCnt, true)
+	f, err := os.Create("lines.txt")
+	if err != nil {
+		fmt.Println(err)
+		f.Close()
+		return
+	}
+	defer f.Close()
 
 	for d := range addressChan {
 		// Ищет адреса в БД по названию
@@ -165,6 +172,8 @@ func (o *OsmService) updateAddresses(wg *sync.WaitGroup, addressChan <-chan *ent
 				}
 				address <- *item
 			}
+		} else {
+			fmt.Fprintln(f, d.Name, d.Lat, d.Lon)
 		}
 	}
 	close(address)

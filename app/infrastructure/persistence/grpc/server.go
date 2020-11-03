@@ -37,10 +37,15 @@ type GrpcServer struct {
 // Глобальный логгер для передачи в обработчик запросов
 var globalLogger interfaces.LoggerInterface
 
+// Глобальный логгер для передачи в обработчик запросов
+var globalConfig interfaces.ConfigInterface
+
 // Инициализация сервера
 func NewGrpcServer(ctn *registry.Container) *GrpcServer {
 	logger := ctn.Resolve("logger").(interfaces.LoggerInterface)
+	config := ctn.Resolve("config").(interfaces.ConfigInterface)
 	globalLogger = logger
+	globalConfig = config
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -65,7 +70,7 @@ func NewGrpcServer(ctn *registry.Container) *GrpcServer {
 	return &GrpcServer{
 		Server:         server,
 		Logger:         logger,
-		Config:         ctn.Resolve("config").(interfaces.ConfigInterface),
+		Config:         config,
 		AddressService: ctn.Resolve("addressService").(*service.AddressService),
 		HouseService:   ctn.Resolve("houseImportService").(*service.HouseImportService),
 		VersionService: ctn.Resolve("versionService").(*versionService.VersionService),
@@ -177,11 +182,13 @@ func serverInterceptor(ctx context.Context,
 		}
 	}
 
-	globalLogger.WithFields(interfaces.LoggerFields{
-		"x-request-id": xRequestId,
-		"method":       info.FullMethod,
-		"request":      req,
-	}).Info("Request")
+	if globalConfig.GetConfig().Grpc.SaveRequest {
+		globalLogger.WithFields(interfaces.LoggerFields{
+			"x-request-id": xRequestId,
+			"method":       info.FullMethod,
+			"request":      req,
+		}).Info("Request")
+	}
 
 	// Проверка валидации, jwt, если потребуется
 	/*if info.FullMethod != "/proto.EventStoreService/GetJWT" {
@@ -194,12 +201,14 @@ func serverInterceptor(ctx context.Context,
 	h, err := handler(ctx, req)
 
 	// Выполняет действия после выполнения запроса
-	globalLogger.WithFields(interfaces.LoggerFields{
-		"x-request-id": xRequestId,
-		"method":       info.FullMethod,
-		"response":     h,
-		"time":         time.Since(start),
-	}).Info("Response")
+	if globalConfig.GetConfig().Grpc.SaveResponse {
+		globalLogger.WithFields(interfaces.LoggerFields{
+			"x-request-id": xRequestId,
+			"method":       info.FullMethod,
+			"response":     h,
+			"time":         time.Since(start),
+		}).Info("Response")
+	}
 
 	return h, err
 }

@@ -36,10 +36,12 @@ type LoggerConfig struct {
 
 // Конфиги Grpc-сервера
 type GrpcConfig struct {
-	Network string            // Протокол соединения
-	Address string            // Хост для запуска сервера
-	Port    string            // Порт
-	Gateway GrpcGatewayConfig // Конфиги RestApi-сервера
+	Network      string // Протокол соединения
+	Address      string // Хост для запуска сервера
+	Port         string // Порт
+	SaveRequest  bool
+	SaveResponse bool
+	Gateway      GrpcGatewayConfig // Конфиги RestApi-сервера
 }
 
 // Конфиги RestApi-сервера

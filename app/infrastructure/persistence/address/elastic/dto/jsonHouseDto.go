@@ -3,6 +3,7 @@ package dto
 import (
 	"github.com/GarinAG/gofias/domain/address/entity"
 	"github.com/GarinAG/gofias/util"
+	"gopkg.in/jeevatkm/go-model.v1"
 	"time"
 )
 
@@ -32,49 +33,15 @@ type JsonHouseDto struct {
 
 // Конвертирует объект дома эластика в объект дома
 func (item *JsonHouseDto) ToEntity() *entity.HouseObject {
-	return &entity.HouseObject{
-		ID:             item.ID,
-		HouseGuid:      item.HouseGuid,
-		AoGuid:         item.AoGuid,
-		HouseNum:       item.HouseNum,
-		HouseFullNum:   item.HouseFullNum,
-		FullAddress:    item.FullAddress,
-		AddressSuggest: item.AddressSuggest,
-		PostalCode:     item.PostalCode,
-		Okato:          item.Okato,
-		Oktmo:          item.Oktmo,
-		StartDate:      item.StartDate,
-		EndDate:        item.EndDate,
-		UpdateDate:     item.UpdateDate,
-		DivType:        item.DivType,
-		BuildNum:       item.BuildNum,
-		StructNum:      item.StructNum,
-		Counter:        item.Counter,
-		CadNum:         item.CadNum,
-		Location:       item.Location,
-	}
+	house := entity.HouseObject{}
+	model.Copy(&house, item)
+
+	return &house
 }
 
 // Конвертирует объект дома в объект дома эластика
 func (item *JsonHouseDto) GetFromEntity(entity entity.HouseObject) {
-	item.FullAddress = entity.FullAddress
-	item.AddressSuggest = entity.AddressSuggest
-	item.ID = entity.ID
-	item.HouseGuid = entity.HouseGuid
-	item.AoGuid = entity.AoGuid
-	item.HouseNum = entity.HouseNum
-	item.PostalCode = entity.PostalCode
-	item.Okato = entity.Okato
-	item.Oktmo = entity.Oktmo
-	item.StartDate = entity.StartDate
-	item.EndDate = entity.EndDate
-	item.UpdateDate = entity.UpdateDate
-	item.DivType = entity.DivType
-	item.BuildNum = entity.BuildNum
-	item.StructNum = entity.StructNum
-	item.Counter = entity.Counter
-	item.CadNum = entity.CadNum
-	item.Location = entity.Location
+	model.Copy(item, entity)
 
 	if item.HouseFullNum == "" {
 		fullNum := "д. " + entity.HouseNum

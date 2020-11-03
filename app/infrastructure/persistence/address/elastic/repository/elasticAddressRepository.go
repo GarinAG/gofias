@@ -124,6 +124,9 @@ const (
           "district_guid": {
             "type": "keyword"
           },
+          "district_kladr": {
+            "type": "keyword"
+          },
           "district": {
             "type": "keyword"
           },
@@ -133,7 +136,40 @@ const (
           "district_full": {
             "type": "keyword"
           },
+          "area_guid": {
+            "type": "keyword"
+          },
+          "area_kladr": {
+            "type": "keyword"
+          },
+          "area": {
+            "type": "keyword"
+          },
+          "area_type": {
+            "type": "keyword"
+          },
+          "area_full": {
+            "type": "keyword"
+          },
+          "city_guid": {
+            "type": "keyword"
+          },
+          "city_kladr": {
+            "type": "keyword"
+          },
+          "city": {
+            "type": "keyword"
+          },
+          "city_type": {
+            "type": "keyword"
+          },
+          "city_full": {
+            "type": "keyword"
+          },
           "settlement_guid": {
+            "type": "keyword"
+          },
+          "settlement_kladr": {
             "type": "keyword"
           },
           "settlement": {
@@ -143,6 +179,12 @@ const (
             "type": "keyword"
           },
           "settlement_full": {
+            "type": "keyword"
+          },
+          "street_guid": {
+            "type": "keyword"
+          },
+          "street_kladr": {
             "type": "keyword"
           },
           "street": {
@@ -289,47 +331,16 @@ func (a *ElasticAddressRepository) GetByFormalName(term string) (*entity.Address
 	return nil, nil
 }
 
-// Найти адрес по GUID
-func (a *ElasticAddressRepository) GetByGuid(guid string) (*entity.AddressObject, error) {
-	res, err := a.elasticClient.Client.
-		Search(a.indexName).
-		Query(elastic.NewTermQuery("ao_guid", guid)).
-		Size(1).
-		Do(context.Background())
-
-	if err != nil {
-		return nil, err
-	}
-
-	var item *dto.JsonAddressDto
-	// Конвертирует структуру ответа в DTO
-	if len(res.Hits.Hits) > 0 {
-		if err := json.Unmarshal(res.Hits.Hits[0].Source, &item); err != nil {
-			return nil, err
-		}
-
-		return item.ToEntity(), nil
-	}
-
-	return nil, nil
-}
-
 // Найти адреса по GUID
 func (a *ElasticAddressRepository) GetAddressByGuidList(guids []string) ([]*entity.AddressObject, error) {
 	if len(guids) == 0 {
 		return nil, nil
 	}
-	batch := a.batchSize
-	// Ограничивает размер пачки при поиске
-	if batch > 10000 {
-		batch = 10000
-	}
 	// Инициализирует сервис выборки элементов через ScrollApi
 	scrollService := a.elasticClient.Client.Scroll(a.GetIndexName()).
-		Query(elastic.NewTermsQuery("ao_guid", util.ConvertStringSliceToInterface(guids)...)).
-		Size(batch)
+		Query(elastic.NewTermsQuery("ao_guid", util.ConvertStringSliceToInterface(guids)...))
 
-	scrollData, err := a.elasticClient.ScrollData(scrollService)
+	scrollData, err := a.elasticClient.ScrollData(scrollService, a.batchSize)
 	if err != nil {
 		a.logger.Error(err.Error())
 	}
@@ -347,6 +358,19 @@ func (a *ElasticAddressRepository) GetAddressByGuidList(guids []string) ([]*enti
 	}
 
 	return items, nil
+}
+
+// Найти адрес по GUID
+func (a *ElasticAddressRepository) GetByGuid(guid string) (*entity.AddressObject, error) {
+	if guid == "" {
+		return nil, nil
+	}
+	res, err := a.GetAddressByGuidList([]string{guid})
+	if err != nil || res == nil {
+		return nil, err
+	}
+
+	return res[0], nil
 }
 
 // Найти город по названию
@@ -388,20 +412,14 @@ func (a *ElasticAddressRepository) CountAllData(query interface{}) (int64, error
 
 // Получить список всех городов
 func (a *ElasticAddressRepository) GetCities() ([]*entity.AddressObject, error) {
-	batch := a.batchSize
-	// Ограничивает размер пачки при поиске
-	if batch > 10000 {
-		batch = 10000
-	}
 	// Инициализирует сервис выборки элементов через ScrollApi
 	scrollService := a.elasticClient.Client.Scroll(a.GetIndexName()).
 		Query(elastic.NewBoolQuery().Filter(
 			elastic.NewTermQuery("short_name", "г"),
 			elastic.NewTermsQuery("ao_level", 1, 4))).
-		Sort("ao_level", true).
-		Size(batch)
+		Sort("ao_level", true)
 
-	scrollData, err := a.elasticClient.ScrollData(scrollService)
+	scrollData, err := a.elasticClient.ScrollData(scrollService, a.batchSize)
 	if err != nil {
 		a.logger.Error(err.Error())
 	}
@@ -601,11 +619,11 @@ func (a *ElasticAddressRepository) GetBulkService() *elastic.BulkService {
 // Обновить коллекцию адресов
 func (a *ElasticAddressRepository) InsertUpdateCollection(wg *sync.WaitGroup, channel <-chan interface{}, count chan<- int, isFull bool) {
 	defer wg.Done()
-	bulk := a.GetBulkService()
-	ctx := context.Background()
 	begin := time.Now()
 	var total uint64
 	step := 1
+	var deleted []string
+	updated := make(map[string]dto.JsonAddressDto)
 
 	// Цикл получения объекта адреса из канала
 	for d := range channel {
@@ -617,29 +635,17 @@ func (a *ElasticAddressRepository) InsertUpdateCollection(wg *sync.WaitGroup, ch
 		saveItem.GetFromEntity(d.(entity.AddressObject))
 		// Проверяет активность объекта
 		if saveItem.IsActive() {
-			// При неполном импорте дополняет данными из индекса
-			if !isFull {
-				dbItem, _ := a.GetByGuid(saveItem.AoGuid)
-				if dbItem != nil {
-					saveItem.UpdateFromExistItem(*dbItem)
-				}
-			}
 			// Добавляет объект в очередь на сохранение
-			bulk.Add(elastic.NewBulkIndexRequest().Id(saveItem.ID).Doc(saveItem))
+			updated[saveItem.AoGuid] = saveItem
 		} else {
 			// Добавляет объект в очередь на удаление
-			bulk.Add(elastic.NewBulkDeleteRequest().Id(saveItem.ID))
+			deleted = append(deleted, saveItem.ID)
 		}
 
 		// Отправляет запросы в эластик при превышении размера пачки
-		if bulk.NumberOfActions() >= a.batchSize {
-			res, err := bulk.Do(ctx)
-			if err != nil {
-				a.logger.WithFields(interfaces.LoggerFields{"error": err}).Fatal("Add addresses bulk commit failed")
-			}
-			if res != nil && res.Errors {
-				a.logger.WithFields(interfaces.LoggerFields{"error": a.elasticClient.GetBulkError(res)}).Fatal("Add addresses bulk commit failed")
-			}
+		if len(updated)+len(deleted) >= a.batchSize {
+			a.update(updated, deleted, isFull)
+			deleted = nil
 			if total%uint64(100000) == 0 && !util.CanPrintProcess {
 				a.logger.WithFields(interfaces.LoggerFields{"step": step, "count": total}).Info("Add addresses to index")
 				step++
@@ -648,14 +654,9 @@ func (a *ElasticAddressRepository) InsertUpdateCollection(wg *sync.WaitGroup, ch
 	}
 
 	// Отправляет оставшиеся запросы в эластик
-	if bulk.NumberOfActions() > 0 {
-		res, err := bulk.Do(ctx)
-		if err != nil {
-			a.logger.WithFields(interfaces.LoggerFields{"error": err}).Fatal("Add addresses bulk commit failed")
-		}
-		if res != nil && res.Errors {
-			a.logger.WithFields(interfaces.LoggerFields{"error": a.elasticClient.GetBulkError(res)}).Fatal("Add addresses bulk commit failed")
-		}
+	if len(updated)+len(deleted) > 0 {
+		a.update(updated, deleted, isFull)
+		deleted = nil
 	}
 	if !util.CanPrintProcess {
 		a.logger.WithFields(interfaces.LoggerFields{"step": step, "count": total}).Info("Add addresses to index")
@@ -663,6 +664,43 @@ func (a *ElasticAddressRepository) InsertUpdateCollection(wg *sync.WaitGroup, ch
 	a.logger.WithFields(interfaces.LoggerFields{"count": total, "execTime": humanize.RelTime(begin, time.Now(), "", "")}).Info("Address import execution time")
 	a.Refresh()
 	count <- int(total)
+}
+
+// Сохраняет данные в эластик
+func (a *ElasticAddressRepository) update(updated map[string]dto.JsonAddressDto, deleted []string, isFull bool) {
+	bulk := a.GetBulkService()
+	ctx := context.Background()
+	// Дополняет элементы полями из БД
+	if len(updated) > 0 && !isFull {
+		var updatedKeys []string
+		for k := range updated {
+			updatedKeys = append(updatedKeys, k)
+		}
+
+		items, _ := a.GetAddressByGuidList(updatedKeys)
+		for _, item := range items {
+			updateItem, ok := updated[item.AoGuid]
+			if ok {
+				updateItem.UpdateFromExistItem(*item)
+				updated[item.AoGuid] = updateItem
+			}
+		}
+	}
+	for k, item := range updated {
+		bulk.Add(elastic.NewBulkIndexRequest().Id(item.ID).Doc(item))
+		delete(updated, k)
+	}
+	for _, item := range deleted {
+		bulk.Add(elastic.NewBulkDeleteRequest().Id(item))
+	}
+
+	res, err := bulk.Do(ctx)
+	if err != nil {
+		a.logger.WithFields(interfaces.LoggerFields{"error": err}).Fatal("Add addresses bulk commit failed")
+	}
+	if res != nil && res.Errors {
+		a.logger.WithFields(interfaces.LoggerFields{"error": a.elasticClient.GetBulkError(res)}).Fatal("Add addresses bulk commit failed")
+	}
 }
 
 // Обновить индекс
@@ -762,7 +800,7 @@ func (a *ElasticAddressRepository) getIndexItems(query elastic.Query) {
 		Size(batch)
 
 	ctx := context.Background()
-	scrollService.Scroll("1m")
+	scrollService.Scroll("10m")
 	count := 0
 
 	// Получает данные из эластика пачками
@@ -839,56 +877,104 @@ func (a *ElasticAddressRepository) prepareItemsBeforeSave(wg *sync.WaitGroup) {
 			if search != nil {
 				// Конвертирует объект адреса в DTO
 				dtoItem.GetFromEntity(*search)
-
 				// Дополняет адрес текущего объекта
-				address.FullAddress = dtoItem.FullAddress + ", " + address.FullAddress
-				address.AddressSuggest = dtoItem.AddressSuggest + ", " + address.AddressSuggest
-
-				// Формирует информацию о районе объекта
-				if dtoItem.District != "" {
-					address.DistrictGuid = dtoItem.DistrictGuid
-					address.District = dtoItem.District
-					address.DistrictType = dtoItem.DistrictType
-					address.DistrictFull = dtoItem.DistrictFull
-				} else if dtoItem.AoLevel < 4 {
-					address.DistrictGuid = dtoItem.AoGuid
-					address.District = strings.TrimSpace(dtoItem.FormalName)
-					address.DistrictType = strings.TrimSpace(dtoItem.ShortName)
-					address.DistrictFull = util.PrepareFullName(address.DistrictType, address.District)
+				if address.AoLevel == 4 {
+					// Пропускаем район в названии
+					address.FullAddress = dtoItem.RegionFull + ", " + address.FullAddress
+				} else {
+					address.FullAddress = dtoItem.FullAddress + ", " + address.FullAddress
 				}
-
-				// Устанавливает город объекта
+				address.AddressSuggest = dtoItem.AddressSuggest + ", " + address.AddressSuggest
+				// Формирует информацию о регионе объекта
+				if dtoItem.Region != "" {
+					address.RegionGuid = dtoItem.RegionGuid
+					address.RegionKladr = dtoItem.RegionKladr
+					address.Region = dtoItem.Region
+					address.RegionType = dtoItem.RegionType
+					address.RegionFull = dtoItem.RegionFull
+				}
+				// Формирует информацию о районе объекта
+				if dtoItem.Area != "" {
+					address.AreaGuid = dtoItem.AreaGuid
+					address.AreaKladr = dtoItem.AreaKladr
+					address.Area = dtoItem.Area
+					address.AreaType = dtoItem.AreaType
+					address.AreaFull = dtoItem.AreaFull
+				}
+				// Формирует информацию о городе объекта
+				if dtoItem.City != "" {
+					address.CityGuid = dtoItem.CityGuid
+					address.CityKladr = dtoItem.CityKladr
+					address.City = dtoItem.City
+					address.CityType = dtoItem.CityType
+					address.CityFull = dtoItem.CityFull
+				}
+				// Устанавливает населенный пункт объекта
 				if dtoItem.Settlement != "" {
 					address.SettlementGuid = dtoItem.SettlementGuid
+					address.SettlementKladr = dtoItem.SettlementKladr
 					address.Settlement = dtoItem.Settlement
 					address.SettlementType = dtoItem.SettlementType
 					address.SettlementFull = dtoItem.SettlementFull
-				} else if dtoItem.AoLevel >= 4 {
-					address.SettlementGuid = dtoItem.AoGuid
-					address.Settlement = strings.TrimSpace(dtoItem.FormalName)
-					address.SettlementType = strings.TrimSpace(dtoItem.ShortName)
-					address.SettlementFull = ""
-					address.SettlementFull = ""
-					if address.DistrictFull != "" {
-						address.SettlementFull = address.DistrictFull + ", "
-					}
-					address.SettlementFull += util.PrepareFullName(address.SettlementType, address.Settlement)
 				}
 			}
 		}
 
-		// Формирует информацию об улице объекта
-		switch address.AoLevel {
-		case 7:
+		if address.AoLevel <= 2 {
+			address.RegionGuid = address.AoGuid
+			address.RegionKladr = address.Code
+			address.Region = strings.TrimSpace(address.FormalName)
+			address.RegionType = strings.TrimSpace(address.ShortName)
+			address.RegionFull = util.PrepareFullName(address.RegionType, address.Region)
+		} else if address.AoLevel == 3 {
+			address.AreaGuid = address.AoGuid
+			address.AreaKladr = address.Code
+			address.Area = strings.TrimSpace(address.FormalName)
+			address.AreaType = strings.TrimSpace(address.ShortName)
+			if address.RegionFull != "" {
+				address.AreaFull = address.RegionFull + ", "
+			}
+			address.AreaFull += util.PrepareFullName(address.AreaType, address.Area)
+		} else if address.AoLevel == 4 {
+			address.CityGuid = address.AoGuid
+			address.CityKladr = address.Code
+			address.City = strings.TrimSpace(address.FormalName)
+			address.CityType = strings.TrimSpace(address.ShortName)
+			if address.AreaFull != "" {
+				address.CityFull = address.AreaFull + ", "
+			} else if address.RegionFull != "" {
+				address.CityFull = address.RegionFull + ", "
+			}
+			address.CityFull += util.PrepareFullName(address.CityType, address.City)
+		} else if address.AoLevel == 5 || address.AoLevel == 6 {
+			address.SettlementGuid = address.AoGuid
+			address.SettlementKladr = address.Code
+			address.Settlement = strings.TrimSpace(address.FormalName)
+			address.SettlementType = strings.TrimSpace(address.ShortName)
+			address.SettlementFull = ""
+			address.SettlementFull = ""
+			if address.CityFull != "" {
+				address.SettlementFull = address.CityFull + ", "
+			} else if address.AreaFull != "" {
+				address.SettlementFull = address.AreaFull + ", "
+			} else if address.RegionFull != "" {
+				address.SettlementFull = address.RegionFull + ", "
+			}
+			address.SettlementFull += util.PrepareFullName(address.SettlementType, address.Settlement)
+		} else if address.AoLevel == 7 {
+			address.StreetGuid = address.AoGuid
+			address.StreetKladr = address.Code
 			address.StreetType = strings.TrimSpace(address.ShortName)
 			address.Street = strings.TrimSpace(address.FormalName)
 			address.StreetFull = ""
 			if address.SettlementFull != "" {
 				address.StreetFull = address.SettlementFull + ", "
-			} else {
-				if address.DistrictFull != "" {
-					address.StreetFull = address.DistrictFull + ", "
-				}
+			} else if address.CityFull != "" {
+				address.StreetFull = address.CityFull + ", "
+			} else if address.AreaFull != "" {
+				address.StreetFull = address.AreaFull + ", "
+			} else if address.RegionFull != "" {
+				address.StreetFull = address.RegionFull + ", "
 			}
 			address.StreetFull += util.PrepareFullName(address.StreetType, address.Street)
 		}

@@ -208,44 +208,21 @@ func (a *ElasticHouseRepository) Clear() error {
 
 // Получить элементы из индекса через ScrollApi
 func (a *ElasticHouseRepository) scroll(scrollService *elastic.ScrollService) ([]*entity.HouseObject, error) {
+	scrollData, err := a.elasticClient.ScrollData(scrollService, a.batchSize)
+	if err != nil {
+		a.logger.Error(err.Error())
+	}
+
 	var items []*entity.HouseObject
 	var item *dto.JsonHouseDto
 
-	batch := a.batchSize
-	// Ограничивает размер пачки при поиске
-	if batch > 10000 {
-		batch = 10000
-	}
-	scrollService.Size(batch)
-	ctx := context.Background()
-	scrollService.Scroll("1m")
-
 	// Получает данные из эластика пачками
-	for {
-		res, err := scrollService.Do(ctx)
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			a.logger.Error(err.Error())
-			break
-		}
-		if res == nil || len(res.Hits.Hits) == 0 {
-			break
-		}
+	for _, hit := range scrollData {
 		// Конвертирует структуру ответа в DTO
-		for _, el := range res.Hits.Hits {
-			if err := json.Unmarshal(el.Source, &item); err != nil {
-				return nil, err
-			}
-			items = append(items, item.ToEntity())
+		if err := json.Unmarshal(hit.Source, &item); err != nil {
+			return nil, err
 		}
-	}
-
-	// Принудительно закрывает сервис выборки элементов
-	err := scrollService.Clear(ctx)
-	if err != nil {
-		a.logger.Error(err.Error())
+		items = append(items, item.ToEntity())
 	}
 
 	return items, nil
@@ -276,14 +253,56 @@ func (a *ElasticHouseRepository) GetByGuid(guid string) (*entity.HouseObject, er
 	return nil, nil
 }
 
-// Найти дома по GUID адреса
-func (a *ElasticHouseRepository) GetByAddressGuid(guid string) ([]*entity.HouseObject, error) {
+// Получить дома по GUID
+func (a *ElasticHouseRepository) GetByGuidList(guids []string) ([]*entity.HouseObject, error) {
+	if len(guids) == 0 {
+		return nil, nil
+	}
 	// Инициализирует сервис выборки элементов через ScrollApi
 	scrollService := a.elasticClient.Client.Scroll(a.GetIndexName()).
-		Query(elastic.NewTermQuery("ao_guid", guid)).
+		Query(elastic.NewTermsQuery("house_guid", util.ConvertStringSliceToInterface(guids)...))
+
+	scrollData, err := a.elasticClient.ScrollData(scrollService, a.batchSize)
+	if err != nil {
+		a.logger.Error(err.Error())
+	}
+
+	var items []*entity.HouseObject
+	var item *dto.JsonHouseDto
+
+	// Получает данные из эластика пачками
+	for _, hit := range scrollData {
+		// Конвертирует структуру ответа в DTO
+		if err := json.Unmarshal(hit.Source, &item); err != nil {
+			a.logger.Fatal(err.Error())
+		}
+		items = append(items, item.ToEntity())
+	}
+
+	return items, nil
+}
+
+// Найти дома по GUID адресов
+func (a *ElasticHouseRepository) GetByAddressGuidList(guids []string) ([]*entity.HouseObject, error) {
+	if len(guids) == 0 {
+		return nil, nil
+	}
+
+	// Инициализирует сервис выборки элементов через ScrollApi
+	scrollService := a.elasticClient.Client.Scroll(a.GetIndexName()).
+		Query(elastic.NewTermsQuery("ao_guid", util.ConvertStringSliceToInterface(guids)...)).
 		Sort("house_full_num.keyword", true)
 
 	return a.scroll(scrollService)
+}
+
+// Найти дома по GUID адреса
+func (a *ElasticHouseRepository) GetByAddressGuid(guid string) ([]*entity.HouseObject, error) {
+	if guid == "" {
+		return nil, nil
+	}
+
+	return a.GetByAddressGuidList([]string{guid})
 }
 
 // Получить GUID последних обновленных домов
@@ -292,7 +311,8 @@ func (a *ElasticHouseRepository) GetLastUpdatedGuids(start time.Time) ([]string,
 
 	// Инициализирует сервис выборки элементов через ScrollApi
 	scrollService := a.elasticClient.Client.Scroll(a.GetIndexName()).
-		Query(elastic.NewRangeQuery("bazis_update_date").Gte(start.Format(util.TimeFormat)))
+		Query(elastic.NewRangeQuery("bazis_update_date").Gte(start.Format(util.TimeFormat))).
+		Scroll("10m")
 
 	items, err := a.scroll(scrollService)
 
@@ -345,11 +365,11 @@ func (a *ElasticHouseRepository) GetAddressByTerm(term string, size int64, from 
 // Обновить коллекцию домов
 func (a *ElasticHouseRepository) InsertUpdateCollection(wg *sync.WaitGroup, channel <-chan interface{}, count chan<- int, isFull bool) {
 	defer wg.Done()
-	bulk := a.elasticClient.Client.Bulk().Index(a.indexName)
-	ctx := context.Background()
 	var total uint64
 	begin := time.Now()
 	step := 1
+	var deleted []string
+	updated := make(map[string]dto.JsonHouseDto)
 
 	// Цикл получения объекта дома из канала
 	for d := range channel {
@@ -361,29 +381,17 @@ func (a *ElasticHouseRepository) InsertUpdateCollection(wg *sync.WaitGroup, chan
 		saveItem.GetFromEntity(d.(entity.HouseObject))
 		// Проверяет активность объекта
 		if saveItem.IsActive() {
-			// При неполном импорте дополняет данными из индекса
-			if !isFull {
-				dbItem, _ := a.GetByGuid(saveItem.AoGuid)
-				if dbItem != nil {
-					saveItem.UpdateFromExistItem(*dbItem)
-				}
-			}
 			// Добавляет объект в очередь на сохранение
-			bulk.Add(elastic.NewBulkIndexRequest().Id(saveItem.ID).Doc(saveItem))
+			updated[saveItem.AoGuid] = saveItem
 		} else {
 			// Добавляет объект в очередь на удаление
-			bulk.Add(elastic.NewBulkDeleteRequest().Id(saveItem.ID))
+			deleted = append(deleted, saveItem.ID)
 		}
 
 		// Отправляет запросы в эластик при превышении размера пачки
-		if bulk.NumberOfActions() >= a.batchSize {
-			res, err := bulk.Do(ctx)
-			if err != nil {
-				a.logger.WithFields(interfaces.LoggerFields{"error": err}).Fatal("Add houses bulk commit failed")
-			}
-			if res != nil && res.Errors {
-				a.logger.WithFields(interfaces.LoggerFields{"error": a.elasticClient.GetBulkError(res)}).Fatal("Add houses bulk commit failed")
-			}
+		if len(updated)+len(deleted) >= a.batchSize {
+			a.update(updated, deleted, isFull)
+			deleted = nil
 			if total%uint64(100000) == 0 && !util.CanPrintProcess {
 				a.logger.WithFields(interfaces.LoggerFields{"step": step, "count": total}).Info("Add houses to index")
 				step++
@@ -392,14 +400,9 @@ func (a *ElasticHouseRepository) InsertUpdateCollection(wg *sync.WaitGroup, chan
 	}
 
 	// Отправляет оставшиеся запросы в эластик
-	if bulk.NumberOfActions() > 0 {
-		res, err := bulk.Do(ctx)
-		if err != nil {
-			a.logger.WithFields(interfaces.LoggerFields{"error": err}).Fatal("Add houses bulk commit failed")
-		}
-		if res != nil && res.Errors {
-			a.logger.WithFields(interfaces.LoggerFields{"error": a.elasticClient.GetBulkError(res)}).Fatal("Add houses bulk commit failed")
-		}
+	if len(updated)+len(deleted) > 0 {
+		a.update(updated, deleted, isFull)
+		deleted = nil
 	}
 	if !util.CanPrintProcess {
 		a.logger.WithFields(interfaces.LoggerFields{"step": step, "count": total}).Info("Add houses to index")
@@ -407,6 +410,43 @@ func (a *ElasticHouseRepository) InsertUpdateCollection(wg *sync.WaitGroup, chan
 	a.logger.WithFields(interfaces.LoggerFields{"count": total, "execTime": humanize.RelTime(begin, time.Now(), "", "")}).Info("House import execution time")
 	a.Refresh()
 	count <- int(total)
+}
+
+// Сохраняет данные в эластик
+func (a *ElasticHouseRepository) update(updated map[string]dto.JsonHouseDto, deleted []string, isFull bool) {
+	bulk := a.GetBulkService()
+	ctx := context.Background()
+	// Дополняет элементы полями из БД
+	if len(updated) > 0 && !isFull {
+		var updatedKeys []string
+		for k := range updated {
+			updatedKeys = append(updatedKeys, k)
+		}
+
+		items, _ := a.GetByGuidList(updatedKeys)
+		for _, item := range items {
+			updateItem, ok := updated[item.AoGuid]
+			if ok {
+				updateItem.UpdateFromExistItem(*item)
+				updated[item.AoGuid] = updateItem
+			}
+		}
+	}
+	for k, item := range updated {
+		bulk.Add(elastic.NewBulkIndexRequest().Id(item.ID).Doc(item))
+		delete(updated, k)
+	}
+	for _, item := range deleted {
+		bulk.Add(elastic.NewBulkDeleteRequest().Id(item))
+	}
+
+	res, err := bulk.Do(ctx)
+	if err != nil {
+		a.logger.WithFields(interfaces.LoggerFields{"error": err}).Fatal("Add houses bulk commit failed")
+	}
+	if res != nil && res.Errors {
+		a.logger.WithFields(interfaces.LoggerFields{"error": a.elasticClient.GetBulkError(res)}).Fatal("Add houses bulk commit failed")
+	}
 }
 
 // Подсчитать количество домов в БД по фильтру
@@ -457,21 +497,47 @@ func (a *ElasticHouseRepository) Index(start time.Time, indexChan <-chan entity.
 // Получить дома из канала адресов
 func (a *ElasticHouseRepository) getItemsByAddress(wg *sync.WaitGroup, indexChan <-chan entity.IndexObject) {
 	defer wg.Done()
+	indexObjectList := make(map[string]entity.IndexObject)
 	for d := range indexChan {
-		// Получает список домов по GUID адреса
-		houses, err := a.GetByAddressGuid(d.AoGuid)
-		if err != nil {
-			a.logger.WithFields(interfaces.LoggerFields{"error": err, "ao_guid": d.AoGuid}).Fatal("Get houses failed")
-			continue
+		indexObjectList[d.AoGuid] = d
+		if len(indexObjectList) >= a.batchSize {
+			a.prepareIndexChanHouses(indexObjectList)
 		}
-		for _, house := range houses {
-			saveItem := dto.JsonHouseDto{}
+	}
+	if len(indexObjectList) > 0 {
+		a.prepareIndexChanHouses(indexObjectList)
+	}
+}
+
+// Подготовить дома для индексации из канала адресов
+func (a *ElasticHouseRepository) prepareIndexChanHouses(indexObjectList map[string]entity.IndexObject) {
+	var guids []string
+	for k := range indexObjectList {
+		guids = append(guids, k)
+	}
+	// Получает список домов по GUID адресов
+	houses, err := a.GetByAddressGuidList(guids)
+	if err != nil {
+		a.logger.WithFields(interfaces.LoggerFields{"error": err, "ao_guids": guids}).Fatal("Get houses failed")
+		for k := range indexObjectList {
+			delete(indexObjectList, k)
+		}
+		return
+	}
+	for _, house := range houses {
+		saveItem := dto.JsonHouseDto{}
+		indexObject, ok := indexObjectList[house.AoGuid]
+		if ok {
 			// Конвертирует объект дома в DTO
 			saveItem.GetFromEntity(*house)
-			a.prepareItem(&saveItem, d)
-
+			// Заполняет данные для поиска из элемента канала
+			a.prepareItem(&saveItem, indexObject)
 			a.results <- saveItem
 		}
+	}
+	// Очищает список объектов
+	for k := range indexObjectList {
+		delete(indexObjectList, k)
 	}
 }
 

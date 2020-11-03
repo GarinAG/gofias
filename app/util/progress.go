@@ -71,8 +71,8 @@ func (p *Progress) SetCurrent(value int64) {
 // Завершить вывод прогресс-бара
 func (p *Progress) Finish() {
 	if CanPrintProcess {
-		p.bar.Clear()
 		p.bar.Finish()
+		p.bar.Clear()
 	}
 }
 

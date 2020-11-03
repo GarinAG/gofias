@@ -22,7 +22,7 @@
             }
           },
           "default": {
-            "description": "An unexpected error response",
+            "description": "An unexpected error response.",
             "schema": {
               "$ref": "#/definitions/runtimeError"
             }
@@ -66,7 +66,7 @@
             }
           },
           "default": {
-            "description": "An unexpected error response",
+            "description": "An unexpected error response.",
             "schema": {
               "$ref": "#/definitions/runtimeError"
             }
@@ -110,7 +110,7 @@
             }
           },
           "default": {
-            "description": "An unexpected error response",
+            "description": "An unexpected error response.",
             "schema": {
               "$ref": "#/definitions/runtimeError"
             }
@@ -140,7 +140,7 @@
             }
           },
           "default": {
-            "description": "An unexpected error response",
+            "description": "An unexpected error response.",
             "schema": {
               "$ref": "#/definitions/runtimeError"
             }
@@ -162,7 +162,7 @@
             }
           },
           "default": {
-            "description": "An unexpected error response",
+            "description": "An unexpected error response.",
             "schema": {
               "$ref": "#/definitions/runtimeError"
             }
@@ -206,7 +206,7 @@
             }
           },
           "default": {
-            "description": "An unexpected error response",
+            "description": "An unexpected error response.",
             "schema": {
               "$ref": "#/definitions/runtimeError"
             }
@@ -240,13 +240,13 @@
         "ID": {
           "type": "string"
         },
-        "AoGuid": {
+        "FiasId": {
           "type": "string"
         },
-        "AoLevel": {
+        "FiasLevel": {
           "type": "string"
         },
-        "ParentGuid": {
+        "ParentFiasId": {
           "type": "string"
         },
         "ShortName": {
@@ -264,13 +264,58 @@
         "FullAddress": {
           "type": "string"
         },
-        "District": {
+        "KladrId": {
           "type": "string"
         },
-        "DistrictType": {
+        "RegionFiasId": {
           "type": "string"
         },
-        "DistrictFull": {
+        "RegionKladrId": {
+          "type": "string"
+        },
+        "Region": {
+          "type": "string"
+        },
+        "RegionType": {
+          "type": "string"
+        },
+        "RegionFull": {
+          "type": "string"
+        },
+        "AreaFiasId": {
+          "type": "string"
+        },
+        "AreaKladrId": {
+          "type": "string"
+        },
+        "Area": {
+          "type": "string"
+        },
+        "AreaType": {
+          "type": "string"
+        },
+        "AreaFull": {
+          "type": "string"
+        },
+        "CityFiasId": {
+          "type": "string"
+        },
+        "CityKladrId": {
+          "type": "string"
+        },
+        "City": {
+          "type": "string"
+        },
+        "CityType": {
+          "type": "string"
+        },
+        "CityFull": {
+          "type": "string"
+        },
+        "SettlementFiasId": {
+          "type": "string"
+        },
+        "SettlementKladrId": {
           "type": "string"
         },
         "Settlement": {
@@ -282,6 +327,12 @@
         "SettlementFull": {
           "type": "string"
         },
+        "StreetFiasId": {
+          "type": "string"
+        },
+        "StreetKladrId": {
+          "type": "string"
+        },
         "Street": {
           "type": "string"
         },
@@ -289,6 +340,38 @@
           "type": "string"
         },
         "StreetFull": {
+          "type": "string"
+        },
+        "HouseFiasId": {
+          "type": "string"
+        },
+        "HouseKladrId": {
+          "type": "string"
+        },
+        "House": {
+          "type": "string"
+        },
+        "HouseType": {
+          "type": "string"
+        },
+        "HouseFull": {
+          "type": "string"
+        },
+        "GeoLat": {
+          "type": "number",
+          "format": "float"
+        },
+        "GeoLon": {
+          "type": "number",
+          "format": "float"
+        },
+        "Okato": {
+          "type": "string"
+        },
+        "Oktmo": {
+          "type": "string"
+        },
+        "UpdatedDate": {
           "type": "string"
         }
       }
