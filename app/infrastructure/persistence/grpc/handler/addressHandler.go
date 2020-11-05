@@ -35,11 +35,12 @@ func (h *AddressHandler) GetCitiesByTerm(ctx context.Context, request *addressV1
 	return h.prepareList(cities)
 }
 
-func (h *AddressHandler) GetAddressByTerm(ctx context.Context, request *addressV1.TermRequest) (*addressV1.AddressListResponse, error) {
+func (h *AddressHandler) GetAddressByTerm(ctx context.Context, request *addressV1.TermFilterRequest) (*addressV1.AddressListResponse, error) {
 	if request.Term == "" {
 		return nil, status.Error(codes.InvalidArgument, "term is required")
 	}
-	cities := h.addressService.GetAddressByTerm(request.Term, request.Size, request.From)
+	filters := h.prepareFilter(request.Filter)
+	cities := h.addressService.GetAddressByTerm(request.Term, request.Size, request.From, filters...)
 	return h.prepareList(cities)
 }
 
@@ -68,18 +69,19 @@ func (h *AddressHandler) GetByGuid(ctx context.Context, guid *addressV1.GuidRequ
 	return nil, status.Error(codes.NotFound, "address not found")
 }
 
-func (h *AddressHandler) GetSuggests(ctx context.Context, request *addressV1.SimpleTerm) (*addressV1.AddressListResponse, error) {
+func (h *AddressHandler) GetSuggests(ctx context.Context, request *addressV1.SimpleTermFilterRequest) (*addressV1.AddressListResponse, error) {
 	var houseNum int64
 	size := request.Size
 	if size == 0 {
 		size = 100
 	}
+	filters := h.prepareFilter(request.Filter)
 
-	suggests := h.addressService.GetAddressByTerm(request.Term, size, 0)
+	suggests := h.addressService.GetAddressByTerm(request.Term, size, 0, filters...)
 	houseNum = size - int64(len(suggests))
 	if houseNum > 0 {
 		cities := make(map[string]*entity.AddressObject, houseNum)
-		houses := h.houseService.GetAddressByTerm(request.Term, houseNum, 0)
+		houses := h.houseService.GetAddressByTerm(request.Term, houseNum, 0, filters...)
 		for _, house := range houses {
 			city, ok := cities[house.AoGuid]
 			if ok == false {
@@ -127,6 +129,33 @@ func (h *AddressHandler) GetSuggests(ctx context.Context, request *addressV1.Sim
 	return h.prepareList(suggests)
 }
 
+func (h *AddressHandler) prepareFilter(requestFilter *addressV1.FilterObject) []entity.FilterObject {
+	filter := entity.FilterObject{}
+	if requestFilter != nil {
+		if requestFilter.Level != nil {
+			filter.Level = entity.NumberFilter{
+				Values: requestFilter.Level.Values,
+				Min:    requestFilter.Level.Min,
+				Max:    requestFilter.Level.Max,
+			}
+		}
+		if requestFilter.ParentGuid != nil {
+			filter.ParentGuid = entity.StringFilter{
+				Values: requestFilter.ParentGuid.Values,
+			}
+		}
+		if requestFilter.KladrId != nil {
+			filter.KladrId = entity.StringFilter{
+				Values: requestFilter.KladrId.Values,
+			}
+		}
+	}
+
+	return []entity.FilterObject{
+		filter,
+	}
+}
+
 func (h *AddressHandler) prepareList(cities []*entity.AddressObject) (*addressV1.AddressListResponse, error) {
 	list := addressV1.AddressListResponse{}
 
@@ -161,5 +190,6 @@ func (h *AddressHandler) convertToAddress(addr *entity.AddressObject) *addressV1
 		Street:         addr.Street,
 		StreetType:     addr.StreetType,
 		StreetFull:     addr.StreetFull,
+		KladrId:        addr.Code,
 	}
 }

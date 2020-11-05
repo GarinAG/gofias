@@ -16,7 +16,7 @@ type AddressRepositoryInterface interface {
 	GetByGuid(guid string) (*entity.AddressObject, error)
 	GetCities() ([]*entity.AddressObject, error)
 	GetCitiesByTerm(term string, size int64, from int64) ([]*entity.AddressObject, error)
-	GetAddressByTerm(term string, size int64, from int64) ([]*entity.AddressObject, error)
+	GetAddressByTerm(term string, size int64, from int64, filter ...entity.FilterObject) ([]*entity.AddressObject, error)
 	GetAddressByPostal(term string, size int64, from int64) ([]*entity.AddressObject, error)
 	InsertUpdateCollection(channel <-chan interface{}, done <-chan bool, count chan<- int, isFull bool)
 	GetIndexName() string
