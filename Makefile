@@ -1,7 +1,7 @@
 #!make
 include .env
 export $(shell sed 's/=.*//' .env)
-export GOOGLEAPIS=$(GOPATH)/pkg/mod/github.com/grpc-ecosystem/grpc-gateway@v1.14.6/third_party/googleapis
+export GOOGLEAPIS=$(GOPATH)/pkg/mod/github.com/grpc-ecosystem/grpc-gateway@v1.15.2/third_party/googleapis
 
 up:
 	docker-compose up -d

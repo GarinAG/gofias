@@ -433,14 +433,14 @@ make check
 sudo make install
 
 cd $GOROOT/src/
-go get -u github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway
-go get -u github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger
+go get -u github.com/grpc-ecosystem/grpc-gateway/v1.15.2/protoc-gen-grpc-gateway
+go get -u github.com/grpc-ecosystem/grpc-gateway/v1.15.2/protoc-gen-swagger
 go get -u github.com/golang/protobuf/protoc-gen-go
 ```
 
 #### Generate proto
 ```shell script
-export GOOGLEAPIS=$GOPATH/pkg/mod/github.com/grpc-ecosystem/grpc-gateway@v1.14.6/third_party/googleapis;\
+export GOOGLEAPIS=$GOPATH/pkg/mod/github.com/grpc-ecosystem/grpc-gateway@v1.15.2/third_party/googleapis;\
 protoc -I. -I$GOPATH/src -I$GOOGLEAPIS --go_out=plugins=grpc:. app/interfaces/grpc/proto/version/*.proto && \
 protoc -I/usr/local/include -I. -I$GOOGLEAPIS --grpc-gateway_out=logtostderr=true:.  app/interfaces/grpc/proto/version/*.proto && \
 protoc -I/usr/local/include -I. -I$GOOGLEAPIS --swagger_out=logtostderr=true:.  app/interfaces/grpc/proto/version/*.proto;\

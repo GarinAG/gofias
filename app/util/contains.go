@@ -32,3 +32,12 @@ func ConvertStringSliceToInterface(slice []string) []interface{} {
 
 	return newSlice
 }
+
+func ConvertFloat32SliceToInterface(slice []float32) []interface{} {
+	newSlice := make([]interface{}, len(slice))
+	for i := range slice {
+		newSlice[i] = slice[i]
+	}
+
+	return newSlice
+}

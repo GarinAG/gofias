@@ -289,7 +289,7 @@ func (a *ElasticAddressRepository) GetByGuid(guid string) (*entity.AddressObject
 	return nil, nil
 }
 
-func (a ElasticAddressRepository) GetCityByFormalName(term string) (*entity.AddressObject, error) {
+func (a *ElasticAddressRepository) GetCityByFormalName(term string) (*entity.AddressObject, error) {
 	res, err := a.elasticClient.Client.
 		Search(a.indexName).
 		Query(elastic.NewBoolQuery().Filter(
@@ -384,15 +384,16 @@ func (a *ElasticAddressRepository) GetCitiesByTerm(term string, size int64, from
 	return items, nil
 }
 
-func (a *ElasticAddressRepository) GetAddressByTerm(term string, size int64, from int64) ([]*entity.AddressObject, error) {
+func (a *ElasticAddressRepository) GetAddressByTerm(term string, size int64, from int64, filter ...entity.FilterObject) ([]*entity.AddressObject, error) {
 	if size == 0 {
 		size = 100
 	}
+	queries := []elastic.Query{elastic.NewMatchQuery("address_suggest", term).Operator("and")}
+	queries = a.prepareFilter(queries, filter...)
 
 	res, err := a.elasticClient.Client.
 		Search(a.indexName).
-		Query(elastic.NewBoolQuery().Must(
-			elastic.NewMatchQuery("address_suggest", term).Operator("and"))).
+		Query(elastic.NewBoolQuery().Must(queries...)).
 		From(int(from)).
 		Size(int(size)).
 		Sort("ao_level", true).
@@ -447,6 +448,32 @@ func (a *ElasticAddressRepository) GetAddressByPostal(term string, size int64, f
 	}
 
 	return items, nil
+}
+
+func (a *ElasticAddressRepository) prepareFilter(queries []elastic.Query, filters ...entity.FilterObject) []elastic.Query {
+	for _, filter := range filters {
+		if len(filter.Level.Values) > 0 {
+			queries = append(queries, elastic.NewTermsQuery("ao_level", util.ConvertFloat32SliceToInterface(filter.Level.Values)...))
+		}
+		if filter.Level.Min > 0 || filter.Level.Max > 0 {
+			rangeQuery := elastic.NewRangeQuery("ao_level")
+			if filter.Level.Min > 0 {
+				rangeQuery.Gte(filter.Level.Min)
+			}
+			if filter.Level.Max > 0 {
+				rangeQuery.Lte(filter.Level.Max)
+			}
+			queries = append(queries, rangeQuery)
+		}
+		if len(filter.ParentGuid.Values) > 0 {
+			queries = append(queries, elastic.NewTermsQuery("parent_guid", util.ConvertStringSliceToInterface(filter.ParentGuid.Values)...))
+		}
+		if len(filter.KladrId.Values) > 0 {
+			queries = append(queries, elastic.NewTermsQuery("code", util.ConvertStringSliceToInterface(filter.KladrId.Values)...))
+		}
+	}
+
+	return queries
 }
 
 func (a *ElasticAddressRepository) GetDataByQuery(query elastic.Query) ([]elastic.SearchHit, error) {
