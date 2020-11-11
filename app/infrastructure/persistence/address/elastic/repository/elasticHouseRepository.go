@@ -329,15 +329,20 @@ func (a *ElasticHouseRepository) GetLastUpdatedGuids(start time.Time) ([]string,
 }
 
 // Найти дома по подстроке
-func (a *ElasticHouseRepository) GetAddressByTerm(term string, size int64, from int64) ([]*entity.HouseObject, error) {
+func (a *ElasticHouseRepository) GetAddressByTerm(term string, size int64, from int64, filter ...entity.FilterObject) ([]*entity.HouseObject, error) {
 	if size == 0 {
 		size = 100
 	}
 
+	queries := []elastic.Query{elastic.NewMatchQuery("address_suggest", term).Operator("and")}
+	queries = a.prepareFilter(queries, filter...)
+	if queries == nil {
+		return nil, nil
+	}
+
 	res, err := a.elasticClient.Client.
 		Search(a.indexName).
-		Query(elastic.NewBoolQuery().Must(
-			elastic.NewMatchQuery("address_suggest", term).Operator("and"))).
+		Query(elastic.NewBoolQuery().Must(queries...)).
 		From(int(from)).
 		Size(int(size)).
 		Sort("full_address", true).
@@ -360,6 +365,40 @@ func (a *ElasticHouseRepository) GetAddressByTerm(term string, size int64, from 
 	}
 
 	return items, nil
+}
+
+// Подготовить фильтр для запроса
+func (a *ElasticHouseRepository) prepareFilter(queries []elastic.Query, filters ...entity.FilterObject) []elastic.Query {
+	for _, filter := range filters {
+		if len(filter.Level.Values) > 0 {
+			hasHouses := false
+			for _, value := range filter.Level.Values {
+				if value == 8 {
+					hasHouses = true
+					break
+				}
+			}
+			if !hasHouses {
+				return nil
+			}
+		}
+		if filter.Level.Min > 0 || filter.Level.Max > 0 {
+			if filter.Level.Min > 0 && filter.Level.Min > 8 {
+				return nil
+			}
+			if filter.Level.Max > 0 && filter.Level.Max < 8 {
+				return nil
+			}
+		}
+		if len(filter.ParentGuid.Values) > 0 {
+			queries = append(queries, elastic.NewTermsQuery("ao_guid", util.ConvertStringSliceToInterface(filter.ParentGuid.Values)...))
+		}
+		if len(filter.KladrId.Values) > 0 {
+			return nil
+		}
+	}
+
+	return queries
 }
 
 // Обновить коллекцию домов

@@ -4,9 +4,7 @@ import (
 	"context"
 	"github.com/GarinAG/gofias/domain/address/service"
 	versionService "github.com/GarinAG/gofias/domain/version/service"
-	grpcHandlerHealth "github.com/GarinAG/gofias/infrastructure/persistence/grpc/dto/health"
-	grpcHandlerAddressV1 "github.com/GarinAG/gofias/infrastructure/persistence/grpc/dto/v1/address"
-	grpcHandlerVersion "github.com/GarinAG/gofias/infrastructure/persistence/grpc/dto/version"
+	grpcHandlerFiasV1 "github.com/GarinAG/gofias/infrastructure/persistence/grpc/dto/v1/fias"
 	handlers "github.com/GarinAG/gofias/infrastructure/persistence/grpc/handler"
 	"github.com/GarinAG/gofias/infrastructure/registry"
 	"github.com/GarinAG/gofias/interfaces"
@@ -56,15 +54,15 @@ func NewGrpcServer(ctn *registry.Container) *GrpcServer {
 	// Инициализация GRPC-сервера
 	server := grpc.NewServer(grpc.UnaryInterceptor(serverInterceptor))
 	// Регистрация обработчика адресов
-	grpcHandlerAddressV1.RegisterAddressHandlerServer(server,
+	grpcHandlerFiasV1.RegisterAddressServiceServer(server,
 		handlers.NewAddressHandler(
 			ctn.Resolve("addressService").(*service.AddressService),
 			ctn.Resolve("houseService").(*service.HouseService),
 		))
 	// Инициализация обработчика состояния приложения
-	grpcHandlerHealth.RegisterHealthHandlerServer(server, handlers.NewHealthHandler())
+	grpcHandlerFiasV1.RegisterHealthServiceServer(server, handlers.NewHealthHandler())
 	// Инициализация обработчика версий
-	grpcHandlerVersion.RegisterVersionHandlerServer(server, handlers.NewVersionHandler(ctn.Resolve("versionService").(*versionService.VersionService), Version))
+	grpcHandlerFiasV1.RegisterVersionServiceServer(server, handlers.NewVersionHandler(ctn.Resolve("versionService").(*versionService.VersionService), Version))
 	reflection.Register(server)
 
 	return &GrpcServer{
@@ -143,17 +141,17 @@ func (g *GrpcServer) proxyService(wg *sync.WaitGroup) {
 	opts := []grpc.DialOption{grpc.WithInsecure()}
 	grpcAddress := g.Config.GetConfig().Grpc.Address + ":" + g.Config.GetConfig().Grpc.Port
 	// Регистрирует обработчик адресов
-	err := grpcHandlerAddressV1.RegisterAddressHandlerHandlerFromEndpoint(ctx, mux, grpcAddress, opts)
+	err := grpcHandlerFiasV1.RegisterAddressServiceHandlerFromEndpoint(ctx, mux, grpcAddress, opts)
 	if err != nil {
 		g.Logger.Fatal("error reg address endpoint", err)
 	}
 	// Регистрирует обработчик состояния приложения
-	err = grpcHandlerHealth.RegisterHealthHandlerHandlerFromEndpoint(ctx, mux, grpcAddress, opts)
+	err = grpcHandlerFiasV1.RegisterHealthServiceHandlerFromEndpoint(ctx, mux, grpcAddress, opts)
 	if err != nil {
 		g.Logger.Fatal("error reg health endpoint", err)
 	}
 	// Регистрирует обработчик версий
-	err = grpcHandlerVersion.RegisterVersionHandlerHandlerFromEndpoint(ctx, mux, grpcAddress, opts)
+	err = grpcHandlerFiasV1.RegisterVersionServiceHandlerFromEndpoint(ctx, mux, grpcAddress, opts)
 	if err != nil {
 		g.Logger.Fatal("error reg version endpoint", err)
 	}

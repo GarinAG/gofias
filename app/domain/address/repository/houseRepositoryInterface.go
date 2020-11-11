@@ -22,7 +22,7 @@ type HouseRepositoryInterface interface {
 	// Получить GUID последних обновленных домов
 	GetLastUpdatedGuids(start time.Time) ([]string, error)
 	// Найти дома по подстроке
-	GetAddressByTerm(term string, size int64, from int64) ([]*entity.HouseObject, error)
+	GetAddressByTerm(term string, size int64, from int64, filter ...entity.FilterObject) ([]*entity.HouseObject, error)
 	// Обновить коллекцию домов
 	InsertUpdateCollection(wg *sync.WaitGroup, channel <-chan interface{}, count chan<- int, isFull bool)
 	// Получить название таблицы в БД

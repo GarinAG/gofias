@@ -4,7 +4,7 @@ import (
 	"context"
 	"github.com/GarinAG/gofias/domain/address/entity"
 	"github.com/GarinAG/gofias/domain/address/service"
-	addressV1 "github.com/GarinAG/gofias/infrastructure/persistence/grpc/dto/v1/address"
+	fiasV1 "github.com/GarinAG/gofias/infrastructure/persistence/grpc/dto/v1/fias"
 	"github.com/golang/protobuf/ptypes/empty"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -31,7 +31,7 @@ func NewAddressHandler(a *service.AddressService, h *service.HouseService) *Addr
 }
 
 // Найти города по подстроке
-func (h *AddressHandler) GetCitiesByTerm(ctx context.Context, request *addressV1.TermRequest) (*addressV1.AddressListResponse, error) {
+func (h *AddressHandler) GetCitiesByTerm(ctx context.Context, request *fiasV1.TermRequest) (*fiasV1.AddressListResponse, error) {
 	if request.Term == "" {
 		return nil, status.Error(codes.InvalidArgument, "term is required")
 	}
@@ -40,16 +40,17 @@ func (h *AddressHandler) GetCitiesByTerm(ctx context.Context, request *addressV1
 }
 
 // Найти адрес по подстроке
-func (h *AddressHandler) GetAddressByTerm(ctx context.Context, request *addressV1.TermRequest) (*addressV1.AddressListResponse, error) {
+func (h *AddressHandler) GetAddressByTerm(ctx context.Context, request *fiasV1.TermFilterRequest) (*fiasV1.AddressListResponse, error) {
 	if request.Term == "" {
 		return nil, status.Error(codes.InvalidArgument, "term is required")
 	}
-	cities := h.addressService.GetAddressByTerm(request.Term, request.Size, request.From)
+	filters := h.prepareFilter(request.Filter)
+	cities := h.addressService.GetAddressByTerm(request.Term, request.Size, request.From, filters...)
 	return h.prepareList(cities)
 }
 
 // Найти адрес по почтовому индексу
-func (h *AddressHandler) GetAddressByPostal(ctx context.Context, request *addressV1.TermRequest) (*addressV1.AddressListResponse, error) {
+func (h *AddressHandler) GetAddressByPostal(ctx context.Context, request *fiasV1.TermRequest) (*fiasV1.AddressListResponse, error) {
 	if request.Term == "" {
 		return nil, status.Error(codes.InvalidArgument, "term is required")
 	}
@@ -58,13 +59,13 @@ func (h *AddressHandler) GetAddressByPostal(ctx context.Context, request *addres
 }
 
 // Получить список всех городов
-func (h *AddressHandler) GetAllCities(ctx context.Context, empty *empty.Empty) (*addressV1.AddressListResponse, error) {
+func (h *AddressHandler) GetAllCities(ctx context.Context, empty *empty.Empty) (*fiasV1.AddressListResponse, error) {
 	cities := h.addressService.GetCities()
 	return h.prepareList(cities)
 }
 
 // Найти адрес по GUID
-func (h *AddressHandler) GetByGuid(ctx context.Context, guid *addressV1.GuidRequest) (*addressV1.Address, error) {
+func (h *AddressHandler) GetByGuid(ctx context.Context, guid *fiasV1.GuidRequest) (*fiasV1.Address, error) {
 	if guid.Guid == "" {
 		return nil, status.Error(codes.InvalidArgument, "guid is required")
 	}
@@ -77,22 +78,26 @@ func (h *AddressHandler) GetByGuid(ctx context.Context, guid *addressV1.GuidRequ
 }
 
 // Найти адрес по подстроке
-func (h *AddressHandler) GetSuggests(ctx context.Context, request *addressV1.SimpleTerm) (*addressV1.AddressListResponse, error) {
+func (h *AddressHandler) GetSuggests(ctx context.Context, request *fiasV1.SimpleTermFilterRequest) (*fiasV1.AddressListResponse, error) {
+	if request.Term == "" {
+		return nil, status.Error(codes.InvalidArgument, "term is required")
+	}
 	var houseNum int64
 	size := request.Size
 	// Ограничивает размер выборки
 	if size == 0 {
 		size = 100
 	}
+	filters := h.prepareFilter(request.Filter)
 
 	// Получает адреса по подсроке
-	suggests := h.addressService.GetAddressByTerm(request.Term, size, 0)
+	suggests := h.addressService.GetAddressByTerm(request.Term, size, 0, filters...)
 	houseNum = size - int64(len(suggests))
 	// Проверка на необходимость загрузки домов
 	if houseNum > 0 {
 		cities := make(map[string]*entity.AddressObject, houseNum)
 		// Получает дома по подсроке
-		houses := h.houseService.GetAddressByTerm(request.Term, houseNum, 0)
+		houses := h.houseService.GetAddressByTerm(request.Term, houseNum, 0, filters...)
 		for _, house := range houses {
 			// Ищет информацию об адресе дома в кэше
 			city, ok := cities[house.AoGuid]
@@ -131,9 +136,37 @@ func (h *AddressHandler) GetSuggests(ctx context.Context, request *addressV1.Sim
 	return h.prepareList(suggests)
 }
 
+// Подготавливает фильтр запросов
+func (h *AddressHandler) prepareFilter(requestFilter *fiasV1.FilterObject) []entity.FilterObject {
+	filter := entity.FilterObject{}
+	if requestFilter != nil {
+		if requestFilter.Level != nil {
+			filter.Level = entity.NumberFilter{
+				Values: requestFilter.Level.Values,
+				Min:    requestFilter.Level.Min,
+				Max:    requestFilter.Level.Max,
+			}
+		}
+		if requestFilter.ParentGuid != nil {
+			filter.ParentGuid = entity.StringFilter{
+				Values: requestFilter.ParentGuid.Values,
+			}
+		}
+		if requestFilter.KladrId != nil {
+			filter.KladrId = entity.StringFilter{
+				Values: requestFilter.KladrId.Values,
+			}
+		}
+	}
+
+	return []entity.FilterObject{
+		filter,
+	}
+}
+
 // Формирует список объектов адресов
-func (h *AddressHandler) prepareList(cities []*entity.AddressObject) (*addressV1.AddressListResponse, error) {
-	list := addressV1.AddressListResponse{}
+func (h *AddressHandler) prepareList(cities []*entity.AddressObject) (*fiasV1.AddressListResponse, error) {
+	list := fiasV1.AddressListResponse{}
 
 	for _, city := range cities {
 		list.Items = append(list.Items, h.convertToAddress(city))
@@ -143,12 +176,12 @@ func (h *AddressHandler) prepareList(cities []*entity.AddressObject) (*addressV1
 }
 
 // Конвертирует объект адреса в grpc-объект
-func (h *AddressHandler) convertToAddress(addr *entity.AddressObject) *addressV1.Address {
+func (h *AddressHandler) convertToAddress(addr *entity.AddressObject) *fiasV1.Address {
 	if addr == nil {
 		return nil
 	}
 
-	item := addressV1.Address{
+	item := fiasV1.Address{
 		ID:                addr.ID,
 		FiasId:            addr.AoGuid,
 		FiasLevel:         strconv.Itoa(addr.AoLevel),

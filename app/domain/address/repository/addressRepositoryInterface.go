@@ -25,7 +25,7 @@ type AddressRepositoryInterface interface {
 	// Найти города по подстроке
 	GetCitiesByTerm(term string, size int64, from int64) ([]*entity.AddressObject, error)
 	// Найти адрес по подстроке
-	GetAddressByTerm(term string, size int64, from int64) ([]*entity.AddressObject, error)
+	GetAddressByTerm(term string, size int64, from int64, filter ...entity.FilterObject) ([]*entity.AddressObject, error)
 	// Найти адрес по почтовому индексу
 	GetAddressByPostal(term string, size int64, from int64) ([]*entity.AddressObject, error)
 	// Найти ближайший город по координатам
