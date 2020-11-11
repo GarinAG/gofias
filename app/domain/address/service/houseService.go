@@ -7,11 +7,13 @@ import (
 	"os"
 )
 
+// Сервис получения данных о домах
 type HouseService struct {
-	HouseRepo repository.HouseRepositoryInterface
-	logger    interfaces.LoggerInterface
+	HouseRepo repository.HouseRepositoryInterface // Репозиторий домов
+	logger    interfaces.LoggerInterface          // Логгер
 }
 
+// Инициализация сервиса
 func NewHouseService(houseRepo repository.HouseRepositoryInterface, logger interfaces.LoggerInterface) *HouseService {
 	err := houseRepo.Init()
 	if err != nil {
@@ -25,24 +27,25 @@ func NewHouseService(houseRepo repository.HouseRepositoryInterface, logger inter
 	}
 }
 
-func (h *HouseService) GetRepo() repository.HouseRepositoryInterface {
-	return h.HouseRepo
-}
-
+// Найти дома по GUID адреса
 func (h *HouseService) GetByAddressGuid(giud string) []*entity.HouseObject {
 	res, err := h.HouseRepo.GetByAddressGuid(giud)
-	if err != nil {
-		h.logger.Error(err.Error())
-	}
+	h.checkError(err)
 
 	return res
 }
 
+// Найти дома по подстроке
 func (h *HouseService) GetAddressByTerm(term string, size int64, from int64, filter ...entity.FilterObject) []*entity.HouseObject {
 	houses, err := h.HouseRepo.GetAddressByTerm(term, size, from, filter...)
+	h.checkError(err)
+
+	return houses
+}
+
+// Проверяет наличие ошибки и логирует ее
+func (h *HouseService) checkError(err error) {
 	if err != nil {
 		h.logger.Error(err.Error())
 	}
-
-	return houses
 }

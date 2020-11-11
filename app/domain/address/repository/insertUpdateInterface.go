@@ -1,5 +1,9 @@
 package repository
 
+import "sync"
+
+// Интерфейс обновления данных в БД
 type InsertUpdateInterface interface {
-	InsertUpdateCollection(channel <-chan interface{}, done <-chan bool, count chan<- int, isFull bool)
+	// Обновить коллекцию
+	InsertUpdateCollection(wg *sync.WaitGroup, channel <-chan interface{}, count chan<- int, isFull bool)
 }

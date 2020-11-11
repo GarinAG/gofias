@@ -3,6 +3,8 @@ module github.com/GarinAG/gofias
 go 1.14
 
 require (
+	github.com/AeroAgency/golang-bigcache-lib v0.0.0-20200722151122-ae8154db8d11
+	github.com/allegro/bigcache v1.2.1
 	github.com/antchfx/xpath v1.1.9 // indirect
 	github.com/antihax/optional v1.0.0 // indirect
 	github.com/cheggaaa/pb/v3 v3.0.4
@@ -19,8 +21,10 @@ require (
 	github.com/mattn/go-runewidth v0.0.9 // indirect
 	github.com/mitchellh/mapstructure v1.3.3 // indirect
 	github.com/olivere/elastic/v7 v7.0.19
+	github.com/paulmach/osm v0.1.1
 	github.com/pelletier/go-toml v1.8.0 // indirect
 	github.com/sarulabs/di v2.0.0+incompatible
+	github.com/schollz/progressbar/v3 v3.6.2
 	github.com/sirupsen/logrus v1.6.0
 	github.com/spf13/afero v1.3.2 // indirect
 	github.com/spf13/cast v1.3.1 // indirect
@@ -34,12 +38,12 @@ require (
 	golang.org/x/net v0.0.0-20200707034311-ab3426394381 // indirect
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d // indirect
 	golang.org/x/sync v0.0.0-20190423024810-112230192c58
-	golang.org/x/sys v0.0.0-20200728102440-3e129f6d46b1 // indirect
 	golang.org/x/text v0.3.3 // indirect
 	google.golang.org/genproto v0.0.0-20200729003335-053ba62fc06f
 	google.golang.org/grpc v1.32.0
 	google.golang.org/protobuf v1.25.0
 	gopkg.in/ini.v1 v1.57.0 // indirect
+	gopkg.in/jeevatkm/go-model.v1 v1.1.0
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 	gopkg.in/yaml.v2 v2.3.0 // indirect
 )

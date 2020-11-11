@@ -29,7 +29,14 @@ grpc:
   network: tcp
   address: localhost
   port: 50051
+  saveRequest: true
+  saveResponse: false
   gateway:
     enable: true
     address: localhost
     port: 8081
+workers:
+  houses: 10
+  addresses: 5
+osm:
+  url: http://download.geofabrik.de/russia-latest.osm.pbf

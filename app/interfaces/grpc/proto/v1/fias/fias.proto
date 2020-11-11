@@ -1,0 +1,229 @@
+syntax = "proto3";
+
+package fias_v1;
+
+option go_package = "app/infrastructure/persistence/grpc/dto/v1/fias";
+
+import "google/protobuf/empty.proto";
+import "google/api/annotations.proto";
+import "protoc-gen-swagger/options/annotations.proto";
+
+option (grpc.gateway.protoc_gen_swagger.options.openapiv2_swagger) = {
+  info: {
+    title: "GoFias service";
+    version: "3.0";
+    contact: {
+      name: "Fias service";
+      url: "https://github.com/AeroAgency/gofias";
+      email: "garin@aeroidea.ru";
+    };
+    license: {
+      name: "MIT License";
+      url: "https://github.com/AeroAgency/gofias/blob/master/LICENSE.MD";
+    };
+  };
+  schemes: HTTP;
+  schemes: HTTPS;
+  consumes: "application/json";
+  produces: "application/json";
+  responses: {
+    key: "403";
+    value: {
+      description: "Returned when the user does not have permission to access the resource.";
+      schema: {
+        json_schema: {
+          ref: "#/definitions/runtimeError";
+        }
+      }
+    }
+  }
+  responses: {
+    key: "404";
+    value: {
+      description: "Returned when the resource does not exist.";
+      schema: {
+        json_schema: {
+          ref: "#/definitions/runtimeError";
+        }
+      }
+    }
+  }
+  responses: {
+    key: "400";
+    value: {
+      description: "Returned when the request is bad.";
+      schema: {
+        json_schema: {
+          ref: "#/definitions/runtimeError";
+        }
+      }
+    }
+  }
+};
+
+service HealthService {
+  rpc CheckHealth (google.protobuf.Empty) returns (Health) {
+    option (google.api.http) = {
+      get: "/health"
+    };
+  };
+}
+
+service VersionService {
+  rpc GetVersion (google.protobuf.Empty) returns (Version) {
+    option (google.api.http) = {
+      get: "/version"
+    };
+  };
+}
+
+service AddressService {
+  rpc GetAddressByTerm (TermFilterRequest) returns (AddressListResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/address/term"
+      body: "*"
+      additional_bindings {
+      get: "/api/v1/address/term"
+      }
+    };
+  }
+  rpc GetAddressByPostal (TermRequest) returns (AddressListResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/address/postal/{term}"
+    };
+  }
+  rpc GetByGuid (GuidRequest) returns (Address) {
+    option (google.api.http) = {
+      get: "/api/v1/address/{guid}"
+    };
+  };
+  rpc GetAllCities (google.protobuf.Empty) returns (AddressListResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/cities"
+    };
+  }
+  rpc GetCitiesByTerm (TermRequest) returns (AddressListResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/cities/term"
+    };
+  }
+  rpc GetSuggests (SimpleTermFilterRequest) returns (AddressListResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/suggests",
+      body: "*"
+      additional_bindings {
+        get: "/api/v1/suggests",
+      }
+    };
+  }
+}
+
+message GuidRequest{
+  string guid = 1;
+}
+
+message TermRequest{
+  string term = 1 [(grpc.gateway.protoc_gen_swagger.options.openapiv2_field) = {description: 'Search request', required: ['term'], default: 'Москва'}];
+  int64 size = 2 [(grpc.gateway.protoc_gen_swagger.options.openapiv2_field) = {description: 'Items count on page', default: '100'}];
+  int64 from = 3 [(grpc.gateway.protoc_gen_swagger.options.openapiv2_field) = {description: 'Start items from count', default: '0'}];
+}
+
+message TermFilterRequest{
+  string term = 1 [(grpc.gateway.protoc_gen_swagger.options.openapiv2_field) = {description: 'Search request', required: ['term'], default: 'Москва'}];
+  int64 size = 2 [(grpc.gateway.protoc_gen_swagger.options.openapiv2_field) = {description: 'Items count on page', default: '100'}];
+  int64 from = 3 [(grpc.gateway.protoc_gen_swagger.options.openapiv2_field) = {description: 'Start items from count', default: '0'}];
+  FilterObject filter = 4;
+}
+
+message SimpleTermFilterRequest{
+  string term = 1 [(grpc.gateway.protoc_gen_swagger.options.openapiv2_field) = {required: ['term']}];
+  int64 size = 2;
+  FilterObject filter = 3;
+}
+
+message AddressListResponse {
+  repeated Address items = 1;
+}
+
+message FilterObject {
+  NumberFilter level = 1 [(grpc.gateway.protoc_gen_swagger.options.openapiv2_field) = {description: 'Object level'}];
+  StringFilter parent_guid = 2 [(grpc.gateway.protoc_gen_swagger.options.openapiv2_field) = {description: 'Object parent fiasId'}];
+  StringFilter kladr_id = 3 [(grpc.gateway.protoc_gen_swagger.options.openapiv2_field) = {description: 'Object kladrId'}];
+}
+
+message StringFilter {
+  repeated string values = 1 [(grpc.gateway.protoc_gen_swagger.options.openapiv2_field) = {description: 'Filter values'}];
+}
+
+message NumberFilter {
+  repeated float values = 1 [(grpc.gateway.protoc_gen_swagger.options.openapiv2_field) = {description: 'Filter values'}];
+  float min = 2 [(grpc.gateway.protoc_gen_swagger.options.openapiv2_field) = {description: 'Filter values from'}];
+  float max = 3 [(grpc.gateway.protoc_gen_swagger.options.openapiv2_field) = {description: 'Filter values to'}];
+}
+
+message Address {
+  string ID = 1;
+  string FiasId = 2;
+  string FiasLevel = 3;
+  string ParentFiasId = 4;
+  string ShortName = 5;
+  string FormalName = 6;
+  string PostalCode = 7;
+  string FullName = 8;
+  string FullAddress = 9;
+  string KladrId = 10;
+  string RegionFiasId = 11;
+  string RegionKladrId = 12;
+  string Region = 13;
+  string RegionType = 14;
+  string RegionFull = 15;
+  string AreaFiasId = 16;
+  string AreaKladrId = 17;
+  string Area = 18;
+  string AreaType = 19;
+  string AreaFull = 20;
+  string CityFiasId = 21;
+  string CityKladrId = 22;
+  string City = 23;
+  string CityType = 24;
+  string CityFull = 25;
+  string SettlementFiasId = 26;
+  string SettlementKladrId = 27;
+  string Settlement = 28;
+  string SettlementType = 29;
+  string SettlementFull = 30;
+  string StreetFiasId = 31;
+  string StreetKladrId = 32;
+  string Street = 33;
+  string StreetType = 34;
+  string StreetFull = 35;
+  string HouseFiasId = 36;
+  string HouseKladrId = 37;
+  string House = 38;
+  string HouseType = 39;
+  string HouseFull = 40;
+  float GeoLat = 41;
+  float GeoLon = 42;
+  string Okato = 43;
+  string Oktmo = 44;
+  string UpdatedDate = 45;
+}
+
+message Health {
+  int64 Uptime = 1;
+  float AllocatedMemory = 2;
+  float TotalAllocatedMemory = 3;
+  int32 Goroutines = 4;
+  uint32 GCCycles = 5;
+  int32 NumberOfCPUs = 6;
+  float HeapSys = 7;
+  float HeapAllocated = 8;
+  uint64 ObjectsInUse = 9;
+  float OSMemoryObtained = 10;
+}
+
+message Version {
+  string ServerVersion = 1;
+  string GrpcVersion = 2;
+  string FiasVersion = 3;
+}

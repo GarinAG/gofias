@@ -1,31 +1,49 @@
 # GoFias
 
-gofias is a [Go](http://www.golang.org/) (golang) library that import [fias](https://fias.nalog.ru/) data to [Elasticsearch](http://www.elasticsearch.org/)
+[Go](http://www.golang.org/) (golang) библиотека для импорта данных из [БД ФИАС](https://fias.nalog.ru/) в [Elasticsearch](http://www.elasticsearch.org/)
 
-## Usage
+Прочитать на других языках: [Русский](README.md), [English](README.en.md).
 
+## Базовые параметры командной строки
+* `config-path (строка)` - Установить путь конфигурации (по умолчанию `./`)
+* `config-type (строка)` - Установите тип конфигурации (по умолчани `yaml`)
+
+## Использование сервиса импорта ФИАС
 ```shell script
-cd GOROOT/src
-git clone https://github.com/GarinAG/gofias.git
-cd gofias/app/
+cd GOROOT/src/gofias/app/
 go build -o ./fias ./application/cli/
 cd ..
 ./fias update --skip-houses --skip-clear
 ```
 
-## CLI props
+## Параметры командной строки сервиса импорта ФИАС
+* `skip-clear (булево)` - Пропустить очистку каталога при запуске (по умолчанию `false`)
+* `skip-houses (булево)` - Пропустить импорт домов (default `false`)
+* `skip-osm (булево)` - Пропустить импорт гео-данных (default `false`)
 
-* `skip-clear (bool)` - Skip clear tmp directory on start (default `false`)
-* `skip-houses (bool)` - Skip houses index (default `false`)
+## Использование GRPC-сервера
 
+### С использованием docker (docker-compose)
+```shell script
+cd GOROOT/src/gofias
+docker-compose up -d
+```
 
-## ElasticSearch indexes info
+### Без использования docker (docker-compose)
+```shell script
+cd GOROOT/src/gofias
+go build -o ./grpc_fias ./application/grpc/
+cd ..
+./grpc_fias
+```
 
-### address
+## Информация об индексах ElasticSearch
 
-Contains information about FIAS addresses
+### Адреса (address)
 
-<details><summary>Index mapping</summary>
+Содержит информацию об адресах ФИАС
+
+<details><summary>Структура индекса</summary>
 <p>
 
 ```json
@@ -33,8 +51,8 @@ Contains information about FIAS addresses
   "settings": {
     "index": {
       "number_of_shards": 1,
-      "number_of_replicas": "0",
-      "refresh_interval": "-1",
+      "number_of_replicas": 0,
+      "refresh_interval": "5s",
       "requests": {
         "cache": {
           "enable": "true"
@@ -51,18 +69,22 @@ Contains information about FIAS addresses
           },
           "edge_ngram": {
             "type": "edge_ngram",
-            "min_gram": "2",
-            "max_gram": "25",
-            "token_chars": ["letter", "digit"]
+            "min_gram": "1",
+            "max_gram": "40"
           }
         },
         "analyzer": {
           "edge_ngram_analyzer": {
-            "filter": ["lowercase", "russian_stemmer", "edge_ngram"],
+            "filter": [
+              "lowercase",
+              "edge_ngram"
+            ],
             "tokenizer": "standard"
           },
           "keyword_analyzer": {
-            "filter": ["lowercase", "russian_stemmer"],
+            "filter": [
+              "lowercase"
+            ],
             "tokenizer": "standard"
           }
         }
@@ -129,6 +151,9 @@ Contains information about FIAS addresses
       "region_code": {
         "type": "keyword"
       },
+      "district_guid": {
+        "type": "keyword"
+      },
       "district": {
         "type": "keyword"
       },
@@ -136,6 +161,9 @@ Contains information about FIAS addresses
         "type": "keyword"
       },
       "district_full": {
+        "type": "keyword"
+      },
+      "settlement_guid": {
         "type": "keyword"
       },
       "settlement": {
@@ -175,7 +203,8 @@ Contains information about FIAS addresses
         "type": "date"
       },
       "location": {
-        "type": "geo_point"
+        "type": "geo_point",
+        "ignore_malformed": true
       },
       "houses": {
         "type": "nested",
@@ -184,14 +213,7 @@ Contains information about FIAS addresses
             "type": "keyword"
           },
           "house_full_num": {
-            "type": "text",
-            "analyzer": "edge_ngram_analyzer",
-            "search_analyzer": "keyword_analyzer",
-            "fields": {
-              "keyword": {
-                "type": "keyword"
-              }
-            }
+            "type": "keyword"
           }
         }
       }
@@ -203,7 +225,7 @@ Contains information about FIAS addresses
 </p>
 </details>
 
-<details><summary>Index pipeline</summary>
+<details><summary>Обработчик удаления старых адресов</summary>
 <p>
 
 ```json
@@ -212,15 +234,15 @@ Contains information about FIAS addresses
   "drop not actual addresses",
   "processors": [{
     "drop": {
-      "if": "ctx.curr_status  != '0' "
+      "if": "ctx.curr_status != 0"
     }
   }, {
     "drop": {
-      "if": "ctx.act_status  != '1'"
+      "if": "ctx.act_status != 1"
     }
   }, {
     "drop": {
-      "if": "ctx.live_status  != '1'"
+      "if": "ctx.live_status != 1"
     }
   }]
 }
@@ -229,11 +251,11 @@ Contains information about FIAS addresses
 </p>
 </details>
 
-### houses
+### Дома (houses)
 
-Contains information about FIAS houses
+Содержит информацию о домах ФИАС
 
-<details><summary>Index mapping</summary>
+<details><summary>Структура индекса</summary>
 <p>
 
 ```json
@@ -241,8 +263,8 @@ Contains information about FIAS houses
   "settings": {
     "index": {
       "number_of_shards": 1,
-      "number_of_replicas": "0",
-      "refresh_interval": "-1",
+      "number_of_replicas": 0,
+      "refresh_interval": "5s",
       "requests": {
         "cache": {
           "enable": "true"
@@ -257,24 +279,33 @@ Contains information about FIAS houses
             "type": "stemmer",
             "name": "russian"
           },
+          "ngram": {
+            "type": "ngram",
+            "min_gram": "1",
+            "max_gram": "15"
+          },
           "edge_ngram": {
             "type": "edge_ngram",
-            "min_gram": "2",
-            "max_gram": "25",
-            "token_chars": ["letter", "digit"]
+            "min_gram": "1",
+            "max_gram": "50"
           }
         },
         "analyzer": {
+          "ngram_analyzer": {
+            "filter": ["lowercase", "ngram"],
+            "tokenizer": "standard"
+          },
           "edge_ngram_analyzer": {
-            "filter": ["lowercase", "russian_stemmer", "edge_ngram"],
+            "filter": ["lowercase", "edge_ngram"],
             "tokenizer": "standard"
           },
           "keyword_analyzer": {
-            "filter": ["lowercase", "russian_stemmer"],
+            "filter": ["lowercase"],
             "tokenizer": "standard"
           }
         }
-      }
+      },
+      "max_ngram_diff": 14
     }
   },
   "mappings": {
@@ -295,15 +326,23 @@ Contains information about FIAS houses
       "house_num": {
         "type": "keyword"
       },
-      "house_full_num": {
+      "address_suggest": {
         "type": "text",
         "analyzer": "edge_ngram_analyzer",
+        "search_analyzer": "keyword_analyzer"
+      },
+      "house_full_num": {
+        "type": "text",
+        "analyzer": "ngram_analyzer",
         "search_analyzer": "keyword_analyzer",
         "fields": {
           "keyword": {
             "type": "keyword"
           }
         }
+      },
+      "full_address": {
+        "type": "keyword"
       },
       "str_num": {
         "type": "keyword"
@@ -336,17 +375,18 @@ Contains information about FIAS houses
         "type": "keyword"
       },
       "location": {
-        "type": "geo_point"
+        "type": "geo_point",
+        "ignore_malformed": true
       }
     }
   }
-}	  
+}  
 ```
 
 </p>
 </details>
 
-<details><summary>Index pipeline</summary>
+<details><summary>Обработчик удаления старых домов</summary>
 <p>
 
 ```json
@@ -366,11 +406,11 @@ Contains information about FIAS houses
 </details>
 
 
-### info
+### version
 
-Contains information about FIAS versions
+Содержит информацию о версиях ФИАС
 
-<details><summary>Index mapping</summary>
+<details><summary>Структура индекса</summary>
 <p>
 
 ```json
@@ -417,9 +457,19 @@ Contains information about FIAS versions
 </details>
 
 
-## Protobuf
+## Формат Protobuf
 
-#### Install
+#### Быстрые ссылки
+
+* [.proto-файлы](app/interfaces/grpc/proto)
+
+* [сгенерированные сущности](app/infrastructure/persistence/grpc/dto)
+
+* [grpc-обоработчкики запросов](app/infrastructure/persistence/grpc/handler)
+
+Используйте приведенный ниже код, если Вы хотите перегенерировать созданные ранее сущности.
+
+#### Установка protoc
 
 ```shell script
 mkdir tmp
@@ -432,22 +482,23 @@ make
 make check
 sudo make install
 
-cd $GOROOT/src/
-go get -u github.com/grpc-ecosystem/grpc-gateway/v1.15.2/protoc-gen-grpc-gateway
-go get -u github.com/grpc-ecosystem/grpc-gateway/v1.15.2/protoc-gen-swagger
+cd $GOROOT/src/gofias/app
+go get -u github.com/grpc-ecosystem/grpc-gateway/v1/protoc-gen-grpc-gateway
+go get -u github.com/grpc-ecosystem/grpc-gateway/v1/protoc-gen-swagger
 go get -u github.com/golang/protobuf/protoc-gen-go
 ```
 
-#### Generate proto
+#### Генерация сущностей
 ```shell script
 export GOOGLEAPIS=$GOPATH/pkg/mod/github.com/grpc-ecosystem/grpc-gateway@v1.15.2/third_party/googleapis;\
-protoc -I. -I$GOPATH/src -I$GOOGLEAPIS --go_out=plugins=grpc:. app/interfaces/grpc/proto/version/*.proto && \
-protoc -I/usr/local/include -I. -I$GOOGLEAPIS --grpc-gateway_out=logtostderr=true:.  app/interfaces/grpc/proto/version/*.proto && \
-protoc -I/usr/local/include -I. -I$GOOGLEAPIS --swagger_out=logtostderr=true:.  app/interfaces/grpc/proto/version/*.proto;\
-protoc -I. -I$GOPATH/src -I$GOOGLEAPIS --go_out=plugins=grpc:. app/interfaces/grpc/proto/v1/address/*.proto && \
-protoc -I/usr/local/include -I. -I$GOOGLEAPIS --grpc-gateway_out=logtostderr=true:.  app/interfaces/grpc/proto/v1/address/*.proto && \
-protoc -I/usr/local/include -I. -I$GOOGLEAPIS --swagger_out=logtostderr=true:.  app/interfaces/grpc/proto/v1/address/*.proto;\
-protoc -I. -I$GOPATH/src -I$GOOGLEAPIS --go_out=plugins=grpc:. app/interfaces/grpc/proto/health/*.proto && \
-protoc -I/usr/local/include -I. -I$GOOGLEAPIS --grpc-gateway_out=logtostderr=true:.  app/interfaces/grpc/proto/health/*.proto && \
-protoc -I/usr/local/include -I. -I$GOOGLEAPIS --swagger_out=logtostderr=true:.  app/interfaces/grpc/proto/health/*.proto;
+export SWAGGER_OPTIONS=$GOPATH/pkg/mod/github.com/grpc-ecosystem/grpc-gateway@v1.15.2;\
+protoc -I. -I$GOPATH/src -I$GOOGLEAPIS -I$SWAGGER_OPTIONS --go_out=plugins=grpc:. app/interfaces/grpc/proto/v1/address/*.proto && \
+protoc -I/usr/local/include -I. -I$GOOGLEAPIS -I$SWAGGER_OPTIONS --grpc-gateway_out=logtostderr=true:.  app/interfaces/grpc/proto/v1/address/*.proto && \
+protoc -I/usr/local/include -I. -I$GOOGLEAPIS -I$SWAGGER_OPTIONS --swagger_out=logtostderr=true:.  app/interfaces/grpc/proto/v1/address/*.proto;\
+protoc -I. -I$GOPATH/src -I$GOOGLEAPIS -I$SWAGGER_OPTIONS --go_out=plugins=grpc:. app/interfaces/grpc/proto/version/*.proto && \
+protoc -I/usr/local/include -I. -I$GOOGLEAPIS -I$SWAGGER_OPTIONS --grpc-gateway_out=logtostderr=true:.  app/interfaces/grpc/proto/version/*.proto && \
+protoc -I/usr/local/include -I. -I$GOOGLEAPIS -I$SWAGGER_OPTIONS --swagger_out=logtostderr=true:.  app/interfaces/grpc/proto/version/*.proto;\
+protoc -I. -I$GOPATH/src -I$GOOGLEAPIS -I$SWAGGER_OPTIONS --go_out=plugins=grpc:. app/interfaces/grpc/proto/health/*.proto && \
+protoc -I/usr/local/include -I. -I$GOOGLEAPIS -I$SWAGGER_OPTIONS --grpc-gateway_out=logtostderr=true:.  app/interfaces/grpc/proto/health/*.proto && \
+protoc -I/usr/local/include -I. -I$GOOGLEAPIS -I$SWAGGER_OPTIONS --swagger_out=logtostderr=true:.  app/interfaces/grpc/proto/health/*.proto;
 ```

@@ -11,13 +11,15 @@ import (
 	"time"
 )
 
+// Сервис импорта домов
 type HouseImportService struct {
-	HouseRepo   repository.HouseRepositoryInterface
-	IsFull      bool `default:"false"`
-	logger      interfaces.LoggerInterface
-	currentTime int64
+	HouseRepo   repository.HouseRepositoryInterface // Репозиторий домов
+	IsFull      bool                                `default:"false"` // Полный импорт
+	logger      interfaces.LoggerInterface          // Логгер
+	currentTime int64                               // Время начала импорта
 }
 
+// Инициализация сервиса
 func NewHouseImportService(houseRepo repository.HouseRepositoryInterface, logger interfaces.LoggerInterface) *HouseImportService {
 	err := houseRepo.Init()
 	if err != nil {
@@ -32,23 +34,22 @@ func NewHouseImportService(houseRepo repository.HouseRepositoryInterface, logger
 	}
 }
 
-func (h *HouseImportService) GetRepo() repository.HouseRepositoryInterface {
-	return h.HouseRepo
-}
-
+// Импорт домов
 func (h *HouseImportService) Import(filePath string, wg *sync.WaitGroup, cnt chan int) {
 	defer wg.Done()
+	var importWg sync.WaitGroup
+	importWg.Add(2)
 	addressChannel := make(chan interface{})
-	done := make(chan bool)
-	total := 0
-	if h.IsFull {
-		total = 75000000
-	}
-	go util.ParseFile(filePath, done, addressChannel, h.logger, h.ParseElement, "House", total)
-	go h.HouseRepo.InsertUpdateCollection(addressChannel, done, cnt, h.IsFull)
+	// Чтение файла импорта и парсинг элементов
+	go util.ParseFile(&importWg, filePath, addressChannel, h.logger, h.ParseElement, "House", -1)
+	// Сохраняет элементы в БД
+	go h.HouseRepo.InsertUpdateCollection(&importWg, addressChannel, cnt, h.IsFull)
+	importWg.Wait()
 }
 
+// Разбор объекта из xml
 func (h *HouseImportService) ParseElement(element *xmlparser.XMLElement) (interface{}, error) {
+	// Пропускает неактивные элементы при полном импорте
 	if h.IsFull {
 		end, err := time.Parse("2006-01-02", element.Attrs["ENDDATE"])
 
@@ -77,36 +78,39 @@ func (h *HouseImportService) ParseElement(element *xmlparser.XMLElement) (interf
 	return result, nil
 }
 
+// Найти дома по GUID адреса
 func (h *HouseImportService) GetByAddressGuid(giud string) []*entity.HouseObject {
 	res, err := h.HouseRepo.GetByAddressGuid(giud)
-	if err != nil {
-		h.logger.Error(err.Error())
-	}
+	h.checkError(err)
 
 	return res
 }
 
+// Получить последние обновленные дома
 func (h *HouseImportService) GetLastUpdatedGuids(start time.Time) []string {
 	res, err := h.HouseRepo.GetLastUpdatedGuids(start)
-	if err != nil {
-		h.logger.Error(err.Error())
-	}
+	h.checkError(err)
 
 	return res
 }
 
+// Подсчитать общее количество домов в БД
 func (h *HouseImportService) CountAllData() int64 {
 	res, err := h.HouseRepo.CountAllData(nil)
-	if err != nil {
-		h.logger.Error(err.Error())
-	}
+	h.checkError(err)
 
 	return res
 }
 
-func (h *HouseImportService) Index(wg *sync.WaitGroup, indexChan <-chan entity.IndexObject) {
+// Индексация таблицы домов
+func (h *HouseImportService) Index(start time.Time, wg *sync.WaitGroup, indexChan <-chan entity.IndexObject, objects repository.GetIndexObjects) {
 	defer wg.Done()
-	err := h.HouseRepo.Index(indexChan)
+	err := h.HouseRepo.Index(start, indexChan, objects)
+	h.checkError(err)
+}
+
+// Проверяет наличие ошибки и логирует ее
+func (h *HouseImportService) checkError(err error) {
 	if err != nil {
 		h.logger.Error(err.Error())
 	}

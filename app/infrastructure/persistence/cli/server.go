@@ -4,6 +4,7 @@ import (
 	"github.com/GarinAG/gofias/domain/address/service"
 	directoryService "github.com/GarinAG/gofias/domain/directory/service"
 	fiasApiService "github.com/GarinAG/gofias/domain/fiasApi/service"
+	osmService "github.com/GarinAG/gofias/domain/osm/service"
 	versionService "github.com/GarinAG/gofias/domain/version/service"
 	"github.com/GarinAG/gofias/infrastructure/registry"
 	"github.com/GarinAG/gofias/interfaces"
@@ -11,20 +12,24 @@ import (
 	"os"
 )
 
+// Объект приложения
 type App struct {
-	Server           *cli.App
-	Container        *registry.Container
-	Config           interfaces.ConfigInterface
-	Logger           interfaces.LoggerInterface
-	ImportService    *service.ImportService
-	AddressService   *service.AddressImportService
-	HouseService     *service.HouseImportService
-	VersionService   *versionService.VersionService
-	DirectoryService *directoryService.DirectoryService
-	FiasApiService   *fiasApiService.FiasApiService
+	Server           *cli.App                           // CLI сервер приложения
+	Container        *registry.Container                // Контейнер зависимостей
+	Config           interfaces.ConfigInterface         // Конфигурации
+	Logger           interfaces.LoggerInterface         // Логгер
+	ImportService    *service.ImportService             // Сервис импорта
+	AddressService   *service.AddressImportService      // Сервис импорта адресов
+	HouseService     *service.HouseImportService        // Сервис импорта домов
+	VersionService   *versionService.VersionService     // Сервис версий
+	DirectoryService *directoryService.DirectoryService // Сервис управления файлами
+	FiasApiService   *fiasApiService.FiasApiService     // Сервис ФИАС
+	OsmService       *osmService.OsmService             // Сервис OSM
 }
 
+// Инициализация приложения
 func NewApp(ctn *registry.Container) *App {
+	// Инициализация сервера
 	server := initCli()
 	logger := ctn.Resolve("logger").(interfaces.LoggerInterface)
 
@@ -46,9 +51,11 @@ func NewApp(ctn *registry.Container) *App {
 		HouseService:     ctn.Resolve("houseImportService").(*service.HouseImportService),
 		VersionService:   ctn.Resolve("versionService").(*versionService.VersionService),
 		FiasApiService:   ctn.Resolve("fiasApiService").(*fiasApiService.FiasApiService),
+		OsmService:       ctn.Resolve("osmService").(*osmService.OsmService),
 	}
 }
 
+// Инициализация CLI сервера
 func initCli() *cli.App {
 	app := cli.App{
 		Name:    "fiascli",
@@ -71,6 +78,7 @@ func initCli() *cli.App {
 	return &app
 }
 
+// Запуск сервера
 func (a *App) Run() error {
 	err := a.Server.Run(os.Args)
 	return err

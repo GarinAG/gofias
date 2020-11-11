@@ -14,6 +14,7 @@ import (
 )
 
 const (
+	// Структура индекса в эластике
 	versionIndexSettings = `
 	{
 	  "settings": {
@@ -55,24 +56,28 @@ const (
 	`
 )
 
+// Репозиторий версий в эластике
 type ElasticVersionRepository struct {
-	elasticClient *elasticHelper.Client
-	indexName     string
+	elasticClient *elasticHelper.Client // Клиент эластика
+	indexName     string                // Название индекса
 }
 
+// Инициализация репозитория
 func NewElasticVersionRepository(elasticClient *elasticHelper.Client, configInterface interfaces.ConfigInterface) repository.VersionRepositoryInterface {
 	repos := &ElasticVersionRepository{
 		elasticClient: elasticClient,
-		indexName:     configInterface.GetString("project.prefix") + entity.Version{}.TableName(),
+		indexName:     configInterface.GetConfig().ProjectPrefix + entity.Version{}.TableName(),
 	}
 
 	return repos
 }
 
+// Инициализация индекса
 func (v *ElasticVersionRepository) Init() error {
 	return v.elasticClient.CreateIndex(v.indexName, versionIndexSettings)
 }
 
+// Получить текущую версию БД ФИАС
 func (v *ElasticVersionRepository) GetVersion() (*entity.Version, error) {
 	versionSearchResult, _ := v.elasticClient.Client.Search(v.indexName).
 		Sort("version_id", false).
@@ -81,6 +86,7 @@ func (v *ElasticVersionRepository) GetVersion() (*entity.Version, error) {
 		Do(context.Background())
 
 	var dtoItem dto.JsonVersionDto
+	// Конвертирует структуру ответа в DTO
 	if versionSearchResult != nil && len(versionSearchResult.Hits.Hits) > 0 {
 		if err := json.Unmarshal(versionSearchResult.Hits.Hits[0].Source, &dtoItem); err != nil {
 			return nil, err
@@ -92,6 +98,7 @@ func (v *ElasticVersionRepository) GetVersion() (*entity.Version, error) {
 	return nil, nil
 }
 
+// Сохранить версию
 func (v *ElasticVersionRepository) SetVersion(version *entity.Version) error {
 	doc := v.convertToDto(*version)
 	id := strconv.Itoa(doc.ID)
@@ -111,6 +118,7 @@ func (v *ElasticVersionRepository) SetVersion(version *entity.Version) error {
 	return nil
 }
 
+// Конвертирует объект версии эластика в объект версии
 func (v *ElasticVersionRepository) convertToEntity(item dto.JsonVersionDto) *entity.Version {
 	return &entity.Version{
 		ID:               item.ID,
@@ -121,6 +129,7 @@ func (v *ElasticVersionRepository) convertToEntity(item dto.JsonVersionDto) *ent
 	}
 }
 
+// Конвертирует объект версии в объект версии эластика
 func (v *ElasticVersionRepository) convertToDto(item entity.Version) *dto.JsonVersionDto {
 	return &dto.JsonVersionDto{
 		ID:               item.ID,
@@ -131,6 +140,7 @@ func (v *ElasticVersionRepository) convertToDto(item entity.Version) *dto.JsonVe
 	}
 }
 
+// Удалить индекс
 func (v *ElasticVersionRepository) Clear() error {
 	return v.elasticClient.DropIndex(v.indexName)
 }

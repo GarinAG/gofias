@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	addressCli "github.com/GarinAG/gofias/domain/address/delivery/cli"
+	osmCli "github.com/GarinAG/gofias/domain/osm/delivery/cli"
 	versionCli "github.com/GarinAG/gofias/domain/version/delivery/cli"
 	indexCli "github.com/GarinAG/gofias/infrastructure/persistence/address/elastic/delivery/cli"
 	cli2 "github.com/GarinAG/gofias/infrastructure/persistence/cli"
@@ -26,13 +27,15 @@ func main() {
 	}
 
 	// Инициализация глобальной переменно вывода информации в консоль
-	util.CanPrintProcess = ctn.Resolve("config").(interfaces.ConfigInterface).GetBool("process.print")
+	util.CanPrintProcess = ctn.Resolve("config").(interfaces.ConfigInterface).GetConfig().ProcessPrint
 
 	// Инициализация приложения
 	app := cli2.NewApp(ctn)
+	// Инициализация команд приложения
 	addressCli.RegisterImportCliEndpoint(app)
 	indexCli.RegisterIndexCliEndpoint(app)
 	versionCli.RegisterVersionCliEndpoint(app)
+	osmCli.RegisterOsmCliEndpoint(app)
 
 	// Запуск приложения
 	if err := app.Run(); err != nil {

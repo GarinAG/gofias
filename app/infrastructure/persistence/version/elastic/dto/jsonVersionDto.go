@@ -1,5 +1,6 @@
 package dto
 
+// Объект версии в эластике
 type JsonVersionDto struct {
 	ID               int    `json:"version_id"`
 	FiasVersion      string `json:"fias_version"`
