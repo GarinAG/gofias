@@ -490,15 +490,9 @@ go get -u github.com/golang/protobuf/protoc-gen-go
 
 #### Генерация сущностей
 ```shell script
-export GOOGLEAPIS=$GOPATH/pkg/mod/github.com/grpc-ecosystem/grpc-gateway@v1.15.2/third_party/googleapis;\
 export SWAGGER_OPTIONS=$GOPATH/pkg/mod/github.com/grpc-ecosystem/grpc-gateway@v1.15.2;\
-protoc -I. -I$GOPATH/src -I$GOOGLEAPIS -I$SWAGGER_OPTIONS --go_out=plugins=grpc:. app/interfaces/grpc/proto/v1/address/*.proto && \
-protoc -I/usr/local/include -I. -I$GOOGLEAPIS -I$SWAGGER_OPTIONS --grpc-gateway_out=logtostderr=true:.  app/interfaces/grpc/proto/v1/address/*.proto && \
-protoc -I/usr/local/include -I. -I$GOOGLEAPIS -I$SWAGGER_OPTIONS --swagger_out=logtostderr=true:.  app/interfaces/grpc/proto/v1/address/*.proto;\
-protoc -I. -I$GOPATH/src -I$GOOGLEAPIS -I$SWAGGER_OPTIONS --go_out=plugins=grpc:. app/interfaces/grpc/proto/version/*.proto && \
-protoc -I/usr/local/include -I. -I$GOOGLEAPIS -I$SWAGGER_OPTIONS --grpc-gateway_out=logtostderr=true:.  app/interfaces/grpc/proto/version/*.proto && \
-protoc -I/usr/local/include -I. -I$GOOGLEAPIS -I$SWAGGER_OPTIONS --swagger_out=logtostderr=true:.  app/interfaces/grpc/proto/version/*.proto;\
-protoc -I. -I$GOPATH/src -I$GOOGLEAPIS -I$SWAGGER_OPTIONS --go_out=plugins=grpc:. app/interfaces/grpc/proto/health/*.proto && \
-protoc -I/usr/local/include -I. -I$GOOGLEAPIS -I$SWAGGER_OPTIONS --grpc-gateway_out=logtostderr=true:.  app/interfaces/grpc/proto/health/*.proto && \
-protoc -I/usr/local/include -I. -I$GOOGLEAPIS -I$SWAGGER_OPTIONS --swagger_out=logtostderr=true:.  app/interfaces/grpc/proto/health/*.proto;
+export GOOGLEAPIS=SWAGGER_OPTIONS/third_party/googleapis;\
+protoc -I. -I$GOPATH/src -I$GOOGLEAPIS -I$SWAGGER_OPTIONS --go_out=plugins=grpc:. app/interfaces/grpc/proto/v1/fias/*.proto && \
+protoc -I/usr/local/include -I. -I$GOOGLEAPIS -I$SWAGGER_OPTIONS --grpc-gateway_out=logtostderr=true:.  app/interfaces/grpc/proto/v1/fias/*.proto && \
+protoc -I/usr/local/include -I. -I$GOOGLEAPIS -I$SWAGGER_OPTIONS --swagger_out=logtostderr=true:.  app/interfaces/grpc/proto/v1/fias/*.proto;
 ```
