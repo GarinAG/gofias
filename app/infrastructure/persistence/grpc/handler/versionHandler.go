@@ -3,7 +3,7 @@ package handler
 import (
 	"context"
 	"github.com/GarinAG/gofias/domain/version/service"
-	"github.com/GarinAG/gofias/infrastructure/persistence/grpc/dto/version"
+	"github.com/GarinAG/gofias/infrastructure/persistence/grpc/dto/v1/fias"
 	"github.com/golang/protobuf/ptypes/empty"
 	"google.golang.org/grpc"
 	"strconv"
@@ -27,10 +27,10 @@ func NewVersionHandler(a *service.VersionService, v string) *VersionHandler {
 }
 
 // Получить информацию о версии приложения
-func (h *VersionHandler) GetVersion(ctx context.Context, empty *empty.Empty) (*version.Version, error) {
-	// Получает поледнюю версию БД ФИАС
+func (h *VersionHandler) GetVersion(ctx context.Context, empty *empty.Empty) (*fias.Version, error) {
+	// Получает последнюю версию БД ФИАС
 	lastVersion := h.versionService.GetLastVersionInfo()
-	return &version.Version{
+	return &fias.Version{
 		ServerVersion: h.Version,
 		FiasVersion:   strconv.Itoa(lastVersion.ID),
 		GrpcVersion:   grpc.Version,

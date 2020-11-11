@@ -3,6 +3,7 @@ package dto
 import (
 	"github.com/GarinAG/gofias/domain/address/entity"
 	"github.com/GarinAG/gofias/util"
+	"gopkg.in/jeevatkm/go-model.v1"
 	"strings"
 	"time"
 )
@@ -28,14 +29,28 @@ type JsonAddressDto struct {
 	StartDate       string `json:"start_date"`
 	EndDate         string `json:"end_date"`
 	UpdateDate      string `json:"update_date"`
-	DistrictGuid    string `json:"district_guid"`
-	District        string `json:"district"`
-	DistrictType    string `json:"district_type"`
-	DistrictFull    string `json:"district_full"`
+	RegionGuid      string `json:"district_guid"`
+	RegionKladr     string `json:"district_kladr"`
+	Region          string `json:"district"`
+	RegionType      string `json:"district_type"`
+	RegionFull      string `json:"district_full"`
+	AreaGuid        string `json:"area_guid"`
+	AreaKladr       string `json:"area_kladr"`
+	Area            string `json:"area"`
+	AreaType        string `json:"area_type"`
+	AreaFull        string `json:"area_full"`
+	CityGuid        string `json:"city_guid"`
+	CityKladr       string `json:"city_kladr"`
+	City            string `json:"city"`
+	CityType        string `json:"city_type"`
+	CityFull        string `json:"city_full"`
 	SettlementGuid  string `json:"settlement_guid"`
+	SettlementKladr string `json:"settlement_kladr"`
 	Settlement      string `json:"settlement"`
 	SettlementType  string `json:"settlement_type"`
 	SettlementFull  string `json:"settlement_full"`
+	StreetGuid      string `json:"street_guid"`
+	StreetKladr     string `json:"street_kladr"`
 	Street          string `json:"street"`
 	StreetType      string `json:"street_type"`
 	StreetFull      string `json:"street_full"`
@@ -47,79 +62,18 @@ type JsonAddressDto struct {
 
 // Конвертирует объект адреса эластика в объект адрес
 func (item *JsonAddressDto) ToEntity() *entity.AddressObject {
-	return &entity.AddressObject{
-		ID:             item.ID,
-		AoGuid:         item.AoGuid,
-		ParentGuid:     item.ParentGuid,
-		FormalName:     item.FormalName,
-		ShortName:      item.ShortName,
-		AoLevel:        item.AoLevel,
-		OffName:        item.OffName,
-		Code:           item.Code,
-		RegionCode:     item.RegionCode,
-		PostalCode:     item.PostalCode,
-		Okato:          item.Okato,
-		Oktmo:          item.Oktmo,
-		ActStatus:      item.ActStatus,
-		LiveStatus:     item.LiveStatus,
-		CurrStatus:     item.CurrStatus,
-		StartDate:      item.StartDate,
-		EndDate:        item.EndDate,
-		UpdateDate:     item.UpdateDate,
-		FullName:       item.FullName,
-		FullAddress:    item.FullAddress,
-		AddressSuggest: item.AddressSuggest,
-		DistrictGuid:   item.DistrictGuid,
-		District:       item.District,
-		DistrictType:   item.DistrictType,
-		DistrictFull:   item.DistrictFull,
-		SettlementGuid: item.SettlementGuid,
-		Settlement:     item.Settlement,
-		SettlementType: item.SettlementType,
-		SettlementFull: item.SettlementFull,
-		Street:         item.Street,
-		StreetType:     item.StreetType,
-		StreetFull:     item.StreetFull,
-		Location:       item.Location,
-	}
+	address := entity.AddressObject{}
+	model.Copy(&address, item)
+
+	return &address
 }
 
 // Конвертирует объект адреса в объект адреса эластика
 func (item *JsonAddressDto) GetFromEntity(entity entity.AddressObject) {
-	item.ID = entity.ID
-	item.AoGuid = entity.AoGuid
-	item.ParentGuid = entity.ParentGuid
-	item.AoLevel = entity.AoLevel
+	model.Copy(item, entity)
 	item.FormalName = strings.Trim(entity.FormalName, " -.,")
 	item.ShortName = strings.Trim(entity.ShortName, " -.,")
 	item.OffName = strings.Trim(entity.OffName, " -.,")
-	item.FullName = entity.FullName
-	item.FullAddress = entity.FullAddress
-	item.AddressSuggest = entity.AddressSuggest
-	item.Code = entity.Code
-	item.RegionCode = entity.RegionCode
-	item.PostalCode = entity.PostalCode
-	item.Okato = entity.Okato
-	item.Oktmo = entity.Oktmo
-	item.ActStatus = entity.ActStatus
-	item.LiveStatus = entity.LiveStatus
-	item.CurrStatus = entity.CurrStatus
-	item.StartDate = entity.StartDate
-	item.EndDate = entity.EndDate
-	item.UpdateDate = entity.UpdateDate
-	item.DistrictGuid = entity.DistrictGuid
-	item.District = entity.District
-	item.DistrictType = entity.DistrictType
-	item.DistrictFull = entity.DistrictFull
-	item.SettlementGuid = entity.SettlementGuid
-	item.Settlement = entity.Settlement
-	item.SettlementType = entity.SettlementType
-	item.SettlementFull = entity.SettlementFull
-	item.Street = entity.Street
-	item.StreetType = entity.StreetType
-	item.StreetFull = entity.StreetFull
-	item.Location = entity.Location
-
 	if item.FullName == "" {
 		item.FullName = util.PrepareFullName(item.ShortName, item.FormalName)
 	}
@@ -158,17 +112,41 @@ func (item *JsonAddressDto) UpdateFromExistItem(entity entity.AddressObject) {
 	if entity.AddressSuggest != "" {
 		item.AddressSuggest = entity.AddressSuggest
 	}
-	if entity.DistrictGuid != "" {
-		item.DistrictGuid = entity.DistrictGuid
+	if entity.RegionGuid != "" {
+		item.RegionGuid = entity.RegionGuid
 	}
-	if entity.District != "" {
-		item.District = entity.District
+	if entity.Region != "" {
+		item.Region = entity.Region
 	}
-	if entity.DistrictType != "" {
-		item.DistrictType = entity.DistrictType
+	if entity.RegionType != "" {
+		item.RegionType = entity.RegionType
 	}
-	if entity.DistrictFull != "" {
-		item.DistrictFull = entity.DistrictFull
+	if entity.RegionFull != "" {
+		item.RegionFull = entity.RegionFull
+	}
+	if entity.AreaGuid != "" {
+		item.AreaGuid = entity.AreaGuid
+	}
+	if entity.Area != "" {
+		item.Area = entity.Area
+	}
+	if entity.AreaType != "" {
+		item.AreaType = entity.AreaType
+	}
+	if entity.AreaFull != "" {
+		item.AreaFull = entity.AreaFull
+	}
+	if entity.CityGuid != "" {
+		item.CityGuid = entity.CityGuid
+	}
+	if entity.City != "" {
+		item.City = entity.City
+	}
+	if entity.CityType != "" {
+		item.CityType = entity.CityType
+	}
+	if entity.CityFull != "" {
+		item.CityFull = entity.CityFull
 	}
 	if entity.SettlementGuid != "" {
 		item.SettlementGuid = entity.SettlementGuid

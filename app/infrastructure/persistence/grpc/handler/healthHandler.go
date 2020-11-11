@@ -2,7 +2,7 @@ package handler
 
 import (
 	"context"
-	"github.com/GarinAG/gofias/infrastructure/persistence/grpc/dto/health"
+	"github.com/GarinAG/gofias/infrastructure/persistence/grpc/dto/v1/fias"
 	"github.com/golang/protobuf/ptypes/empty"
 	"google.golang.org/grpc"
 	"math"
@@ -28,11 +28,11 @@ func NewHealthHandler() *HealthHandler {
 }
 
 // Проверка состояния сервера
-func (h *HealthHandler) CheckHealth(ctx context.Context, empty *empty.Empty) (*health.Health, error) {
+func (h *HealthHandler) CheckHealth(ctx context.Context, empty *empty.Empty) (*fias.Health, error) {
 	mem := &runtime.MemStats{}
 	runtime.ReadMemStats(mem)
 
-	return &health.Health{
+	return &fias.Health{
 		Uptime:               h.GetUptime(),                 // Время работы сервера
 		AllocatedMemory:      h.toMegaBytes(mem.Alloc),      // Текущее количество потребляемой памяти
 		TotalAllocatedMemory: h.toMegaBytes(mem.TotalAlloc), // Общее количество потребляемой памяти

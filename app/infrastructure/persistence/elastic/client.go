@@ -108,9 +108,13 @@ func (e *Client) RefreshIndexes(indexes []string) {
 }
 
 // Получить элементы из индекса через ScrollApi
-func (e *Client) ScrollData(scrollService *elastic.ScrollService) ([]elastic.SearchHit, error) {
+func (e *Client) ScrollData(scrollService *elastic.ScrollService, batch int) ([]elastic.SearchHit, error) {
 	ctx := context.Background()
-	scrollService.Scroll("1m")
+	// Ограничивает размер пачки при поиске
+	if batch > 10000 {
+		batch = 10000
+	}
+	scrollService.Scroll("1m").Size(batch)
 	var totals []elastic.SearchHit
 
 	// Получает данные из эластика пачками
@@ -120,13 +124,17 @@ func (e *Client) ScrollData(scrollService *elastic.ScrollService) ([]elastic.Sea
 			break
 		}
 		if err != nil {
-			return nil, err
+			totals = nil
+			break
 		}
 		if res == nil || len(res.Hits.Hits) == 0 {
 			break
 		}
 		for _, hit := range res.Hits.Hits {
 			totals = append(totals, *hit)
+		}
+		if len(res.Hits.Hits) < batch {
+			break
 		}
 	}
 

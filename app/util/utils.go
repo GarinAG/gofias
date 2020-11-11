@@ -46,3 +46,13 @@ func SortStringSliceByLength(slice []string) {
 		return len(slice[i]) > len(slice[j])
 	})
 }
+
+// Конвертировать массив чисел в массив итерфейсов
+func ConvertFloat32SliceToInterface(slice []float32) []interface{} {
+	newSlice := make([]interface{}, len(slice))
+	for i := range slice {
+		newSlice[i] = slice[i]
+	}
+
+	return newSlice
+}

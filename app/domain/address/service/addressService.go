@@ -45,8 +45,8 @@ func (a *AddressService) GetCitiesByTerm(term string, size int64, from int64) []
 }
 
 // Найти адрес по подстроке
-func (a *AddressService) GetAddressByTerm(term string, size int64, from int64) []*entity.AddressObject {
-	cities, err := a.addressRepo.GetAddressByTerm(term, size, from)
+func (a *AddressService) GetAddressByTerm(term string, size int64, from int64, filter ...entity.FilterObject) []*entity.AddressObject {
+	cities, err := a.addressRepo.GetAddressByTerm(term, size, from, filter...)
 	a.checkError(err)
 
 	return cities

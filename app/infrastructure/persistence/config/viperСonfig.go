@@ -68,6 +68,8 @@ func (config *ViperConfig) initConfig() {
 				Address: config.GetString("grpc.gateway.address", "localhost"),
 				Port:    config.GetString("grpc.gateway.port", "8081"),
 			},
+			SaveRequest:  config.GetBool("grpc.saveRequest"),
+			SaveResponse: config.GetBool("grpc.saveResponse"),
 		},
 		Workers: interfaces.WorkersConfig{
 			Houses:    config.GetInt("workers.houses", 8),

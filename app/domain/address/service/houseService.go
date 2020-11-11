@@ -36,8 +36,8 @@ func (h *HouseService) GetByAddressGuid(giud string) []*entity.HouseObject {
 }
 
 // Найти дома по подстроке
-func (h *HouseService) GetAddressByTerm(term string, size int64, from int64) []*entity.HouseObject {
-	houses, err := h.HouseRepo.GetAddressByTerm(term, size, from)
+func (h *HouseService) GetAddressByTerm(term string, size int64, from int64, filter ...entity.FilterObject) []*entity.HouseObject {
+	houses, err := h.HouseRepo.GetAddressByTerm(term, size, from, filter...)
 	h.checkError(err)
 
 	return houses
