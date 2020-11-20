@@ -6,6 +6,7 @@ import (
 	versionService "github.com/GarinAG/gofias/domain/version/service"
 	grpcHandlerFiasV1 "github.com/GarinAG/gofias/infrastructure/persistence/grpc/dto/v1/fias"
 	handlers "github.com/GarinAG/gofias/infrastructure/persistence/grpc/handler"
+	"github.com/GarinAG/gofias/infrastructure/persistence/swagger/handler"
 	"github.com/GarinAG/gofias/infrastructure/registry"
 	"github.com/GarinAG/gofias/interfaces"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
@@ -155,10 +156,16 @@ func (g *GrpcServer) proxyService(wg *sync.WaitGroup) {
 	if err != nil {
 		g.Logger.Fatal("error reg version endpoint", err)
 	}
+	// Регистрируем swagger
+	err = handler.RegisterSwaggerHandlers(ctx, mux)
+	if err != nil {
+		g.Logger.Fatal("error reg swagger endpoint", err)
+	}
 
 	// Запускает http-сервер
 	gatewayAddress := g.Config.GetConfig().Grpc.Gateway.Address + ":" + g.Config.GetConfig().Grpc.Gateway.Port
 	g.Logger.Info("Start Http server on: " + gatewayAddress)
+
 	g.Logger.Fatal(http.ListenAndServe(gatewayAddress, mux).Error())
 }
 

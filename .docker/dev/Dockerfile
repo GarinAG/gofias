@@ -1,12 +1,12 @@
 # build stage
-FROM golang:alpine as build
+FROM golang:alpine as builder
 
 ARG GRPC_PORT=50051
 ARG GRPC_GATEWAY_PORT=8081
 
 RUN mkdir /app
 WORKDIR /app
-COPY ./app .
+COPY app/ .
 
 RUN go clean --modcache
 RUN go get github.com/githubnemo/CompileDaemon

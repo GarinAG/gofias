@@ -452,16 +452,20 @@
         "parameters": [
           {
             "name": "term",
+            "description": "Search request",
             "in": "query",
             "required": true,
-            "type": "string"
+            "type": "string",
+            "default": "Москва"
           },
           {
             "name": "size",
+            "description": "Items count on page",
             "in": "query",
             "required": false,
             "type": "string",
-            "format": "int64"
+            "format": "int64",
+            "default": "100"
           },
           {
             "name": "filter.level.values",
@@ -892,13 +896,17 @@
       "properties": {
         "term": {
           "type": "string",
+          "default": "Москва",
+          "description": "Search request",
           "required": [
             "term"
           ]
         },
         "size": {
           "type": "string",
-          "format": "int64"
+          "format": "int64",
+          "default": "100",
+          "description": "Items count on page"
         },
         "filter": {
           "$ref": "#/definitions/fias_v1FilterObject"

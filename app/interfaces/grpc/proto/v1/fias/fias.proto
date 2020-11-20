@@ -136,8 +136,8 @@ message TermFilterRequest{
 }
 
 message SimpleTermFilterRequest{
-  string term = 1 [(grpc.gateway.protoc_gen_swagger.options.openapiv2_field) = {required: ['term']}];
-  int64 size = 2;
+  string term = 1 [(grpc.gateway.protoc_gen_swagger.options.openapiv2_field) = {description: 'Search request', required: ['term'], default: 'Москва'}];
+  int64 size = 2 [(grpc.gateway.protoc_gen_swagger.options.openapiv2_field) = {description: 'Items count on page', default: '100'}];
   FilterObject filter = 3;
 }
 
