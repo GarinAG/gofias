@@ -7,6 +7,7 @@ Read this in other languages: [Русский](README.md), [English](README.en.m
 ## Base CLI props
 * `config-path (string)` - Set additional config path (default `./`)
 * `config-type (string)` - Set additional config type (default `yaml`)
+* `logger-prefix (string)` - Logger directory prefix (default `cli`)
 
 ## FIAS import service usage
 ```shell script
@@ -32,9 +33,9 @@ docker-compose up -d
 ### Without docker-compose
 ```shell script
 cd GOROOT/src/gofias
-go build -o ./grpc_fias ./application/grpc/
+go build -o ./fias ./application/grpc/
 cd ..
-./grpc_fias
+./fias --logger-prefix=grpc grpc
 ```
 
 ## ElasticSearch indexes info
@@ -486,6 +487,7 @@ cd $GOROOT/src/gofias/app
 go get -u github.com/grpc-ecosystem/grpc-gateway/v1/protoc-gen-grpc-gateway
 go get -u github.com/grpc-ecosystem/grpc-gateway/v1/protoc-gen-swagger
 go get -u github.com/golang/protobuf/protoc-gen-go
+go get -u github.com/securego/gosec/v2/cmd/gosec
 ```
 
 #### Generate proto

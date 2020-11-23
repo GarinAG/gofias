@@ -8,6 +8,7 @@ import (
 	versionCli "github.com/GarinAG/gofias/domain/version/delivery/cli"
 	indexCli "github.com/GarinAG/gofias/infrastructure/persistence/address/elastic/delivery/cli"
 	cli2 "github.com/GarinAG/gofias/infrastructure/persistence/cli"
+	"github.com/GarinAG/gofias/infrastructure/persistence/grpc/cli"
 	"github.com/GarinAG/gofias/infrastructure/registry"
 	"github.com/GarinAG/gofias/interfaces"
 	"github.com/GarinAG/gofias/util"
@@ -21,7 +22,7 @@ func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	// Инициализация контейнера зависимостей
-	ctn, err := registry.NewContainer("cli")
+	ctn, err := registry.NewContainer()
 	if err != nil {
 		panic(fmt.Sprintf("Failed to init container: %v", err))
 	}
@@ -36,6 +37,7 @@ func main() {
 	indexCli.RegisterIndexCliEndpoint(app)
 	versionCli.RegisterVersionCliEndpoint(app)
 	osmCli.RegisterOsmCliEndpoint(app)
+	cli.RegisterGrpcCliEndpoint(app)
 
 	// Запуск приложения
 	if err := app.Run(); err != nil {

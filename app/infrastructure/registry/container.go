@@ -22,8 +22,9 @@ import (
 )
 
 var (
-	ConfigPath = flag.String("config-path", "./", "Config path")
-	ConfigType = flag.String("config-type", "yaml", "Config type")
+	ConfigPath   = flag.String("config-path", "./", "Config path")
+	ConfigType   = flag.String("config-type", "yaml", "Config type")
+	LoggerPrefix = flag.String("logger-prefix", "cli", "Logger prefix")
 )
 
 // Объект контейнера зависимостей
@@ -32,7 +33,7 @@ type Container struct {
 }
 
 // Инициализация контейнера
-func NewContainer(loggerPrefix string) (*Container, error) {
+func NewContainer() (*Container, error) {
 	builder, err := di.NewBuilder()
 	if err != nil {
 		return nil, err
@@ -62,7 +63,7 @@ func NewContainer(loggerPrefix string) (*Container, error) {
 					FileLevel:          appConfig.GetConfig().LoggerFile.Level,
 					FileJSONFormat:     appConfig.GetConfig().LoggerFile.Json,
 					FileLocation:       appConfig.GetConfig().LoggerFile.Path,
-					FileLocationPrefix: loggerPrefix,
+					FileLocationPrefix: *LoggerPrefix,
 				}
 				logger := log.NewZapLogger(loggerConfig)
 

@@ -34,15 +34,11 @@ security:
 	@cd ./app && gosec ./...
 	@echo "[OK] Go security check was completed!"
 
-build-fias: #security
+build-grpc: #generate #security
 	@cd ./app && go build -o ../fias ./application/cli/main.go
-	@echo "[OK] App binary was created!"
-
-build-grpc: generate #security
-	@cd ./app && go build -o ../grpc_fias ./application/grpc/main.go
 	@echo "[OK] App binary was created!"
 
 protoc:
 	protoc -I. -I$(GOPATH)/src -I$(GOOGLEAPIS) -I$(SWAGGER_OPTIONS) --go_out=plugins=grpc:./app/infrastructure/persistence/grpc/dto ./app/interfaces/grpc/proto/v1/fias/*.proto && \
 	protoc -I. -I$(GOPATH)/src -I$(GOOGLEAPIS) -I$(SWAGGER_OPTIONS) --grpc-gateway_out=logtostderr=true:./app/infrastructure/persistence/grpc/dto ./app/interfaces/grpc/proto/v1/fias/*.proto && \
-	protoc -I. -I$(GOPATH)/src -I$(GOOGLEAPIS) -I$(SWAGGER_OPTIONS) --swagger_out=logtostderr=true,allow_merge=true,merge_file_name=fias_v1:./app/swagger ./app/interfaces/grpc/proto/v1/fias/*.proto;
+	protoc -I. -I$(GOPATH)/src -I$(GOOGLEAPIS) -I$(SWAGGER_OPTIONS) --swagger_out=logtostderr=true,allow_merge=true,merge_file_name=fias_v1:./app/swagger/config ./app/interfaces/grpc/proto/v1/fias/*.proto;

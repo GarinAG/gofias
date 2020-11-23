@@ -72,6 +72,11 @@ func initCli() *cli.App {
 				Value: "yaml",
 				Usage: "Config type",
 			},
+			&cli.StringFlag{
+				Name:  "logger-prefix",
+				Value: "cli",
+				Usage: "Logger prefix",
+			},
 		},
 	}
 

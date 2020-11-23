@@ -7,6 +7,7 @@
 ## Базовые параметры командной строки
 * `config-path (строка)` - Установить путь конфигурации (по умолчанию `./`)
 * `config-type (строка)` - Установите тип конфигурации (по умолчани `yaml`)
+* `logger-prefix (строка)` - Префикс директории для логирования (по умолчани `cli`)
 
 ## Использование сервиса импорта ФИАС
 ```shell script
@@ -32,9 +33,9 @@ docker-compose up -d
 ### Без использования docker (docker-compose)
 ```shell script
 cd GOROOT/src/gofias
-go build -o ./grpc_fias ./application/grpc/
+go build -o ./fias ./application/grpc/
 cd ..
-./grpc_fias
+./fias --logger-prefix=grpc grpc
 ```
 
 ## Информация об индексах ElasticSearch
@@ -486,6 +487,7 @@ cd $GOROOT/src/gofias/app
 go get -u github.com/grpc-ecosystem/grpc-gateway/v1/protoc-gen-grpc-gateway
 go get -u github.com/grpc-ecosystem/grpc-gateway/v1/protoc-gen-swagger
 go get -u github.com/golang/protobuf/protoc-gen-go
+go get -u github.com/securego/gosec/v2/cmd/gosec
 ```
 
 #### Генерация сущностей
