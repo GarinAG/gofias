@@ -1,53 +1,49 @@
 package handler
 
 import (
+	"bytes"
 	"context"
+	"github.com/GarinAG/gofias/infrastructure/persistence/box"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
-	"io/ioutil"
 	"net/http"
-	"path/filepath"
+	"strings"
+	"time"
 )
 
 // Получить swagger-спецификацию
 func RegisterSwaggerHandlers(ctx context.Context, mux *runtime.ServeMux) error {
-	files, _ := ioutil.ReadDir("swagger")
-
 	// Отдача статических файлов
-	for _, f := range files {
+	files := box.GetKeys()
+	for _, file := range files {
+		file := strings.Trim(file, "/")
 		mux.Handle(
 			"GET",
-			runtime.MustPattern(runtime.NewPattern(1, []int{2, 0}, []string{f.Name()}, "")),
+			runtime.MustPattern(runtime.NewPattern(1, []int{2, 0}, []string{file}, "")),
 			func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
-				staticPath, _ := filepath.Abs("swagger/" + req.URL.Path)
-				http.ServeFile(w, req, staticPath)
+				printResponse(w, req, req.URL.Path)
 			})
 	}
-	// Отдача спецификаций
-	mux.Handle(
-		"GET",
-		runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"swagger", "config"}, "")),
-		func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
-			configFile, ok := req.URL.Query()["config"]
-			// Список спецификаций проекта
-			list := map[string]string{
-				"fias.swagger.json": "interfaces/grpc/proto/v1/fias/fias.swagger.json",
-			}
-			if !ok || len(configFile[0]) < 1 || len(list[configFile[0]]) < 1 {
-				http.Error(w, "Config not found", 404)
-				return
-			}
-			staticPath, _ := filepath.Abs(list[configFile[0]])
-			http.ServeFile(w, req, staticPath)
-		})
 
 	// Отдача SwaggerUI
 	mux.Handle(
 		"GET",
 		runtime.MustPattern(runtime.NewPattern(1, []int{2, 0}, []string{""}, "")),
 		func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
-			staticPath, _ := filepath.Abs("swagger")
-			http.ServeFile(w, req, staticPath+"/index.html")
+			printResponse(w, req, "/index.html")
 		})
 
 	return nil
+}
+
+// Возвращает файлы
+func printResponse(w http.ResponseWriter, req *http.Request, filePath string) {
+	file := box.Get(filePath)
+	// Проверка файла на наличие
+	if file == nil {
+		http.NotFound(w, req)
+	}
+	fileName := strings.Trim(filePath, "/")
+	// Отдача контента
+	http.ServeContent(w, req, fileName, time.Now(),
+		bytes.NewReader(file))
 }

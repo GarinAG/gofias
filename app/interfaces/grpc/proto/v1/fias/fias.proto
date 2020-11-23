@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package fias_v1;
 
-option go_package = "app/infrastructure/persistence/grpc/dto/v1/fias";
+option go_package = "v1/fias";
 
 import "google/protobuf/empty.proto";
 import "google/api/annotations.proto";
