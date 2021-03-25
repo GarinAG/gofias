@@ -2,6 +2,7 @@ package service
 
 import (
 	"archive/zip"
+	"errors"
 	fileEntity "github.com/GarinAG/gofias/domain/directory/entity"
 	"github.com/GarinAG/gofias/interfaces"
 	"github.com/GarinAG/gofias/util"
@@ -33,9 +34,9 @@ func (d *DownloadService) ClearDirectory() {
 	dir := d.config.GetConfig().DirectoryFilePath
 
 	// Проверяет наличие директории
-	if _, err := os.Stat(dir); err == nil {
+	if d.CheckPath(dir) {
 		d.logger.WithFields(interfaces.LoggerFields{"dir": dir}).Info("Clear Tmp dir")
-		err = os.RemoveAll(dir)
+		err := os.RemoveAll(dir)
 		d.checkFatalError(err)
 	}
 }
@@ -45,7 +46,7 @@ func (d *DownloadService) CreateDirectory() {
 	dir := d.config.GetConfig().DirectoryFilePath
 
 	// Проверяет отсутствие директории
-	if _, err := os.Stat(dir); err != nil {
+	if !d.CheckPath(dir) {
 		d.logger.WithFields(interfaces.LoggerFields{"dir": dir}).Info("Create tmp dir")
 		// Создает директорию с правами 0777
 		err := os.MkdirAll(dir, os.ModePerm)
@@ -53,21 +54,30 @@ func (d *DownloadService) CreateDirectory() {
 	}
 }
 
+// Проверяет наличие файла/папки
+func (d *DownloadService) CheckPath(path string) bool {
+	_, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	return true
+}
+
 // Получить размер файла
 func (d *DownloadService) GetDownloadSize(url string) uint64 {
 	// Получает заголовки по URL
 	resp, err := http.Head(url)
 	if err != nil {
-		d.logger.WithFields(interfaces.LoggerFields{"error": err}).Fatal("Get download file size error")
-	}
-	if resp != nil {
+		d.logger.WithFields(interfaces.LoggerFields{"error": err}).Error("Get download file size error")
+	} else if resp != nil {
 		// Проверяет код ответа сервера
 		if resp.StatusCode != http.StatusOK {
-			d.logger.WithFields(interfaces.LoggerFields{"code": resp.StatusCode}).Fatal("Wrong http status code of file")
+			d.logger.WithFields(interfaces.LoggerFields{"code": resp.StatusCode}).Error("Wrong http status code of file")
+		} else {
+			// Получает размер файла из заголовка
+			size, _ := strconv.Atoi(resp.Header.Get("Content-Length"))
+			return uint64(size)
 		}
-		// Получает размер файла из заголовка
-		size, _ := strconv.Atoi(resp.Header.Get("Content-Length"))
-		return uint64(size)
 	}
 
 	return 0
@@ -79,19 +89,25 @@ func (d *DownloadService) DownloadFile(url string, fileName string) (*fileEntity
 	d.CreateDirectory()
 
 	filePathLocal := d.config.GetConfig().DirectoryFilePath + fileName
+	tmpFile := filePathLocal + ".tmp"
 	// Проверяет наличие ранее скачанного файла
 	if _, err := os.Stat(filePathLocal); os.IsNotExist(err) {
 		d.logger.WithFields(interfaces.LoggerFields{"url": url, "path": filePathLocal}).Info("Download Started")
 
 		// Создает временный файл
-		out, err := os.Create(filePathLocal + ".tmp")
+		out, err := os.Create(tmpFile)
 		if err != nil {
 			return nil, err
 		}
 		defer out.Close()
+		defer d.RemoveTmp(tmpFile)
 
+		size := int(d.GetDownloadSize(url))
+		if size == 0 {
+			return nil, errors.New("unable to get the file size")
+		}
 		// Создает прогресс-бар для отображение статуса загрузки
-		bar := util.StartNewProgress(int(d.GetDownloadSize(url)), "Downloading", true)
+		bar := util.StartNewProgress(size, "Downloading", true)
 
 		// Получает файл
 		resp, err := http.Get(url)
@@ -105,7 +121,7 @@ func (d *DownloadService) DownloadFile(url string, fileName string) (*fileEntity
 			return nil, err
 		}
 		// Переименовывает временный файл
-		if err = os.Rename(filePathLocal+".tmp", filePathLocal); err != nil {
+		if err = os.Rename(tmpFile, filePathLocal); err != nil {
 			return nil, err
 		}
 
@@ -114,6 +130,13 @@ func (d *DownloadService) DownloadFile(url string, fileName string) (*fileEntity
 	}
 
 	return &fileEntity.File{Path: filePathLocal}, nil
+}
+
+// Удаление временной папки
+func (d *DownloadService) RemoveTmp(fileName string) {
+	if d.CheckPath(fileName) {
+		os.Remove(fileName)
+	}
 }
 
 // Распаковать файл

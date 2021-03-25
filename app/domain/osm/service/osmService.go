@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/GarinAG/gofias/domain/address/repository"
+	entity2 "github.com/GarinAG/gofias/domain/directory/entity"
 	"github.com/GarinAG/gofias/domain/directory/service"
 	"github.com/GarinAG/gofias/domain/osm/entity"
 	"github.com/GarinAG/gofias/interfaces"
@@ -13,6 +14,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 )
 
 // Сервис работы с OSM
@@ -43,8 +45,26 @@ func NewOsmService(
 
 // Обновляет данные местоположений
 func (o *OsmService) Update() {
-	// Скачивает файл с данными
-	file, err := o.downloadService.DownloadFile(o.config.GetConfig().Osm.Url, "russia.pbf")
+	// Максимальное количество попыток скачивания файла
+	maxTries := o.config.GetConfig().MaxTries
+	var file *entity2.File
+	var err error
+	for i := 1; i <= maxTries; i++ {
+		// Скачивает файл
+		file, err = o.downloadService.DownloadFile(o.config.GetConfig().Osm.Url, "russia.pbf")
+		if file != nil {
+			break
+		}
+		// Повторное скачивание файла при ошибке
+		if i < maxTries {
+			if err != nil {
+				o.logger.Error(err.Error())
+			}
+			o.logger.WithFields(interfaces.LoggerFields{"file": o.config.GetConfig().Osm.Url, "attempt": i + 1}).Info("Trying to re-download file")
+			time.Sleep(5 * time.Second)
+		}
+	}
+
 	o.checkFatalError(err)
 	if file != nil {
 		// Разбирает файл с данными

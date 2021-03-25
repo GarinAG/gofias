@@ -183,8 +183,10 @@ func NewContainer() (*Container, error) {
 		{
 			Name: "fiasApiService",
 			Build: func(ctn di.Container) (interface{}, error) {
-				repo := fiasApiRepository.NewHttpFiasApiRepository(ctn.Get("config").(interfaces.ConfigInterface))
-				return fiasApiService.NewFiasApiService(repo, ctn.Get("logger").(interfaces.LoggerInterface)), nil
+				appConfig := ctn.Get("config").(interfaces.ConfigInterface)
+				logger := ctn.Get("logger").(interfaces.LoggerInterface)
+				repo := fiasApiRepository.NewHttpFiasApiRepository(appConfig)
+				return fiasApiService.NewFiasApiService(repo, logger, appConfig), nil
 			},
 		},
 		// Сервис импорта

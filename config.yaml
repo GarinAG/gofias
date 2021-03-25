@@ -11,6 +11,7 @@ batch:
   size: 10000
 directory:
   filePath: /tmp/fias/
+maxTries: 5
 process:
   print: true
 fiasApi:

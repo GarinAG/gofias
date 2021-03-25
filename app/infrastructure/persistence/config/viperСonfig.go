@@ -45,6 +45,7 @@ func (config *ViperConfig) initConfig() {
 		},
 		BatchSize:         config.GetInt("batch.size", 5000),
 		DirectoryFilePath: config.GetString("directory.filePath", "/tmp/fias/"),
+		MaxTries:          config.GetInt("maxTries", 5),
 		ProcessPrint:      config.GetBool("process.print"),
 		FiasApiUrl:        config.GetString("fiasApi.url", "https://fias.nalog.ru/WebServices/Public/"),
 		LoggerConsole: interfaces.LoggerConfig{

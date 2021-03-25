@@ -26,7 +26,7 @@ type ElasticConfig struct {
 	Password string // Пароль пользователя
 }
 
-// Конфиги логгерв
+// Конфиги логгера
 type LoggerConfig struct {
 	Enable bool   // Активность логгера
 	Level  string // Уровень логов
@@ -68,6 +68,7 @@ type BaseConfig struct {
 	Elastic           ElasticConfig // Конфиги эластика
 	BatchSize         int           // Размер пачки для обновления
 	DirectoryFilePath string        // Путь сохранения файлов импорта
+	MaxTries          int           // Максимальное количество попыток скачивания файлов/запросов к API
 	ProcessPrint      bool          // Разрешить вывод прогресса в консоль
 	FiasApiUrl        string        // Путь до FIAS Api сервиса
 	LoggerConsole     LoggerConfig  // Конфиги консольного логгера
