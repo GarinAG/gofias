@@ -4,44 +4,44 @@
 
 Прочитать на других языках: [Русский](README.md), [English](README.en.md).
 
-## Базовые параметры командной строки
-* `config-path (строка)` - Установить путь конфигурации (по умолчанию `./`)
-* `config-type (строка)` - Установите тип конфигурации (по умолчани `yaml`)
-* `logger-prefix (строка)` - Префикс директории для логирования (по умолчани `cli`)
-
-## Использование сервиса импорта ФИАС
+## Генерация ФИАС-сервиса
+### Без использования docker (docker-compose)
 ```shell script
 cd GOROOT/src/gofias/app/
 go build -o ./fias ./application/cli/
-cd ..
-./fias update --skip-houses --skip-clear
 ```
-
-## Параметры командной строки сервиса импорта ФИАС
-* `skip-clear (булево)` - Пропустить очистку каталога при запуске (по умолчанию `false`)
-* `skip-houses (булево)` - Пропустить импорт домов (default `false`)
-* `skip-osm (булево)` - Пропустить импорт гео-данных (default `false`)
-
-## Использование GRPC-сервера
-
 ### С использованием docker (docker-compose)
 ```shell script
 cd GOROOT/src/gofias
 docker-compose up -d
 ```
 
-### Без использования docker (docker-compose)
+## Параметры командной строки
+### Базовые параметры
+* `config-path (строка)` - Установить путь конфигурации (по умолчанию `./`)
+* `config-type (строка)` - Установите тип конфигурации (по умолчани `yaml`)
+* `logger-prefix (строка)` - Префикс директории для логирования (по умолчани `cli`)
+### Параметры импорта
+* `skip-clear (булево)` - Пропустить очистку каталога при запуске (по умолчанию `false`)
+* `skip-houses (булево)` - Пропустить импорт домов (default `false`)
+* `skip-osm (булево)` - Пропустить импорт гео-данных (default `false`)
+
+## Использование сервиса ФИАС
+### Сервис импорта
+```shell script.
+./fias update --skip-houses --skip-clear
+```
+### Сервис OSM-импорта гео-координат
 ```shell script
-cd GOROOT/src/gofias
-go build -o ./fias ./application/grpc/
-cd ..
+./fias osm-update
+```
+### Использование GRPC-сервера
+```shell script
 ./fias --logger-prefix=grpc grpc
 ```
 
 ## Информация об индексах ElasticSearch
-
 ### Адреса (address)
-
 Содержит информацию об адресах ФИАС
 
 <details><summary>Структура индекса</summary>
@@ -253,7 +253,6 @@ cd ..
 </details>
 
 ### Дома (houses)
-
 Содержит информацию о домах ФИАС
 
 <details><summary>Структура индекса</summary>
@@ -408,7 +407,6 @@ cd ..
 
 
 ### version
-
 Содержит информацию о версиях ФИАС
 
 <details><summary>Структура индекса</summary>
@@ -459,8 +457,7 @@ cd ..
 
 
 ## Формат Protobuf
-
-#### Быстрые ссылки
+### Быстрые ссылки
 
 * [.proto-файлы](app/interfaces/grpc/proto)
 
@@ -470,8 +467,7 @@ cd ..
 
 Используйте приведенный ниже код, если Вы хотите перегенерировать созданные ранее сущности.
 
-#### Установка protoc
-
+### Установка protoc
 ```shell script
 mkdir tmp
 cd tmp
@@ -489,8 +485,7 @@ go get -u github.com/grpc-ecosystem/grpc-gateway/v1/protoc-gen-swagger
 go get -u github.com/golang/protobuf/protoc-gen-go
 go get -u github.com/securego/gosec/v2/cmd/gosec
 ```
-
-#### Генерация сущностей
+### Генерация сущностей
 ```shell script
 export SWAGGER_OPTIONS=$GOPATH/pkg/mod/github.com/grpc-ecosystem/grpc-gateway@v1.15.2;\
 export GOOGLEAPIS=SWAGGER_OPTIONS/third_party/googleapis;\

@@ -4,44 +4,45 @@ A [Go](http://www.golang.org/) (golang) library that import [fias](https://fias.
 
 Read this in other languages: [Русский](README.md), [English](README.en.md).
 
-## Base CLI props
-* `config-path (string)` - Set additional config path (default `./`)
-* `config-type (string)` - Set additional config type (default `yaml`)
-* `logger-prefix (string)` - Logger directory prefix (default `cli`)
-
-## FIAS import service usage
+## Build FIAS service
+### Without docker-compose
 ```shell script
 cd GOROOT/src/gofias/app/
 go build -o ./fias ./application/cli/
-cd ..
-./fias update --skip-houses --skip-clear
 ```
-
-## FIAS import CLI props
-* `skip-clear (bool)` - Skip clear tmp directory on start (default `false`)
-* `skip-houses (bool)` - Skip houses index (default `false`)
-* `skip-osm (bool)` - Skip geo-data import (default `false`)
-
-## FIAS grpc server usage
-
 ### With docker-compose
 ```shell script
 cd GOROOT/src/gofias
 docker-compose up -d
 ```
 
-### Without docker-compose
+## CLI props
+### Base props
+* `config-path (string)` - Set additional config path (default `./`)
+* `config-type (string)` - Set additional config type (default `yaml`)
+* `logger-prefix (string)` - Logger directory prefix (default `cli`)
+### Import props
+* `skip-clear (bool)` - Skip clear tmp directory on start (default `false`)
+* `skip-houses (bool)` - Skip houses index (default `false`)
+* `skip-osm (bool)` - Skip geo-data import (default `false`)
+
+
+## FIAS usage
+### Import service
 ```shell script
-cd GOROOT/src/gofias
-go build -o ./fias ./application/grpc/
-cd ..
+./fias update --skip-houses --skip-clear
+```
+### OSM import service
+```shell script
+./fias osm-update
+```
+### GRPC server
+```shell script
 ./fias --logger-prefix=grpc grpc
 ```
 
 ## ElasticSearch indexes info
-
 ### address
-
 Contains information about FIAS addresses
 
 <details><summary>Index mapping</summary>
@@ -253,7 +254,6 @@ Contains information about FIAS addresses
 </details>
 
 ### houses
-
 Contains information about FIAS houses
 
 <details><summary>Index mapping</summary>
@@ -408,7 +408,6 @@ Contains information about FIAS houses
 
 
 ### version
-
 Contains information about FIAS versions
 
 <details><summary>Index mapping</summary>
@@ -459,8 +458,7 @@ Contains information about FIAS versions
 
 
 ## Protobuf
-
-#### Quick links
+### Quick links
 
 * [.proto files](app/interfaces/grpc/proto)
 
@@ -470,8 +468,7 @@ Contains information about FIAS versions
 
 Use the code below if you want to recreate the generated entities.
 
-#### Install
-
+### Install
 ```shell script
 mkdir tmp
 cd tmp
@@ -489,8 +486,7 @@ go get -u github.com/grpc-ecosystem/grpc-gateway/v1/protoc-gen-swagger
 go get -u github.com/golang/protobuf/protoc-gen-go
 go get -u github.com/securego/gosec/v2/cmd/gosec
 ```
-
-#### Generate proto
+### Generate proto
 ```shell script
 export SWAGGER_OPTIONS=$GOPATH/pkg/mod/github.com/grpc-ecosystem/grpc-gateway@v1.15.2;\
 export GOOGLEAPIS=SWAGGER_OPTIONS/third_party/googleapis;\
